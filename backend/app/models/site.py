@@ -6,6 +6,6 @@ class Site(Base):
     __tablename__ = "sites"
 
     id = Column(Integer, primary_key=True, index=True)
-    url = Column(String, nullable=False)
+    url = Column(String, unique=True, index=True, nullable=False)
     status = Column(String, default="pending")
     created_at = Column(DateTime, default=datetime.utcnow)

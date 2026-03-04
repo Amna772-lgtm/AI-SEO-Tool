@@ -34,6 +34,19 @@ services:
       DATABASE_URL: postgresql://postgres:password@db:5432/ai_seo_db
       REDIS_URL: redis://redis:6379/0
 
+  worker:
+    build: ./backend
+    container_name: ai_seo_worker
+    command: celery -A app.worker.celery_app worker --loglevel=info
+    depends_on:
+      - db
+      - redis
+    volumes:
+      - ./backend:/app
+    environment:
+      DATABASE_URL: postgresql://postgres:password@db:5432/ai_seo_db
+      REDIS_URL: redis://redis:6379/0
+
   pgadmin:
     image: dpage/pgadmin4
     container_name: ai_seo_pgadmin

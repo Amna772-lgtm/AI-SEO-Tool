@@ -18,6 +18,11 @@ export default function Home() {
         { url: url }
       );
       setResult(response.data);
+      setUrl("");
+
+      setTimeout(() => {
+        setResult(null);
+      }, 2000);
     } catch (error) {
       console.error(error);
       alert("Error analyzing site");
@@ -50,8 +55,7 @@ export default function Home() {
 
       {result && (
         <div className="mt-6 p-4 border rounded bg-gray-100 w-full max-w-xl">
-          <p><strong>Message:</strong> {result.message}</p>
-          <p><strong>Site ID:</strong> {result.site_id}</p>
+          <p className="text-black"><strong>Message:</strong> {result.message}</p>
         </div>
       )}
     </div>
