@@ -3,7 +3,7 @@ import uuid
 
 from app.worker.celery_app import celery
 from app.analyzers.crawler import crawl_site
-from app.store.crawl_store import set_meta, append_page, get_meta
+from app.store.crawl_store import set_meta, append_page, flush_pages_buffer, get_meta
 
 # Crawler emits page_data dicts; we store them in Redis (no DB).
 
@@ -26,6 +26,7 @@ def process_site(url: str, task_id: str, robots_allowed: bool = True, ai_crawler
             append_page(task_id, page_data)
 
         crawl_site(url, on_page_crawled=on_page_crawled)
+        flush_pages_buffer(task_id)
 
         set_meta(
             task_id,

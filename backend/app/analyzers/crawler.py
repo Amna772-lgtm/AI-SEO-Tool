@@ -4,6 +4,7 @@ Crawl a URL and extract SEO + technical metadata.
 - Full-site crawl: use crawl_site() to follow redirects and BFS internal links with deduplication.
 """
 from collections import deque
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Callable
 from urllib.parse import urlparse, urljoin, urlunparse
 import time
@@ -15,8 +16,9 @@ from bs4 import BeautifulSoup
 from app.utils.url_validator import normalize_url
 
 USER_AGENT = "AI-SEO-Bot/1.0"
-REQUEST_TIMEOUT = 20.0  # total request; SSL handshake can be slow on some hosts
+REQUEST_TIMEOUT = 15.0  # total request; slightly lower for faster failure on slow hosts
 DEFAULT_MAX_URLS = 500
+CONCURRENT_REQUESTS = 20  # parallel fetches per batch for BFS and external URLs
 
 # Status code -> status text (for consistent display)
 STATUS_TEXT = {
@@ -145,6 +147,14 @@ def parse_html_metadata(html: str, base_url: str) -> dict:
     }
 
 
+def _http_client_kwargs(follow_redirects: bool) -> dict:
+    return {
+        "timeout": REQUEST_TIMEOUT,
+        "follow_redirects": follow_redirects,
+        "headers": {"User-Agent": USER_AGENT},
+    }
+
+
 def fetch_page(url: str, *, follow_redirects: bool = False) -> tuple[httpx.Response, float]:
     """
     Fetch a single URL. Returns (response, response_time_seconds).
@@ -152,12 +162,19 @@ def fetch_page(url: str, *, follow_redirects: bool = False) -> tuple[httpx.Respo
     """
     url = normalize_url(url)
     start = time.perf_counter()
-    with httpx.Client(
-        timeout=REQUEST_TIMEOUT,
-        follow_redirects=follow_redirects,
-        headers={"User-Agent": USER_AGENT},
-    ) as client:
+    with httpx.Client(**_http_client_kwargs(follow_redirects)) as client:
         response = client.get(url)
+    elapsed = round(time.perf_counter() - start, 3)
+    return response, elapsed
+
+
+def fetch_page_with_client(
+    url: str, client: httpx.Client, *, follow_redirects: bool = False
+) -> tuple[httpx.Response, float]:
+    """Fetch with a shared client (connection reuse). Returns (response, response_time_seconds)."""
+    url = normalize_url(url)
+    start = time.perf_counter()
+    response = client.get(url, follow_redirects=follow_redirects)
     elapsed = round(time.perf_counter() - start, 3)
     return response, elapsed
 
@@ -394,6 +411,60 @@ def _extract_external_urls_with_depth(html: str, base_url: str, page_depth: int)
     return out
 
 
+def _extract_links_ordered(
+    html: str,
+    base_url: str,
+    page_depth: int,
+    crawled_normalized: set[str],
+    queued_normalized: set[str],
+) -> list[tuple[str, int, str]]:
+    """
+    Return list of (normalized_url, depth, link_type) in document order.
+    Only includes links not already in crawled_normalized or queued_normalized;
+    callers should add returned normals to queued_normalized.
+    """
+    links = extract_links(html, base_url)
+    depth = page_depth + 1
+    out: list[tuple[str, int, str]] = []
+    for rec in links:
+        addr = rec.get("address")
+        link_type = rec.get("type") or "internal"
+        normal = _normalize_for_dedupe(addr) if addr else None
+        if not normal or normal in crawled_normalized or normal in queued_normalized:
+            continue
+        queued_normalized.add(normal)
+        out.append((normal, depth, link_type))
+    return out
+
+
+def _fetch_one_internal(args: tuple[str, int]) -> tuple[str, int, str | None, httpx.Response | None, float, Exception | None]:
+    """Worker: fetch one internal URL. Returns (normal, depth, url, response, elapsed, error)."""
+    current_normal, depth = args
+    try:
+        current_url = normalize_url(current_normal)
+    except Exception as e:
+        return (current_normal, depth, None, None, 0.0, e)
+    try:
+        response, elapsed = fetch_page(current_url, follow_redirects=True)
+        return (current_normal, depth, current_url, response, elapsed, None)
+    except Exception as e:
+        return (current_normal, depth, current_url, None, 0.0, e)
+
+
+def _fetch_one_external(args: tuple[str, int]) -> tuple[str, int, str | None, httpx.Response | None, float, Exception | None]:
+    """Worker: fetch one external URL. Returns (normal, depth, url, response, elapsed, error)."""
+    ext_normal, ext_depth = args
+    try:
+        ext_url = normalize_url(ext_normal)
+    except Exception as e:
+        return (ext_normal, ext_depth, None, None, 0.0, e)
+    try:
+        response, elapsed = fetch_page(ext_url, follow_redirects=True)
+        return (ext_normal, ext_depth, ext_url, response, elapsed, None)
+    except Exception as e:
+        return (ext_normal, ext_depth, ext_url, None, 0.0, e)
+
+
 def crawl_site(
     url: str,
     max_urls: int = DEFAULT_MAX_URLS,
@@ -409,16 +480,18 @@ def crawl_site(
     url = normalize_url(url)
     results: list[dict] = []
     crawled_normalized: set[str] = set()
-    in_queue: set[str] = set()
-    external_urls_with_depth: dict[str, int] = {}
+    queued_normalized: set[str] = set()
+    # Single queue: (normalized_url, depth, link_type) in discovery order
+    to_fetch: deque[tuple[str, int, str]] = deque()
 
     def _emit(pd: dict) -> None:
         results.append(pd)
         if on_page_crawled:
             on_page_crawled(pd)
 
-    # 1) First request without following redirects to capture redirect row
-    response_no_follow, time_no_follow = fetch_page(url, follow_redirects=False)
+    # 1) First request without following redirects to capture redirect row (shared client)
+    with httpx.Client(**_http_client_kwargs(False)) as client:
+        response_no_follow, time_no_follow = fetch_page_with_client(url, client, follow_redirects=False)
     page_data_first = build_page_data(
         url, response_no_follow, time_no_follow, crawl_depth=0, store_final_url=False
     )
@@ -431,7 +504,8 @@ def crawl_site(
 
     if is_redirect:
         # 2) Fetch again following redirects to get final page content and its links
-        response_follow, time_follow = fetch_page(url, follow_redirects=True)
+        with httpx.Client(**_http_client_kwargs(True)) as client:
+            response_follow, time_follow = fetch_page_with_client(url, client, follow_redirects=True)
         final_url = str(response_follow.url)
         final_normal = _normalize_for_dedupe(final_url)
         if final_normal and final_normal not in crawled_normalized:
@@ -450,83 +524,78 @@ def crawl_site(
     if not seed_html:
         return results
 
-    # Seed is depth 0; external links found on it get depth 1
-    for ext_normal, ext_depth in _extract_external_urls_with_depth(seed_html, seed_base, 0).items():
-        external_urls_with_depth[ext_normal] = min(
-            external_urls_with_depth.get(ext_normal, ext_depth), ext_depth
-        )
+    # Seed links (internal + external) in discovery order into single queue
+    for item in _extract_links_ordered(seed_html, seed_base, 0, crawled_normalized, queued_normalized):
+        to_fetch.append(item)
 
-    # 3) BFS: queue (normalized_url, depth); seed's internal links are depth 1
-    to_crawl: deque = deque()
-    for normal in _extract_internal_urls_normalized(seed_html, seed_base):
-        if normal not in crawled_normalized and normal not in in_queue:
-            in_queue.add(normal)
-            to_crawl.append((normal, 1))
+    # Process queue in fetch order: pop batch, fetch in parallel, emit in batch order, extend queue with new links
+    with ThreadPoolExecutor(max_workers=CONCURRENT_REQUESTS) as executor:
+        while to_fetch and len(results) < max_urls:
+            batch_with_index: list[tuple[int, str, int, str]] = []
+            while (
+                len(batch_with_index) < CONCURRENT_REQUESTS
+                and to_fetch
+                and len(results) + len(batch_with_index) < max_urls
+            ):
+                normal, depth, link_type = to_fetch.popleft()
+                queued_normalized.discard(normal)
+                if normal in crawled_normalized:
+                    continue
+                batch_with_index.append((len(batch_with_index), normal, depth, link_type))
+            if not batch_with_index:
+                break
 
-    while to_crawl and len(results) < max_urls:
-        current_normal, depth = to_crawl.popleft()
-        if current_normal in crawled_normalized:
-            continue
-        try:
-            current_url = normalize_url(current_normal)
-        except Exception:
-            continue
-        try:
-            response, resp_time = fetch_page(current_url, follow_redirects=True)
-        except (httpx.TimeoutException, httpx.ConnectError, httpx.HTTPError) as e:
-            crawled_normalized.add(current_normal)
-            err_msg = type(e).__name__ + (f": {e!s}" if str(e) else "")
-            _emit(build_error_page_data(current_url, err_msg, depth, link_type="internal"))
-            continue
-        except Exception as e:
-            crawled_normalized.add(current_normal)
-            _emit(build_error_page_data(current_url, f"Fetch failed: {e!s}", depth, link_type="internal"))
-            continue
-        resolved_normal = _normalize_for_dedupe(str(response.url))
-        if resolved_normal in crawled_normalized:
-            continue
-        crawled_normalized.add(resolved_normal)
-        page_data = build_page_data(
-            current_url, response, resp_time, crawl_depth=depth, store_final_url=True
-        )
-        _emit(page_data)
-        if response.status_code == 200 and response.text:
-            for ext_normal, ext_depth in _extract_external_urls_with_depth(
-                response.text, str(response.url), depth
-            ).items():
-                external_urls_with_depth[ext_normal] = min(
-                    external_urls_with_depth.get(ext_normal, ext_depth), ext_depth
-                )
-            for normal in _extract_internal_urls_normalized(response.text, str(response.url)):
-                if normal not in crawled_normalized and normal not in in_queue:
-                    in_queue.add(normal)
-                    to_crawl.append((normal, depth + 1))
+            future_to_info: dict = {}
+            for idx, norm, d, typ in batch_with_index:
+                if typ == "internal":
+                    f = executor.submit(_fetch_one_internal, (norm, d))
+                else:
+                    f = executor.submit(_fetch_one_external, (norm, d))
+                future_to_info[f] = (idx, norm, d, typ)
 
-    # 4) Fetch external URLs (minimal data) with dynamic crawl_depth
-    for ext_normal, ext_depth in external_urls_with_depth.items():
-        if ext_normal in crawled_normalized:
-            continue
-        try:
-            ext_url = normalize_url(ext_normal)
-        except Exception:
-            continue
-        try:
-            response, resp_time = fetch_page(ext_url, follow_redirects=True)
-        except (httpx.TimeoutException, httpx.ConnectError, httpx.HTTPError) as e:
-            crawled_normalized.add(ext_normal)
-            err_msg = type(e).__name__ + (f": {e!s}" if str(e) else "")
-            _emit(build_error_page_data(ext_url, err_msg, ext_depth, link_type="external"))
-            continue
-        except Exception as e:
-            crawled_normalized.add(ext_normal)
-            _emit(build_error_page_data(ext_url, f"Fetch failed: {e!s}", ext_depth, link_type="external"))
-            continue
-        resolved_normal = _normalize_for_dedupe(str(response.url))
-        if resolved_normal in crawled_normalized:
-            continue
-        crawled_normalized.add(resolved_normal)
-        ext_page_data = build_external_page_data(
-            ext_url, response, resp_time, crawl_depth=ext_depth
-        )
-        _emit(ext_page_data)
+            results_by_idx: dict[int, dict] = {}
+            html_by_idx: dict[int, tuple[str, str, int]] = {}  # idx -> (html, base_url, depth)
+            for future in as_completed(future_to_info):
+                idx, norm, d, typ = future_to_info[future]
+                current_normal, depth, current_url, response, resp_time, err = future.result()
+                if current_normal in crawled_normalized:
+                    continue
+                if err is not None:
+                    crawled_normalized.add(current_normal)
+                    err_msg = type(err).__name__ + (f": {err!s}" if str(err) else "")
+                    pd = build_error_page_data(
+                        current_url or current_normal, err_msg, depth, typ
+                    ) if (current_url or current_normal) else None
+                    if pd:
+                        results_by_idx[idx] = pd
+                    continue
+                resolved_normal = _normalize_for_dedupe(str(response.url))
+                if resolved_normal in crawled_normalized:
+                    continue
+                crawled_normalized.add(resolved_normal)
+                if typ == "internal":
+                    pd = build_page_data(
+                        current_url or current_normal,
+                        response,
+                        resp_time,
+                        crawl_depth=depth,
+                        store_final_url=True,
+                    )
+                    if response.status_code == 200 and response.text:
+                        html_by_idx[idx] = (response.text, str(response.url), depth)
+                else:
+                    pd = build_external_page_data(
+                        current_url or current_normal, response, resp_time, crawl_depth=depth
+                    )
+                results_by_idx[idx] = pd
+
+            for idx in sorted(results_by_idx.keys()):
+                _emit(results_by_idx[idx])
+
+            for idx in sorted(html_by_idx.keys()):
+                html, base_url, depth = html_by_idx[idx]
+                for item in _extract_links_ordered(
+                    html, base_url, depth, crawled_normalized, queued_normalized
+                ):
+                    to_fetch.append(item)
     return results

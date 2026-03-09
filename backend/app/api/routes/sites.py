@@ -107,14 +107,22 @@ def get_site_overview(task_id: str):
     total = len(pages)
     from collections import Counter
     ct_counts = Counter(p.get("content_type") or "Unknown" for p in pages)
+    # Group by normalized label so "HTML", "Images", etc. appear once each
+    label_counts: dict[str, int] = {}
+    label_example_ct: dict[str, str] = {}
+    for ct, count in ct_counts.items():
+        label = _content_type_label(ct)
+        label_counts[label] = label_counts.get(label, 0) + count
+        if label not in label_example_ct:
+            label_example_ct[label] = ct
     by_type = [
         {
-            "label": _content_type_label(ct),
-            "content_type": ct,
+            "label": label,
+            "content_type": label_example_ct[label],
             "count": count,
             "percent": round((count / total * 100), 2) if total else 0,
         }
-        for ct, count in ct_counts.most_common()
+        for label, count in sorted(label_counts.items(), key=lambda x: -x[1])
     ]
 
     return {

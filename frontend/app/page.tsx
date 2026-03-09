@@ -27,6 +27,13 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [detailSearch, setDetailSearch] = useState("");
 
+  const CenterLoader = () => (
+    <div className="flex items-center justify-center gap-3">
+      <div className="h-8 w-8 animate-spin rounded-full border-4 border-[var(--border)] border-t-[var(--accent)]" />
+      <span className="text-sm text-[var(--muted)]">Discovering URLs...</span>
+    </div>
+  );
+
   const pollSite = useCallback(async (id: string) => {
     try {
       const s = await getSite(id);
@@ -175,6 +182,27 @@ export default function Home() {
             Clear
           </button>
         </div>
+        {/* Progress bar next to Start: show percentage (max 500 URLs = 100%) */}
+        {site && (site.status === "processing" || site.status === "completed") && (() => {
+          const pct = Math.min(100, ((pagesData?.total ?? 0) / 500) * 100);
+          const pctDisplay = site.status === "completed" && pagesData ? "100" : String(Math.round(pct));
+          return (
+            <div className="flex items-center gap-2 min-w-[140px]">
+              <div className="w-24 h-5 rounded bg-white/20 overflow-hidden relative flex items-center justify-center">
+                <div
+                  className="absolute inset-y-0 left-0 rounded bg-white transition-all duration-300"
+                  style={{ width: `${site.status === "completed" && pagesData ? 100 : pct}%` }}
+                />
+                <span className="relative z-10 text-xs font-medium text-[var(--accent)]">
+                  {pctDisplay}%
+                </span>
+              </div>
+              <span className="text-xs opacity-90 whitespace-nowrap">
+                {pctDisplay}%
+              </span>
+            </div>
+          );
+        })()}
         {site && (
           <span className="text-xs opacity-90">
             Status: <span className="capitalize font-medium">{site.status}</span>
@@ -254,6 +282,13 @@ export default function Home() {
                     </tr>
                   </thead>
                   <tbody>
+                    {site?.status === "processing" && pagesData?.pages?.length === 0 && (
+                      <tr>
+                        <td colSpan={12} className="h-[300px]">
+                          <CenterLoader />
+                        </td>
+                      </tr>
+                    )}
                     {(pagesData?.pages ?? []).map((page, i) => (
                       <tr
                         key={`${page.id}-${page.address}`}
@@ -315,8 +350,8 @@ export default function Home() {
                   <span className="font-medium">{overview.total_urls}</span>
                 </div>
                 <div className="mt-3 text-[var(--muted)]">By resource type</div>
-                {overview.by_type.map((t) => (
-                  <div key={t.content_type} className="flex justify-between rounded px-2 py-1">
+                {overview.by_type.map((t, i) => (
+                  <div key={`${t.label}-${i}`} className="flex justify-between rounded px-2 py-1">
                     <span>{t.label}</span>
                     <span>
                       {t.count} <span className="text-[var(--muted)]">({t.percent}%)</span>
@@ -363,30 +398,8 @@ export default function Home() {
         </div>
       )}
 
-      {/* Status bar + progress bar */}
-      <footer className="flex shrink-0 flex-col border-t border-[var(--border)] bg-[var(--surface-elevated)]">
-        {/* Progress bar */}
-        {site && (site.status === "processing" || site.status === "completed") && (
-          <div className="flex items-center gap-2 px-4 pt-2">
-            <div className="flex-1 h-5 rounded bg-[var(--border)] overflow-hidden relative">
-              {site.status === "completed" && pagesData ? (
-                <div className="h-full rounded bg-[var(--accent)] flex items-center justify-center text-xs font-medium text-white w-full">
-                  Completed {pagesData.total} of {pagesData.total} (100%)
-                </div>
-              ) : (
-                <>
-                  <div
-                    className="progress-indeterminate absolute inset-y-0 w-1/3 rounded bg-[var(--accent)]"
-                    style={{ minWidth: "30%" }}
-                  />
-                  <span className="absolute inset-0 flex items-center justify-center text-xs font-medium text-[var(--foreground)]">
-                    Crawling… {pagesData?.total ?? 0} URL{(pagesData?.total ?? 0) !== 1 ? "s" : ""} found
-                  </span>
-                </>
-              )}
-            </div>
-          </div>
-        )}
+      {/* Status bar */}
+      <footer className="flex shrink-0 border-t border-[var(--border)] bg-[var(--surface-elevated)]">
         <div className="px-4 py-1.5 text-xs text-[var(--muted)]">
           {site ? (
             <>

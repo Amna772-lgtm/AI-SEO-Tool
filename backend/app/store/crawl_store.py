@@ -45,15 +45,38 @@ def get_meta(task_id: str) -> dict[str, Any] | None:
     return json.loads(raw)
 
 
-def append_page(task_id: str, page_data: dict[str, Any]) -> None:
+# Buffer for batch RPUSH (reduces Redis round-trips). Keyed by task_id.
+_pages_buffer: dict[str, list[str]] = {}
+_PAGES_BUFFER_SIZE = 10
+
+
+def _flush_pages_buffer(task_id: str) -> None:
+    """Push buffered page JSON strings to Redis and clear buffer."""
+    buf = _pages_buffer.get(task_id)
+    if not buf:
+        return
     r = get_redis()
     key = _pages_key(task_id)
-    # Ensure type for filtering
+    pipe = r.pipeline()
+    pipe.rpush(key, *buf)
+    pipe.expire(key, CRAWL_TTL_SECONDS)
+    pipe.execute()
+    _pages_buffer[task_id] = []
+
+
+def append_page(task_id: str, page_data: dict[str, Any]) -> None:
     page_data = dict(page_data)
     page_data.setdefault("type", "internal")
-    # Serialize for list
-    r.rpush(key, json.dumps(page_data, default=str))
-    r.expire(key, CRAWL_TTL_SECONDS)
+    serialized = json.dumps(page_data, default=str)
+    _pages_buffer.setdefault(task_id, [])
+    _pages_buffer[task_id].append(serialized)
+    if len(_pages_buffer[task_id]) >= _PAGES_BUFFER_SIZE:
+        _flush_pages_buffer(task_id)
+
+
+def flush_pages_buffer(task_id: str) -> None:
+    """Call after crawl completes so last buffered pages are written."""
+    _flush_pages_buffer(task_id)
 
 
 def get_all_pages(task_id: str) -> list[dict[str, Any]]:
