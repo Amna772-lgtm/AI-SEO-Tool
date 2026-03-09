@@ -1,13 +1,8 @@
 from fastapi import FastAPI
-from app.db.base import Base
-from app.db.session import engine
-from app.api.routes import analyze
+from app.api.routes import analyze, sites
 from fastapi.middleware.cors import CORSMiddleware
-from app.worker.tasks import process_site
 
 app = FastAPI()
-
-Base.metadata.create_all(bind=engine)
 
 origins = [
     "http://localhost:3000",
@@ -22,6 +17,7 @@ app.add_middleware(
 )
 
 app.include_router(analyze.router, prefix="/analyze")
+app.include_router(sites.router, prefix="/sites", tags=["sites"])
 
 @app.get("/")
 def root():

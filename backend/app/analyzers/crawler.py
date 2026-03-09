@@ -120,7 +120,7 @@ def parse_html_metadata(html: str, base_url: str) -> dict:
     Returns dict with keys: title, title_length, h1, meta_descp, canonical, language.
     language falls back to <html lang="..."> if not in headers.
     """
-    soup = BeautifulSoup(html, "lxml")
+    soup = BeautifulSoup(html, "html.parser")
     title = None
     if soup.title and soup.title.string:
         title = soup.title.string.strip()
@@ -320,7 +320,7 @@ def extract_links(html: str, base_url: str) -> list[dict]:
     Extract all link-like URLs: <a href>, <img src>, CSS <link href>, JS <script src>.
     Returns list of {address, type} (internal/external). Reusable for any page.
     """
-    soup = BeautifulSoup(html, "lxml")
+    soup = BeautifulSoup(html, "html.parser")
     records = []
     seen = set()  # dedupe by normalized address within this page
 
@@ -530,22 +530,3 @@ def crawl_site(
         )
         _emit(ext_page_data)
     return results
-
-
-def crawl_homepage(url: str, crawl_depth: int = 0) -> dict:
-    """
-    Crawl the given URL (homepage or any single page). Does not follow redirects
-    so we can store status_code, redirect_url, and indexability for 3xx responses.
-    Returns {"page_data": {...}, "links": [{"address", "type"}, ...]}.
-    """
-    response, response_time = fetch_page(url, follow_redirects=False)
-    request_url = normalize_url(url)
-    page_data = build_page_data(request_url, response, response_time, crawl_depth=crawl_depth)
-
-    links = []
-    if response.status_code == 200 and response.text:
-        links = extract_links(response.text, str(response.url))
-    else:
-        page_data["address"] = request_url
-
-    return {"page_data": page_data, "links": links}

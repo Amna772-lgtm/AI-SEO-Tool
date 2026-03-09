@@ -1,8 +1,20 @@
 @import "tailwindcss";
 
+/* Screaming Frog–style: dark green accent, white/light gray panels */
 :root {
-  --background: #ffffff;
+  --background: #f5f6f8;
+  --surface: #ffffff;
+  --surface-elevated: #eef0f3;
+  --border: #d1d5dc;
+  --border-dark: #9ca3af;
   --foreground: #171717;
+  --muted: #6b7280;
+  --accent: #166534;
+  --accent-hover: #14532d;
+  --accent-light: #dcfce7;
+  --success: #15803d;
+  --warning: #ca8a04;
+  --error: #dc2626;
 }
 
 @theme inline {
@@ -12,15 +24,33 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+/* Scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-dark) #e5e7eb;
+}
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-track {
+  background: #e5e7eb;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--border-dark);
+  border-radius: 4px;
+}
+
+@keyframes progress-indeterminate {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(400%); }
+}
+.progress-indeterminate {
+  animation: progress-indeterminate 1.5s ease-in-out infinite;
 }

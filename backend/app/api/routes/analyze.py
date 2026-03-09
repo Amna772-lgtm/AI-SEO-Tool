@@ -1,26 +1,17 @@
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+import uuid
 
-from app.db.session import SessionLocal
-from app.models.site import Site
+from fastapi import APIRouter, HTTPException
+
 from app.schemas.analysis import AnalyzeRequest
 from app.worker.tasks import process_site
 from app.analyzers.robots import check_robots
+from app.store.crawl_store import set_meta
 
 router = APIRouter()
 
 
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
-
 @router.post("/")
-def analyze_site(request: AnalyzeRequest, db: Session = Depends(get_db)):
-    # Step 1: robots.txt check (URL already validated and normalized by schema)
+def analyze_site(request: AnalyzeRequest):
     robots_result = check_robots(request.url)
     if not robots_result["crawl_allowed"]:
         raise HTTPException(
@@ -31,42 +22,29 @@ def analyze_site(request: AnalyzeRequest, db: Session = Depends(get_db)):
             },
         )
 
-    # Check if URL already exists
-    existing_site = db.query(Site).filter(Site.url == request.url).first()
+    task_id = str(uuid.uuid4())
+    set_meta(
+        task_id,
+        {
+            "id": task_id,
+            "url": request.url,
+            "status": "queued",
+            "robots_allowed": robots_result["crawl_allowed"],
+            "ai_crawler_access": robots_result.get("ai_crawler_access"),
+        },
+    )
 
-    if existing_site:
-        existing_site.status = "queued"
-        existing_site.robots_allowed = robots_result["crawl_allowed"]
-        existing_site.ai_crawler_access = robots_result["ai_crawler_access"]
-        db.commit()
-        db.refresh(existing_site)
+    process_site.delay(
+        request.url,
+        task_id,
+        robots_allowed=robots_result["crawl_allowed"],
+        ai_crawler_access=robots_result.get("ai_crawler_access"),
+    )
 
-        process_site.delay(existing_site.id)
-
-        return {
-            "message": "Existing site re-queued for analysis",
-            "site_id": existing_site.id,
-            "status": existing_site.status,
-            "robots_allowed": existing_site.robots_allowed,
-            "ai_crawler_access": existing_site.ai_crawler_access,
-        }
-    else:
-        new_site = Site(
-            url=request.url,
-            status="queued",
-            robots_allowed=robots_result["crawl_allowed"],
-            ai_crawler_access=robots_result["ai_crawler_access"],
-        )
-        db.add(new_site)
-        db.commit()
-        db.refresh(new_site)
-
-        process_site.delay(new_site.id)
-
-        return {
-            "message": "New site added for analysis",
-            "site_id": new_site.id,
-            "status": new_site.status,
-            "robots_allowed": new_site.robots_allowed,
-            "ai_crawler_access": new_site.ai_crawler_access,
-        }
+    return {
+        "message": "Crawl started",
+        "site_id": task_id,
+        "status": "queued",
+        "robots_allowed": robots_result["crawl_allowed"],
+        "ai_crawler_access": robots_result.get("ai_crawler_access"),
+    }
