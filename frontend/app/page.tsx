@@ -105,7 +105,7 @@ export default function Home() {
   const refreshPages = useCallback(() => {
     if (!siteId) return;
     const typeParam = typeTab === "all" ? undefined : typeTab;
-    getPages(siteId, { type: typeParam, search: search || undefined, limit: 5000 })
+    getPages(siteId, { type: typeParam, search: search || undefined, limit: 100000 })
       .then(setPagesData)
       .catch(() => setError("Failed to load pages"));
   }, [siteId, typeTab, search]);
@@ -182,27 +182,21 @@ export default function Home() {
             Clear
           </button>
         </div>
-        {/* Progress bar next to Start: show percentage (max 500 URLs = 100%) */}
-        {site && (site.status === "processing" || site.status === "completed") && (() => {
-          const pct = Math.min(100, ((pagesData?.total ?? 0) / 500) * 100);
-          const pctDisplay = site.status === "completed" && pagesData ? "100" : String(Math.round(pct));
-          return (
-            <div className="flex items-center gap-2 min-w-[140px]">
-              <div className="w-24 h-5 rounded bg-white/20 overflow-hidden relative flex items-center justify-center">
-                <div
-                  className="absolute inset-y-0 left-0 rounded bg-white transition-all duration-300"
-                  style={{ width: `${site.status === "completed" && pagesData ? 100 : pct}%` }}
-                />
-                <span className="relative z-10 text-xs font-medium text-[var(--accent)]">
-                  {pctDisplay}%
-                </span>
-              </div>
-              <span className="text-xs opacity-90 whitespace-nowrap">
-                {pctDisplay}%
+        {/* Progress indicator: pulsing bar while crawling, filled when done */}
+        {site && (site.status === "processing" || site.status === "completed") && (
+          <div className="flex items-center gap-2 min-w-[140px]">
+            <div className="w-24 h-5 rounded bg-white/20 overflow-hidden relative flex items-center justify-center">
+              {site.status === "completed" ? (
+                <div className="absolute inset-y-0 left-0 right-0 rounded bg-white" />
+              ) : (
+                <div className="absolute inset-y-0 left-0 w-full rounded bg-white/60 animate-pulse" />
+              )}
+              <span className="relative z-10 text-xs font-medium text-[var(--accent)]">
+                {site.status === "completed" ? "Done" : `${pagesData?.total ?? 0} URLs`}
               </span>
             </div>
-          );
-        })()}
+          </div>
+        )}
         {site && (
           <span className="text-xs opacity-90">
             Status: <span className="capitalize font-medium">{site.status}</span>

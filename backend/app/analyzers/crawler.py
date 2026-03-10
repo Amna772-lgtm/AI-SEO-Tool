@@ -17,8 +17,7 @@ from app.utils.url_validator import normalize_url
 
 USER_AGENT = "AI-SEO-Bot/1.0"
 REQUEST_TIMEOUT = 15.0  # total request; slightly lower for faster failure on slow hosts
-DEFAULT_MAX_URLS = 500
-CONCURRENT_REQUESTS = 20  # parallel fetches per batch for BFS and external URLs
+CONCURRENT_REQUESTS = 500  # parallel fetches per batch for BFS and external URLs
 
 # Status code -> status text (for consistent display)
 STATUS_TEXT = {
@@ -467,7 +466,7 @@ def _fetch_one_external(args: tuple[str, int]) -> tuple[str, int, str | None, ht
 
 def crawl_site(
     url: str,
-    max_urls: int = DEFAULT_MAX_URLS,
+    max_urls: int | None = None,
     on_page_crawled: Callable[[dict], None] | None = None,
 ) -> list[dict]:
     """
@@ -530,12 +529,12 @@ def crawl_site(
 
     # Process queue in fetch order: pop batch, fetch in parallel, emit in batch order, extend queue with new links
     with ThreadPoolExecutor(max_workers=CONCURRENT_REQUESTS) as executor:
-        while to_fetch and len(results) < max_urls:
+        while to_fetch and (max_urls is None or len(results) < max_urls):
             batch_with_index: list[tuple[int, str, int, str]] = []
             while (
                 len(batch_with_index) < CONCURRENT_REQUESTS
                 and to_fetch
-                and len(results) + len(batch_with_index) < max_urls
+                and (max_urls is None or len(results) + len(batch_with_index) < max_urls)
             ):
                 normal, depth, link_type = to_fetch.popleft()
                 queued_normalized.discard(normal)

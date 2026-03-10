@@ -49,7 +49,7 @@ def list_pages(
     type_filter: str | None = Query(None, alias="type"),
     search: str | None = Query(None),
     skip: int = Query(0, ge=0),
-    limit: int = Query(500, ge=1, le=5000),
+    limit: int = Query(500, ge=1, le=100000),
 ):
     meta = get_meta(task_id)
     if not meta:
