@@ -17,6 +17,7 @@ services:
       - ./backend:/app
     environment:
       REDIS_URL: redis://redis:6379/0
+      GOOGLE_PSI_API_KEY: AIzaSyAjtBbgrt23Scx1zx1kal7GOQxq9iXTeHw
 
   worker:
     build: ./backend
@@ -28,3 +29,4 @@ services:
       - ./backend:/app
     environment:
       REDIS_URL: redis://redis:6379/0
+      GOOGLE_PSI_API_KEY: AIzaSyAjtBbgrt23Scx1zx1kal7GOQxq9iXTeHw

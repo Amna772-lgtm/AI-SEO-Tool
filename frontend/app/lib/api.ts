@@ -9,6 +9,7 @@ export interface Site {
   created_at: string | null;
   robots_allowed: boolean;
   ai_crawler_access: Record<string, boolean> | null;
+  audit_status?: "pending" | "running" | "completed" | "failed";
 }
 
 export interface PageRow {
@@ -92,5 +93,40 @@ export async function getPages(
 export async function getOverview(taskId: string): Promise<OverviewResponse> {
   const res = await fetch(`${API_BASE}/sites/${taskId}/overview`);
   if (!res.ok) throw new Error("Failed to load overview");
+  return res.json();
+}
+
+export interface PageSpeedResult {
+  strategy: string;
+  performance?: number;
+  accessibility?: number;
+  best_practices?: number;
+  seo?: number;
+  fcp?: string;
+  lcp?: string;
+  tbt?: string;
+  cls?: string;
+  speed_index?: string;
+  tti?: string;
+  error?: string;
+}
+
+export interface AuditResult {
+  https: { passed: boolean; detail: string };
+  sitemap: { found: boolean; url: string; status_code?: number; error?: string };
+  broken_links: { count: number; urls: string[] };
+  missing_canonicals: { total_html_pages: number; missing_count: number; urls: string[] };
+  pagespeed: { desktop: PageSpeedResult; mobile: PageSpeedResult };
+}
+
+export interface AuditResponse {
+  site_id: string;
+  audit_status: "pending" | "running" | "completed" | "failed";
+  audit: AuditResult | null;
+}
+
+export async function getAudit(taskId: string): Promise<AuditResponse> {
+  const res = await fetch(`${API_BASE}/sites/${taskId}/audit`);
+  if (!res.ok) throw new Error("Failed to load audit");
   return res.json();
 }

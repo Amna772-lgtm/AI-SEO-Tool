@@ -40,6 +40,7 @@ def get_site(task_id: str):
         "created_at": None,
         "robots_allowed": meta.get("robots_allowed", True),
         "ai_crawler_access": meta.get("ai_crawler_access"),
+        "audit_status": meta.get("audit_status", "pending"),
     }
 
 
@@ -94,6 +95,18 @@ def list_pages(
         "site_id": task_id,
         "total": total,
         "pages": [to_row(i, p) for i, p in enumerate(slice_pages)],
+    }
+
+
+@router.get("/{task_id}/audit")
+def get_site_audit(task_id: str):
+    meta = get_meta(task_id)
+    if not meta:
+        raise HTTPException(status_code=404, detail="Crawl not found")
+    return {
+        "site_id": task_id,
+        "audit_status": meta.get("audit_status", "pending"),
+        "audit": meta.get("audit"),
     }
 
 

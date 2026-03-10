@@ -17,7 +17,7 @@ from app.utils.url_validator import normalize_url
 
 USER_AGENT = "AI-SEO-Bot/1.0"
 REQUEST_TIMEOUT = 15.0  # total request; slightly lower for faster failure on slow hosts
-CONCURRENT_REQUESTS = 500  # parallel fetches per batch for BFS and external URLs
+CONCURRENT_REQUESTS = 50  # parallel fetches per batch for BFS and external URLs
 
 # Status code -> status text (for consistent display)
 STATUS_TEXT = {

@@ -6,13 +6,119 @@ import {
   getSite,
   getPages,
   getOverview,
+  getAudit,
   type Site,
   type PageRow,
   type PagesResponse,
   type OverviewResponse,
+  type AuditResponse,
+  type AuditResult,
+  type PageSpeedResult,
 } from "./lib/api";
 
 type TabType = "all" | "internal" | "external";
+
+function ScoreChip({ score }: { score?: number }) {
+  if (score == null) return <span className="text-[var(--muted)]">—</span>;
+  const color =
+    score >= 90 ? "text-[var(--success)]" : score >= 50 ? "text-[var(--warning)]" : "text-[var(--error)]";
+  return <span className={`font-semibold ${color}`}>{score}</span>;
+}
+
+function psiErrorMessage(error: string): string {
+  if (error.includes("NO_FCP")) return "Page blocked automated testing (NO_FCP) — likely bot protection (e.g. Cloudflare)";
+  if (error.includes("ERRORED_DOCUMENT_REQUEST")) return "Page failed to load during analysis";
+  if (error.includes("FAILED_DOCUMENT_REQUEST")) return "Page request was blocked or timed out";
+  if (error.includes("DNS_FAILURE")) return "DNS lookup failed for this domain";
+  if (error.includes("NOT_HTML")) return "Page is not HTML — cannot analyze";
+  if (error.includes("400")) return `PSI could not analyze this page (${error.split(":")[0]})`;
+  return error;
+}
+
+function PsiBlock({ psi, label }: { psi: PageSpeedResult; label: string }) {
+  return (
+    <div className="rounded border border-[var(--border)] p-2 text-xs space-y-1">
+      <div className="font-medium text-[var(--foreground)] mb-1">{label}</div>
+      {psi.error ? (
+        <p className="text-[var(--warning)] leading-snug">{psiErrorMessage(psi.error)}</p>
+      ) : (
+        <>
+          <div className="flex justify-between">
+            <span className="text-[var(--muted)]">Performance</span>
+            <ScoreChip score={psi.performance} />
+          </div>
+          <div className="flex justify-between">
+            <span className="text-[var(--muted)]">Accessibility</span>
+            <ScoreChip score={psi.accessibility} />
+          </div>
+          <div className="flex justify-between">
+            <span className="text-[var(--muted)]">Best Practices</span>
+            <ScoreChip score={psi.best_practices} />
+          </div>
+          <div className="flex justify-between">
+            <span className="text-[var(--muted)]">SEO</span>
+            <ScoreChip score={psi.seo} />
+          </div>
+          <div className="border-t border-[var(--border)] mt-1 pt-1 space-y-0.5 text-[var(--muted)]">
+            {psi.fcp && <div className="flex justify-between"><span>FCP</span><span>{psi.fcp}</span></div>}
+            {psi.lcp && <div className="flex justify-between"><span>LCP</span><span>{psi.lcp}</span></div>}
+            {psi.tbt && <div className="flex justify-between"><span>TBT</span><span>{psi.tbt}</span></div>}
+            {psi.cls && <div className="flex justify-between"><span>CLS</span><span>{psi.cls}</span></div>}
+            {psi.speed_index && <div className="flex justify-between"><span>Speed Index</span><span>{psi.speed_index}</span></div>}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function AuditPanel({ audit }: { audit: AuditResult }) {
+  const { https, sitemap, broken_links, missing_canonicals, pagespeed } = audit;
+  return (
+    <div className="p-3 space-y-3 text-xs">
+      {/* HTTPS */}
+      <div className="flex justify-between items-center">
+        <span className="text-[var(--muted)]">HTTPS</span>
+        <span className={https.passed ? "text-[var(--success)] font-medium" : "text-[var(--error)] font-medium"}>
+          {https.passed ? "✓ Secure" : "✗ Not Secure"}
+        </span>
+      </div>
+
+      {/* Sitemap */}
+      <div className="flex justify-between items-center">
+        <span className="text-[var(--muted)]">Sitemap</span>
+        <span className={sitemap.found ? "text-[var(--success)] font-medium" : "text-[var(--warning)] font-medium"}>
+          {sitemap.found ? "✓ Found" : "✗ Not Found"}
+        </span>
+      </div>
+
+      {/* Broken links */}
+      <div className="flex justify-between items-center">
+        <span className="text-[var(--muted)]">Broken Links</span>
+        <span className={broken_links.count === 0 ? "text-[var(--success)] font-medium" : "text-[var(--error)] font-medium"}>
+          {broken_links.count === 0 ? "✓ None" : `✗ ${broken_links.count}`}
+        </span>
+      </div>
+
+      {/* Missing canonicals */}
+      <div className="flex justify-between items-center">
+        <span className="text-[var(--muted)]">Missing Canonicals</span>
+        <span className={missing_canonicals.missing_count === 0 ? "text-[var(--success)] font-medium" : "text-[var(--warning)] font-medium"}>
+          {missing_canonicals.missing_count === 0
+            ? "✓ None"
+            : `${missing_canonicals.missing_count} / ${missing_canonicals.total_html_pages}`}
+        </span>
+      </div>
+
+      {/* PageSpeed */}
+      <div className="space-y-2 pt-1">
+        <div className="text-[var(--muted)]">PageSpeed Insights</div>
+        <PsiBlock psi={pagespeed.desktop} label="Desktop" />
+        <PsiBlock psi={pagespeed.mobile} label="Mobile" />
+      </div>
+    </div>
+  );
+}
 
 export default function Home() {
   const [url, setUrl] = useState("");
@@ -26,6 +132,7 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [detailSearch, setDetailSearch] = useState("");
+  const [audit, setAudit] = useState<AuditResponse | null>(null);
 
   const CenterLoader = () => (
     <div className="flex items-center justify-center gap-3">
@@ -55,6 +162,16 @@ export default function Home() {
       setError("Failed to fetch site status.");
     }
   }, []);
+
+  // Poll audit separately after crawl completes (PSI takes 30-60s)
+  useEffect(() => {
+    if (!siteId || site?.status !== "completed") return;
+    if (audit?.audit_status === "completed" || audit?.audit_status === "failed") return;
+    const fetchAudit = () => getAudit(siteId).then(setAudit).catch(() => {});
+    fetchAudit();
+    const t = setInterval(fetchAudit, 3000);
+    return () => clearInterval(t);
+  }, [siteId, site?.status, audit?.audit_status]);
 
   useEffect(() => {
     if (!siteId || !site) return;
@@ -96,6 +213,7 @@ export default function Home() {
     setPagesData(null);
     setOverview(null);
     setSelectedPage(null);
+    setAudit(null);
     setError(null);
     setUrl("");
     setSearch("");
@@ -331,29 +449,53 @@ export default function Home() {
           )}
         </div>
 
-        {/* Overview sidebar - scrollable */}
-        {(site?.status === "completed" || site?.status === "processing") && overview && (
-          <aside className="flex w-64 shrink-0 flex-col border-l border-[var(--border)] bg-[var(--surface)]">
-            <h3 className="shrink-0 border-b border-[var(--border)] bg-[var(--surface-elevated)] px-4 py-3 text-sm font-medium text-[var(--foreground)]">
-              Overview
-            </h3>
-            <div className="min-h-0 flex-1 overflow-auto p-4">
-              <div className="space-y-2 text-xs">
-                <div className="flex justify-between rounded bg-[var(--surface-elevated)] px-3 py-2">
-                  <span className="text-[var(--muted)]">Total URLs</span>
-                  <span className="font-medium">{overview.total_urls}</span>
-                </div>
-                <div className="mt-3 text-[var(--muted)]">By resource type</div>
-                {overview.by_type.map((t, i) => (
-                  <div key={`${t.label}-${i}`} className="flex justify-between rounded px-2 py-1">
-                    <span>{t.label}</span>
-                    <span>
-                      {t.count} <span className="text-[var(--muted)]">({t.percent}%)</span>
-                    </span>
+        {/* Right sidebar: Overview + Audit */}
+        {(site?.status === "completed" || site?.status === "processing") && (
+          <aside className="flex w-64 shrink-0 flex-col border-l border-[var(--border)] bg-[var(--surface)] overflow-auto">
+            {/* Overview section */}
+            {overview && (
+              <>
+                <h3 className="shrink-0 border-b border-[var(--border)] bg-[var(--surface-elevated)] px-4 py-3 text-sm font-medium text-[var(--foreground)]">
+                  Overview
+                </h3>
+                <div className="p-4">
+                  <div className="space-y-2 text-xs">
+                    <div className="flex justify-between rounded bg-[var(--surface-elevated)] px-3 py-2">
+                      <span className="text-[var(--muted)]">Total URLs</span>
+                      <span className="font-medium">{overview.total_urls}</span>
+                    </div>
+                    <div className="mt-3 text-[var(--muted)]">By resource type</div>
+                    {overview.by_type.map((t, i) => (
+                      <div key={`${t.label}-${i}`} className="flex justify-between rounded px-2 py-1">
+                        <span>{t.label}</span>
+                        <span>
+                          {t.count} <span className="text-[var(--muted)]">({t.percent}%)</span>
+                        </span>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-            </div>
+                </div>
+              </>
+            )}
+
+            {/* Audit section — appears after crawl completes */}
+            {site?.status === "completed" && (
+              <>
+                <h3 className="shrink-0 border-y border-[var(--border)] bg-[var(--surface-elevated)] px-4 py-3 text-sm font-medium text-[var(--foreground)]">
+                  Technical Audit
+                </h3>
+                {(!audit || audit.audit_status === "pending" || audit.audit_status === "running") ? (
+                  <div className="flex items-center gap-2 px-4 py-4 text-xs text-[var(--muted)]">
+                    <div className="h-3 w-3 animate-spin rounded-full border-2 border-[var(--border)] border-t-[var(--accent)]" />
+                    Running audit…
+                  </div>
+                ) : audit.audit_status === "failed" || !audit.audit ? (
+                  <p className="px-4 py-3 text-xs text-[var(--error)]">Audit failed.</p>
+                ) : (
+                  <AuditPanel audit={audit.audit} />
+                )}
+              </>
+            )}
           </aside>
         )}
       </div>
