@@ -127,3 +127,22 @@ def get_all_pages(task_id: str) -> list[dict[str, Any]]:
     if not raw_list:
         return []
     return [json.loads(s) for s in raw_list]
+
+
+# ── GEO agent storage ──────────────────────────────────────────────────────────
+# Keys: geo:{agent}:{task_id}  (e.g. geo:schema:abc123)
+# Same 2-hour TTL as crawl data.
+
+def _geo_key(task_id: str, agent: str) -> str:
+    return f"geo:{agent}:{task_id}"
+
+
+def set_geo(task_id: str, agent: str, data: dict[str, Any]) -> None:
+    r = get_redis()
+    r.setex(_geo_key(task_id, agent), CRAWL_TTL_SECONDS, json.dumps(data, default=str))
+
+
+def get_geo(task_id: str, agent: str) -> dict[str, Any] | None:
+    r = get_redis()
+    raw = r.get(_geo_key(task_id, agent))
+    return json.loads(raw) if raw else None

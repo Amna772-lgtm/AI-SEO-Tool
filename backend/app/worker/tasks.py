@@ -5,6 +5,7 @@ from app.worker.celery_app import celery
 from app.analyzers.crawler import crawl_site
 from app.analyzers.audit import run_url_checks, run_page_checks
 from app.store.crawl_store import set_meta, append_page, flush_pages_buffer, get_meta, get_all_pages, update_pages_alt_text
+from app.worker.geo_pipeline import run_geo_pipeline
 
 
 @celery.task(name="app.worker.tasks.process_site")
@@ -76,6 +77,14 @@ def process_site(url: str, task_id: str, robots_allowed: bool = True, ai_crawler
         meta = get_meta(task_id) or {}
         meta["audit_status"] = "completed"
         meta["audit"] = audit_result
+        meta["geo_status"] = "running"
+        set_meta(task_id, meta)
+
+        # Run GEO pipeline (schema, content, E-E-A-T, NLP, scoring, suggestions)
+        run_geo_pipeline(url, task_id, pages, audit_result)
+
+        meta = get_meta(task_id) or {}
+        meta["geo_status"] = "completed"
         set_meta(task_id, meta)
 
     except Exception:

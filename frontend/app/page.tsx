@@ -7,6 +7,7 @@ import {
   getPages,
   getOverview,
   getAudit,
+  getGeo,
   type Site,
   type PageRow,
   type PagesResponse,
@@ -14,10 +15,15 @@ import {
   type AuditResponse,
   type AuditResult,
   type PageSpeedResult,
+  type GeoResponse,
 } from "./lib/api";
+import { GeoTab } from "./components/geo/GeoTab";
 
-type TabType = "all" | "internal" | "external";
+// ── Types ──────────────────────────────────────────────────────────────────────
+type MainTab = "crawl" | "audit" | "geo";
+type TypeTab = "all" | "internal" | "external";
 
+// ── Small UI helpers ───────────────────────────────────────────────────────────
 function ScoreChip({ score }: { score?: number }) {
   if (score == null) return <span className="text-[var(--muted)]">—</span>;
   const color =
@@ -26,7 +32,8 @@ function ScoreChip({ score }: { score?: number }) {
 }
 
 function psiErrorMessage(error: string): string {
-  if (error.includes("NO_FCP")) return "Page blocked automated testing (NO_FCP) — likely bot protection (e.g. Cloudflare)";
+  if (error.includes("NO_FCP"))
+    return "Page blocked automated testing (NO_FCP) — likely bot protection";
   if (error.includes("ERRORED_DOCUMENT_REQUEST")) return "Page failed to load during analysis";
   if (error.includes("FAILED_DOCUMENT_REQUEST")) return "Page request was blocked or timed out";
   if (error.includes("DNS_FAILURE")) return "DNS lookup failed for this domain";
@@ -35,6 +42,16 @@ function psiErrorMessage(error: string): string {
   return error;
 }
 
+function Spinner({ label }: { label: string }) {
+  return (
+    <div className="flex items-center gap-2 text-xs text-[var(--muted)]">
+      <div className="h-3 w-3 animate-spin rounded-full border-2 border-[var(--border)] border-t-[var(--accent)]" />
+      {label}
+    </div>
+  );
+}
+
+// ── PageSpeed block ────────────────────────────────────────────────────────────
 function PsiBlock({ psi, label }: { psi: PageSpeedResult; label: string }) {
   return (
     <div className="rounded border border-[var(--border)] p-2 text-xs space-y-1">
@@ -60,11 +77,36 @@ function PsiBlock({ psi, label }: { psi: PageSpeedResult; label: string }) {
             <ScoreChip score={psi.seo} />
           </div>
           <div className="border-t border-[var(--border)] mt-1 pt-1 space-y-0.5 text-[var(--muted)]">
-            {psi.fcp && <div className="flex justify-between"><span>FCP</span><span>{psi.fcp}</span></div>}
-            {psi.lcp && <div className="flex justify-between"><span>LCP</span><span>{psi.lcp}</span></div>}
-            {psi.tbt && <div className="flex justify-between"><span>TBT</span><span>{psi.tbt}</span></div>}
-            {psi.cls && <div className="flex justify-between"><span>CLS</span><span>{psi.cls}</span></div>}
-            {psi.speed_index && <div className="flex justify-between"><span>Speed Index</span><span>{psi.speed_index}</span></div>}
+            {psi.fcp && (
+              <div className="flex justify-between">
+                <span>FCP</span>
+                <span>{psi.fcp}</span>
+              </div>
+            )}
+            {psi.lcp && (
+              <div className="flex justify-between">
+                <span>LCP</span>
+                <span>{psi.lcp}</span>
+              </div>
+            )}
+            {psi.tbt && (
+              <div className="flex justify-between">
+                <span>TBT</span>
+                <span>{psi.tbt}</span>
+              </div>
+            )}
+            {psi.cls && (
+              <div className="flex justify-between">
+                <span>CLS</span>
+                <span>{psi.cls}</span>
+              </div>
+            )}
+            {psi.speed_index && (
+              <div className="flex justify-between">
+                <span>Speed Index</span>
+                <span>{psi.speed_index}</span>
+              </div>
+            )}
           </div>
         </>
       )}
@@ -72,54 +114,85 @@ function PsiBlock({ psi, label }: { psi: PageSpeedResult; label: string }) {
   );
 }
 
-function AuditPanel({ audit }: { audit: AuditResult }) {
+// ── Technical Audit Panel ──────────────────────────────────────────────────────
+function AuditFullPanel({ audit }: { audit: AuditResult }) {
   const { https, sitemap, broken_links, missing_canonicals, pagespeed } = audit;
+
+  function Row({ label, ok, value }: { label: string; ok: boolean; value: string }) {
+    return (
+      <div className="flex items-center justify-between rounded-lg border border-[var(--border)] p-3">
+        <div>
+          <p className="text-sm font-medium text-[var(--foreground)]">{label}</p>
+        </div>
+        <span
+          className={`rounded-full px-3 py-1 text-xs font-semibold ${
+            ok
+              ? "bg-green-100 text-green-700"
+              : "bg-red-100 text-red-700"
+          }`}
+        >
+          {value}
+        </span>
+      </div>
+    );
+  }
+
   return (
-    <div className="p-3 space-y-3 text-xs">
-      {/* HTTPS */}
-      <div className="flex justify-between items-center">
-        <span className="text-[var(--muted)]">HTTPS</span>
-        <span className={https.passed ? "text-[var(--success)] font-medium" : "text-[var(--error)] font-medium"}>
-          {https.passed ? "✓ Secure" : "✗ Not Secure"}
-        </span>
+    <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-auto p-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <Row label="HTTPS" ok={https.passed} value={https.passed ? "✓ Secure" : "✗ Not Secure"} />
+        <Row label="Sitemap" ok={sitemap.found} value={sitemap.found ? "✓ Found" : "✗ Not Found"} />
+        <Row
+          label="Broken Links"
+          ok={broken_links.count === 0}
+          value={broken_links.count === 0 ? "✓ None" : `✗ ${broken_links.count} broken`}
+        />
+        <Row
+          label="Missing Canonicals"
+          ok={missing_canonicals.missing_count === 0}
+          value={
+            missing_canonicals.missing_count === 0
+              ? "✓ None"
+              : `${missing_canonicals.missing_count} / ${missing_canonicals.total_html_pages}`
+          }
+        />
       </div>
 
-      {/* Sitemap */}
-      <div className="flex justify-between items-center">
-        <span className="text-[var(--muted)]">Sitemap</span>
-        <span className={sitemap.found ? "text-[var(--success)] font-medium" : "text-[var(--warning)] font-medium"}>
-          {sitemap.found ? "✓ Found" : "✗ Not Found"}
-        </span>
-      </div>
-
-      {/* Broken links */}
-      <div className="flex justify-between items-center">
-        <span className="text-[var(--muted)]">Broken Links</span>
-        <span className={broken_links.count === 0 ? "text-[var(--success)] font-medium" : "text-[var(--error)] font-medium"}>
-          {broken_links.count === 0 ? "✓ None" : `✗ ${broken_links.count}`}
-        </span>
-      </div>
-
-      {/* Missing canonicals */}
-      <div className="flex justify-between items-center">
-        <span className="text-[var(--muted)]">Missing Canonicals</span>
-        <span className={missing_canonicals.missing_count === 0 ? "text-[var(--success)] font-medium" : "text-[var(--warning)] font-medium"}>
-          {missing_canonicals.missing_count === 0
-            ? "✓ None"
-            : `${missing_canonicals.missing_count} / ${missing_canonicals.total_html_pages}`}
-        </span>
-      </div>
+      {/* Broken links list */}
+      {broken_links.urls.length > 0 && (
+        <div className="rounded-xl border border-[var(--border)] bg-white p-4 shadow-sm">
+          <h3 className="mb-3 text-sm font-semibold text-[var(--foreground)]">Broken Links</h3>
+          <div className="max-h-40 overflow-auto space-y-1">
+            {broken_links.urls.map((url, i) => (
+              <p key={i} className="truncate rounded bg-red-50 px-2 py-1 text-xs text-red-600" title={url}>
+                {url}
+              </p>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* PageSpeed */}
-      <div className="space-y-2 pt-1">
-        <div className="text-[var(--muted)]">PageSpeed Insights</div>
-        <PsiBlock psi={pagespeed.desktop} label="Desktop" />
-        <PsiBlock psi={pagespeed.mobile} label="Mobile" />
+      <div className="rounded-xl border border-[var(--border)] bg-white p-4 shadow-sm">
+        <h3 className="mb-3 text-sm font-semibold text-[var(--foreground)]">PageSpeed Insights</h3>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <PsiBlock psi={pagespeed.desktop} label="Desktop" />
+          <PsiBlock psi={pagespeed.mobile} label="Mobile" />
+        </div>
       </div>
+
+      {/* Sitemap URL */}
+      {sitemap.found && sitemap.url && (
+        <div className="rounded-xl border border-[var(--border)] bg-white p-4 shadow-sm">
+          <h3 className="mb-2 text-sm font-semibold text-[var(--foreground)]">Sitemap</h3>
+          <p className="break-all text-xs text-[var(--muted)]">{sitemap.url}</p>
+        </div>
+      )}
     </div>
   );
 }
 
+// ── Main Component ─────────────────────────────────────────────────────────────
 export default function Home() {
   const [url, setUrl] = useState("");
   const [siteId, setSiteId] = useState<string | null>(null);
@@ -127,20 +200,16 @@ export default function Home() {
   const [pagesData, setPagesData] = useState<PagesResponse | null>(null);
   const [overview, setOverview] = useState<OverviewResponse | null>(null);
   const [selectedPage, setSelectedPage] = useState<PageRow | null>(null);
-  const [typeTab, setTypeTab] = useState<TabType>("all");
+  const [typeTab, setTypeTab] = useState<TypeTab>("all");
+  const [mainTab, setMainTab] = useState<MainTab>("crawl");
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [detailSearch, setDetailSearch] = useState("");
   const [audit, setAudit] = useState<AuditResponse | null>(null);
+  const [geo, setGeo] = useState<GeoResponse | null>(null);
 
-  const CenterLoader = () => (
-    <div className="flex items-center justify-center gap-3">
-      <div className="h-8 w-8 animate-spin rounded-full border-4 border-[var(--border)] border-t-[var(--accent)]" />
-      <span className="text-sm text-[var(--muted)]">Discovering URLs...</span>
-    </div>
-  );
-
+  // ── Crawl status polling ─────────────────────────────────────────────────
   const pollSite = useCallback(async (id: string) => {
     try {
       const s = await getSite(id);
@@ -153,7 +222,6 @@ export default function Home() {
       } else if (s.status === "failed") {
         setError("Crawl failed.");
       } else if (s.status === "processing" || s.status === "queued") {
-        // Show data in parallel with DB: fetch pages and overview during crawl
         const [pages, ov] = await Promise.all([getPages(id), getOverview(id)]);
         setPagesData(pages);
         setOverview(ov);
@@ -163,7 +231,14 @@ export default function Home() {
     }
   }, []);
 
-  // Poll audit separately after crawl completes (PSI takes 30-60s)
+  useEffect(() => {
+    if (!siteId || !site) return;
+    if (site.status === "completed" || site.status === "failed") return;
+    const t = setInterval(() => pollSite(siteId), 1500);
+    return () => clearInterval(t);
+  }, [siteId, site?.status, pollSite]);
+
+  // ── Audit polling ─────────────────────────────────────────────────────────
   useEffect(() => {
     if (!siteId || site?.status !== "completed") return;
     if (audit?.audit_status === "completed" || audit?.audit_status === "failed") return;
@@ -173,13 +248,38 @@ export default function Home() {
     return () => clearInterval(t);
   }, [siteId, site?.status, audit?.audit_status]);
 
+  // ── GEO polling ───────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!siteId || site?.status !== "completed") return;
+    if (geo?.geo_status === "completed" || geo?.geo_status === "failed") return;
+    const fetchGeo = () => getGeo(siteId).then(setGeo).catch(() => {});
+    fetchGeo();
+    const t = setInterval(fetchGeo, 4000);
+    return () => clearInterval(t);
+  }, [siteId, site?.status, geo?.geo_status]);
+
+  // ── Pages / overview refresh ──────────────────────────────────────────────
+  const refreshPages = useCallback(() => {
+    if (!siteId) return;
+    const typeParam = typeTab === "all" ? undefined : typeTab;
+    getPages(siteId, { type: typeParam, search: search || undefined, limit: 100000 })
+      .then(setPagesData)
+      .catch(() => setError("Failed to load pages"));
+  }, [siteId, typeTab, search]);
+
   useEffect(() => {
     if (!siteId || !site) return;
-    if (site.status === "completed" || site.status === "failed") return;
-    const t = setInterval(() => pollSite(siteId), 1500);
-    return () => clearInterval(t);
-  }, [siteId, site?.status, pollSite]);
+    if (site.status !== "completed" && site.status !== "processing") return;
+    refreshPages();
+  }, [siteId, site?.status, typeTab, search, refreshPages]);
 
+  useEffect(() => {
+    if (!siteId || !site) return;
+    if (site.status !== "completed" && site.status !== "processing") return;
+    getOverview(siteId).then(setOverview).catch(() => {});
+  }, [siteId, site?.status]);
+
+  // ── Handlers ─────────────────────────────────────────────────────────────
   const handleStart = async () => {
     if (!url.trim()) return;
     setError(null);
@@ -187,6 +287,9 @@ export default function Home() {
     setPagesData(null);
     setOverview(null);
     setSelectedPage(null);
+    setAudit(null);
+    setGeo(null);
+    setMainTab("crawl");
     try {
       const result = await startAnalysis(url.trim());
       setSiteId(result.site_id);
@@ -214,32 +317,15 @@ export default function Home() {
     setOverview(null);
     setSelectedPage(null);
     setAudit(null);
+    setGeo(null);
     setError(null);
     setUrl("");
     setSearch("");
     setDetailSearch("");
+    setMainTab("crawl");
   };
 
-  const refreshPages = useCallback(() => {
-    if (!siteId) return;
-    const typeParam = typeTab === "all" ? undefined : typeTab;
-    getPages(siteId, { type: typeParam, search: search || undefined, limit: 100000 })
-      .then(setPagesData)
-      .catch(() => setError("Failed to load pages"));
-  }, [siteId, typeTab, search]);
-
-  useEffect(() => {
-    if (!siteId || !site) return;
-    if (site.status !== "completed" && site.status !== "processing") return;
-    refreshPages();
-  }, [siteId, site?.status, typeTab, search, refreshPages]);
-
-  useEffect(() => {
-    if (!siteId || !site) return;
-    if (site.status !== "completed" && site.status !== "processing") return;
-    getOverview(siteId).then(setOverview).catch(() => {});
-  }, [siteId, site?.status]);
-
+  // ── Detail rows for bottom panel ──────────────────────────────────────────
   const filteredDetailRows = selectedPage
     ? Object.entries({
         Address: selectedPage.address,
@@ -271,12 +357,23 @@ export default function Home() {
       )
     : [];
 
+  const crawlActive = site?.status === "completed" || site?.status === "processing";
+  const geoScore = geo?.score?.overall_score;
+  const geoGrade = geo?.score?.grade;
+
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="flex h-screen flex-col bg-[var(--background)] text-[var(--foreground)]">
-      {/* Top bar */}
+
+      {/* ── Top bar ─────────────────────────────────────────────────────── */}
       <header className="flex shrink-0 items-center gap-4 border-b border-[var(--border)] bg-[var(--accent)] px-4 py-3 text-white">
         <div className="flex items-center gap-2">
           <span className="text-lg font-semibold tracking-tight">AI SEO TOOL</span>
+          {geo?.score && (
+            <span className="rounded-full bg-white/20 px-2 py-0.5 text-xs font-bold">
+              GEO {geoScore}
+            </span>
+          )}
         </div>
         <div className="flex flex-1 items-center gap-2">
           <input
@@ -290,18 +387,19 @@ export default function Home() {
           <button
             onClick={handleStart}
             disabled={loading}
-            className="rounded bg-white px-4 py-2 text-sm font-medium text-[var(--accent)] hover:bg-white/90 disabled:opacity-50"
+            className="rounded bg-white px-4 py-2 text-sm font-medium text-[var(--accent)] hover:bg-white/90 disabled:opacity-50 transition-colors"
           >
             {loading ? "Starting…" : "Start"}
           </button>
           <button
             onClick={handleClear}
-            className="rounded border border-white/50 px-4 py-2 text-sm text-white hover:bg-white/10"
+            className="rounded border border-white/50 px-4 py-2 text-sm text-white hover:bg-white/10 transition-colors"
           >
             Clear
           </button>
         </div>
-        {/* Progress indicator: pulsing bar while crawling, filled when done */}
+
+        {/* Progress bar */}
         {site && (site.status === "processing" || site.status === "completed") && (
           <div className="flex items-center gap-2 min-w-[140px]">
             <div className="w-24 h-5 rounded bg-white/20 overflow-hidden relative flex items-center justify-center">
@@ -317,231 +415,383 @@ export default function Home() {
           </div>
         )}
         {site && (
-          <span className="text-xs opacity-90">
-            Status: <span className="capitalize font-medium">{site.status}</span>
+          <span className="text-xs opacity-90 shrink-0">
+            <span className="capitalize font-medium">{site.status}</span>
           </span>
         )}
       </header>
 
+      {/* Error bar */}
       {error && (
         <div className="shrink-0 border-b border-[var(--error)] bg-[var(--error)]/10 px-4 py-2 text-sm text-[var(--error)]">
           {error}
         </div>
       )}
 
-      {/* Type tabs */}
+      {/* ── Main tab navigation ─────────────────────────────────────────── */}
       {site && (
-        <div className="flex shrink-0 gap-1 border-b border-[var(--border)] bg-[var(--surface)] px-4 py-2">
-          {(["all", "internal", "external"] as const).map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setTypeTab(tab)}
-              className={`rounded-md px-3 py-1.5 text-sm capitalize ${
-                typeTab === tab
-                  ? "bg-[var(--accent-light)] text-[var(--accent)] font-medium"
-                  : "text-[var(--muted)] hover:text-[var(--foreground)]"
-              }`}
-            >
-              {tab}
-            </button>
-          ))}
-        </div>
+        <nav className="flex shrink-0 items-center gap-1 border-b border-[var(--border)] bg-[var(--surface)] px-4">
+          {/* Crawl tab */}
+          <button
+            onClick={() => setMainTab("crawl")}
+            className={`flex items-center gap-1.5 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
+              mainTab === "crawl"
+                ? "border-[var(--accent)] text-[var(--accent)]"
+                : "border-transparent text-[var(--muted)] hover:text-[var(--foreground)]"
+            }`}
+          >
+            Crawl
+            {pagesData && (
+              <span className="rounded-full bg-[var(--surface-elevated)] border border-[var(--border)] px-1.5 py-0.5 text-[10px] font-medium">
+                {pagesData.total}
+              </span>
+            )}
+          </button>
+
+          {/* Technical Audit tab */}
+          <button
+            onClick={() => setMainTab("audit")}
+            className={`flex items-center gap-1.5 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
+              mainTab === "audit"
+                ? "border-[var(--accent)] text-[var(--accent)]"
+                : "border-transparent text-[var(--muted)] hover:text-[var(--foreground)]"
+            }`}
+          >
+            Technical Audit
+            {audit?.audit_status === "completed" && (
+              <span className="rounded-full bg-green-100 border border-green-200 px-1.5 py-0.5 text-[10px] font-medium text-green-700">
+                Done
+              </span>
+            )}
+            {(!audit || audit.audit_status === "running" || audit.audit_status === "pending") &&
+              site?.status === "completed" && (
+                <span className="h-2 w-2 animate-spin rounded-full border border-[var(--border)] border-t-[var(--accent)]" />
+              )}
+          </button>
+
+          {/* GEO Analysis tab */}
+          <button
+            onClick={() => setMainTab("geo")}
+            className={`flex items-center gap-1.5 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
+              mainTab === "geo"
+                ? "border-[var(--accent)] text-[var(--accent)]"
+                : "border-transparent text-[var(--muted)] hover:text-[var(--foreground)]"
+            }`}
+          >
+            GEO Analysis
+            {geo?.geo_status === "completed" && geo.score && (
+              <span
+                className="rounded-full px-1.5 py-0.5 text-[10px] font-bold"
+                style={{
+                  backgroundColor:
+                    geo.score.overall_score >= 80 ? "#dcfce7"
+                    : geo.score.overall_score >= 60 ? "#fef9c3"
+                    : "#fee2e2",
+                  color:
+                    geo.score.overall_score >= 80 ? "#166534"
+                    : geo.score.overall_score >= 60 ? "#854d0e"
+                    : "#991b1b",
+                }}
+              >
+                {geo.score.overall_score}
+              </span>
+            )}
+            {geo?.geo_status === "running" && (
+              <span className="h-2 w-2 animate-spin rounded-full border border-[var(--border)] border-t-[var(--accent)]" />
+            )}
+            {(!geo || geo.geo_status === "pending") && site?.status === "completed" && (
+              <span className="h-2 w-2 animate-spin rounded-full border border-[var(--border)] border-t-[var(--accent)]" />
+            )}
+          </button>
+
+          {/* AI Crawlers info */}
+          {site?.ai_crawler_access && (
+            <div className="ml-auto flex items-center gap-2">
+              <span className="text-xs text-[var(--muted)]">AI crawlers:</span>
+              {Object.entries(site.ai_crawler_access)
+                .slice(0, 4)
+                .map(([bot, allowed]) => (
+                  <span
+                    key={bot}
+                    className="rounded-full px-2 py-0.5 text-[10px] font-medium"
+                    style={
+                      allowed
+                        ? { backgroundColor: "#dcfce7", color: "#166534" }
+                        : { backgroundColor: "#fee2e2", color: "#991b1b" }
+                    }
+                  >
+                    {bot} {allowed ? "✓" : "✗"}
+                  </span>
+                ))}
+            </div>
+          )}
+        </nav>
       )}
 
-      {/* Main content: table + sidebar */}
-      <div className="flex min-h-0 flex-1">
-        {/* Table area - scrollable with sticky header */}
-        <div className="flex min-w-0 flex-1 flex-col border-r border-[var(--border)] bg-[var(--surface)]">
-          {(site?.status === "completed" || site?.status === "processing") && (
-            <>
-              <div className="flex shrink-0 items-center gap-2 border-b border-[var(--border)] bg-[var(--surface-elevated)] px-3 py-2">
-                <input
-                  type="text"
-                  placeholder="Search URLs…"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="flex-1 rounded border border-[var(--border)] bg-[var(--surface)] px-2 py-1.5 text-sm outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]"
-                />
-                <span className="text-xs text-[var(--muted)]">
-                  {pagesData?.total ?? 0} URL{(pagesData?.total ?? 0) !== 1 ? "s" : ""}
-                  {site?.status === "processing" && " (updating…)"}
-                </span>
-              </div>
-              <div className="min-h-0 flex-1 overflow-auto">
-                <table className="w-full border-collapse text-sm" style={{ minWidth: "2200px" }}>
-                  <thead className="sticky top-0 z-10 border-b border-[var(--border)] bg-[var(--surface-elevated)] shadow-[0_1px_0_0_var(--border)]">
-                    <tr>
-                      <th className="w-12 shrink-0 px-2 py-2 text-left text-xs font-medium text-[var(--muted)]">#</th>
-                      <th className="min-w-[220px] px-2 py-2 text-left text-xs font-medium text-[var(--muted)]">Address</th>
-                      <th className="w-20 shrink-0 px-2 py-2 text-left text-xs font-medium text-[var(--muted)]">Type</th>
-                      <th className="min-w-[140px] px-2 py-2 text-left text-xs font-medium text-[var(--muted)]">Content Type</th>
-                      <th className="min-w-[140px] px-2 py-2 text-left text-xs font-medium text-[var(--muted)]">Image Alt Text</th>
-                      <th className="w-20 shrink-0 px-2 py-2 text-left text-xs font-medium text-[var(--muted)]">Status Code</th>
-                      <th className="min-w-[100px] px-2 py-2 text-left text-xs font-medium text-[var(--muted)]">Status</th>
-                      <th className="w-24 shrink-0 px-2 py-2 text-left text-xs font-medium text-[var(--muted)]">Indexability</th>
-                      <th className="min-w-[80px] px-2 py-2 text-left text-xs font-medium text-[var(--muted)]">Index. Status</th>
-                      <th className="min-w-[120px] px-2 py-2 text-left text-xs font-medium text-[var(--muted)]">Title</th>
-                      <th className="w-16 shrink-0 px-2 py-2 text-left text-xs font-medium text-[var(--muted)]">Title Len</th>
-                      <th className="min-w-[100px] px-2 py-2 text-left text-xs font-medium text-[var(--muted)]">Meta Desc</th>
-                      <th className="min-w-[100px] px-2 py-2 text-left text-xs font-medium text-[var(--muted)]">H1</th>
-                      <th className="min-w-[180px] px-2 py-2 text-left text-xs font-medium text-[var(--muted)]">Canonical</th>
-                      <th className="w-14 shrink-0 px-2 py-2 text-left text-xs font-medium text-[var(--muted)]">Depth</th>
-                      <th className="w-20 shrink-0 px-2 py-2 text-left text-xs font-medium text-[var(--muted)]">Resp. Time</th>
-                      <th className="w-16 shrink-0 px-2 py-2 text-left text-xs font-medium text-[var(--muted)]">Language</th>
-                      <th className="min-w-[120px] px-2 py-2 text-left text-xs font-medium text-[var(--muted)]">Last Modified</th>
-                      <th className="min-w-[180px] px-2 py-2 text-left text-xs font-medium text-[var(--muted)]">Redirect URL</th>
-                      <th className="min-w-[80px] px-2 py-2 text-left text-xs font-medium text-[var(--muted)]">Redirect Type</th>
-                      <th className="w-14 shrink-0 px-2 py-2 text-left text-xs font-medium text-[var(--muted)]">HTTP Ver</th>
-                      <th className="min-w-[80px] px-2 py-2 text-left text-xs font-medium text-[var(--muted)]">Readability</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {site?.status === "processing" && pagesData?.pages?.length === 0 && (
-                      <tr>
-                        <td colSpan={12} className="h-[300px]">
-                          <CenterLoader />
-                        </td>
-                      </tr>
-                    )}
-                    {(pagesData?.pages ?? []).map((page, i) => (
-                      <tr
-                        key={`${page.id}-${page.address}`}
-                        onClick={() => setSelectedPage(page)}
-                        className={`cursor-pointer border-b border-[var(--border)]/50 hover:bg-[var(--surface-elevated)] ${
-                          selectedPage?.id === page.id && selectedPage?.address === page.address ? "bg-[var(--accent-light)]" : ""
-                        }`}
-                      >
-                        <td className="shrink-0 px-2 py-2 text-[var(--muted)]">{i + 1}</td>
-                        <td className="min-w-[220px] max-w-[360px] truncate px-2 py-2" title={page.address}>{page.address}</td>
-                        <td className="shrink-0 px-2 py-2 text-[var(--muted)]">{page.type ?? "—"}</td>
-                        <td className="min-w-[140px] max-w-[180px] truncate px-2 py-2 text-[var(--muted)]" title={page.content_type ?? ""}>{page.content_type ?? "—"}</td>
-                        <td
-                          className={`min-w-[140px] max-w-[200px] truncate px-2 py-2 ${
-                            page.content_type?.includes("image") && (page.alt_text == null || page.alt_text === "")
-                              ? "text-[var(--warning)]"
-                              : "text-[var(--muted)]"
-                          }`}
-                          title={page.alt_text ?? ""}
-                        >
-                          {page.content_type?.includes("image")
-                            ? (page.alt_text != null ? page.alt_text || "empty" : "missing")
-                            : "—"}
-                        </td>
-                        <td className="shrink-0 px-2 py-2">{page.status_code ?? "—"}</td>
-                        <td className="min-w-[100px] max-w-[140px] truncate px-2 py-2 text-[var(--muted)]" title={page.status ?? ""}>{page.status ?? "—"}</td>
-                        <td className="shrink-0 px-2 py-2 text-[var(--muted)]">{page.indexability ?? "—"}</td>
-                        <td className="min-w-[80px] px-2 py-2 text-[var(--muted)]">{page.indexability_status ?? "—"}</td>
-                        <td className="min-w-[120px] max-w-[200px] truncate px-2 py-2" title={page.title ?? ""}>{page.title ?? "—"}</td>
-                        <td className="shrink-0 px-2 py-2 text-[var(--muted)]">{page.title_length ?? "—"}</td>
-                        <td className="min-w-[100px] max-w-[180px] truncate px-2 py-2 text-[var(--muted)]" title={page.meta_descp ?? ""}>{page.meta_descp ?? "—"}</td>
-                        <td className="min-w-[100px] max-w-[160px] truncate px-2 py-2" title={page.h1 ?? ""}>{page.h1 ?? "—"}</td>
-                        <td className="min-w-[180px] max-w-[280px] truncate px-2 py-2 text-[var(--muted)]" title={page.canonical ?? ""}>{page.canonical ?? "—"}</td>
-                        <td className="shrink-0 px-2 py-2 text-[var(--muted)]">{page.crawl_depth ?? "—"}</td>
-                        <td className="shrink-0 px-2 py-2 text-[var(--muted)]">{page.response_time ?? "—"}</td>
-                        <td className="shrink-0 px-2 py-2 text-[var(--muted)]">{page.language ?? "—"}</td>
-                        <td className="min-w-[120px] max-w-[180px] truncate px-2 py-2 text-[var(--muted)]" title={page.last_modified ?? ""}>{page.last_modified ?? "—"}</td>
-                        <td className="min-w-[180px] max-w-[280px] truncate px-2 py-2 text-[var(--muted)]" title={page.redirect_url ?? ""}>{page.redirect_url ?? "—"}</td>
-                        <td className="min-w-[80px] px-2 py-2 text-[var(--muted)]">{page.redirect_type ?? "—"}</td>
-                        <td className="shrink-0 px-2 py-2 text-[var(--muted)]">{page.http_version ?? "—"}</td>
-                        <td className="min-w-[80px] px-2 py-2 text-[var(--muted)]">{page.readability ?? "—"}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </>
-          )}
-          {site && site.status !== "completed" && site.status !== "processing" && (
-            <div className="flex flex-1 items-center justify-center text-[var(--muted)]">
-              Crawling… {site.status === "queued" && "Starting…"}
-            </div>
-          )}
-          {!site && (
-            <div className="flex flex-1 items-center justify-center text-[var(--muted)]">
-              Enter a URL and click Start to crawl a site.
-            </div>
-          )}
-        </div>
+      {/* ── Tab content area ─────────────────────────────────────────────── */}
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
 
-        {/* Right sidebar: Overview + Audit */}
-        {(site?.status === "completed" || site?.status === "processing") && (
-          <aside className="flex w-64 shrink-0 flex-col border-l border-[var(--border)] bg-[var(--surface)] overflow-auto">
-            {/* Overview section */}
-            {overview && (
-              <>
-                <h3 className="shrink-0 border-b border-[var(--border)] bg-[var(--surface-elevated)] px-4 py-3 text-sm font-medium text-[var(--foreground)]">
-                  Overview
-                </h3>
-                <div className="p-4">
-                  <div className="space-y-2 text-xs">
-                    <div className="flex justify-between rounded bg-[var(--surface-elevated)] px-3 py-2">
-                      <span className="text-[var(--muted)]">Total URLs</span>
-                      <span className="font-medium">{overview.total_urls}</span>
+        {/* ── CRAWL TAB ── */}
+        {mainTab === "crawl" && (
+          <div className="flex min-h-0 flex-1">
+            {/* Main table */}
+            <div className="flex min-w-0 flex-1 flex-col border-r border-[var(--border)] bg-[var(--surface)]">
+              {crawlActive && (
+                <>
+                  <div className="flex shrink-0 items-center gap-2 border-b border-[var(--border)] bg-[var(--surface-elevated)] px-3 py-2">
+                    {/* Type tabs */}
+                    <div className="flex gap-1">
+                      {(["all", "internal", "external"] as const).map((tab) => (
+                        <button
+                          key={tab}
+                          onClick={() => setTypeTab(tab)}
+                          className={`rounded-md px-3 py-1 text-xs capitalize transition-colors ${
+                            typeTab === tab
+                              ? "bg-[var(--accent-light)] text-[var(--accent)] font-medium"
+                              : "text-[var(--muted)] hover:text-[var(--foreground)]"
+                          }`}
+                        >
+                          {tab}
+                        </button>
+                      ))}
                     </div>
-                    {overview.images_total > 0 && (
-                      <>
-                        <div className="flex justify-between rounded bg-[var(--surface-elevated)] px-3 py-2">
-                          <span className="text-[var(--muted)]">Missing Image Alt</span>
-                          <span className={`font-medium ${overview.images_missing_alt > 0 ? "text-[var(--warning)]" : "text-[var(--success)]"}`}>
-                            {overview.images_missing_alt}
-                          </span>
-                        </div>
-                      </>
-                    )}
-                    <div className="mt-3 text-[var(--muted)]">By resource type</div>
-                    {overview.by_type.map((t, i) => (
-                      <div key={`${t.label}-${i}`} className="flex justify-between rounded px-2 py-1">
-                        <span>{t.label}</span>
-                        <span>
-                          {t.count} <span className="text-[var(--muted)]">({t.percent}%)</span>
-                        </span>
-                      </div>
-                    ))}
+                    <input
+                      type="text"
+                      placeholder="Search URLs…"
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      className="flex-1 rounded border border-[var(--border)] bg-[var(--surface)] px-2 py-1.5 text-xs outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]"
+                    />
+                    <span className="shrink-0 text-xs text-[var(--muted)]">
+                      {pagesData?.total ?? 0} URL{(pagesData?.total ?? 0) !== 1 ? "s" : ""}
+                      {site?.status === "processing" && " (updating…)"}
+                    </span>
+                  </div>
+                  <div className="min-h-0 flex-1 overflow-auto">
+                    <table className="w-full border-collapse text-sm" style={{ minWidth: "2200px" }}>
+                      <thead className="sticky top-0 z-10 border-b border-[var(--border)] bg-[var(--surface-elevated)] shadow-[0_1px_0_0_var(--border)]">
+                        <tr>
+                          <th className="w-12 px-2 py-2 text-left text-xs font-medium text-[var(--muted)]">#</th>
+                          <th className="min-w-[220px] px-2 py-2 text-left text-xs font-medium text-[var(--muted)]">Address</th>
+                          <th className="w-20 px-2 py-2 text-left text-xs font-medium text-[var(--muted)]">Type</th>
+                          <th className="min-w-[140px] px-2 py-2 text-left text-xs font-medium text-[var(--muted)]">Content Type</th>
+                          <th className="min-w-[140px] px-2 py-2 text-left text-xs font-medium text-[var(--muted)]">Image Alt Text</th>
+                          <th className="w-20 px-2 py-2 text-left text-xs font-medium text-[var(--muted)]">Status Code</th>
+                          <th className="min-w-[100px] px-2 py-2 text-left text-xs font-medium text-[var(--muted)]">Status</th>
+                          <th className="w-24 px-2 py-2 text-left text-xs font-medium text-[var(--muted)]">Indexability</th>
+                          <th className="min-w-[80px] px-2 py-2 text-left text-xs font-medium text-[var(--muted)]">Index. Status</th>
+                          <th className="min-w-[120px] px-2 py-2 text-left text-xs font-medium text-[var(--muted)]">Title</th>
+                          <th className="w-16 px-2 py-2 text-left text-xs font-medium text-[var(--muted)]">Title Len</th>
+                          <th className="min-w-[100px] px-2 py-2 text-left text-xs font-medium text-[var(--muted)]">Meta Desc</th>
+                          <th className="min-w-[100px] px-2 py-2 text-left text-xs font-medium text-[var(--muted)]">H1</th>
+                          <th className="min-w-[180px] px-2 py-2 text-left text-xs font-medium text-[var(--muted)]">Canonical</th>
+                          <th className="w-14 px-2 py-2 text-left text-xs font-medium text-[var(--muted)]">Depth</th>
+                          <th className="w-20 px-2 py-2 text-left text-xs font-medium text-[var(--muted)]">Resp. Time</th>
+                          <th className="w-16 px-2 py-2 text-left text-xs font-medium text-[var(--muted)]">Language</th>
+                          <th className="min-w-[120px] px-2 py-2 text-left text-xs font-medium text-[var(--muted)]">Last Modified</th>
+                          <th className="min-w-[180px] px-2 py-2 text-left text-xs font-medium text-[var(--muted)]">Redirect URL</th>
+                          <th className="min-w-[80px] px-2 py-2 text-left text-xs font-medium text-[var(--muted)]">Redirect Type</th>
+                          <th className="w-14 px-2 py-2 text-left text-xs font-medium text-[var(--muted)]">HTTP Ver</th>
+                          <th className="min-w-[80px] px-2 py-2 text-left text-xs font-medium text-[var(--muted)]">Readability</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {site?.status === "processing" && pagesData?.pages?.length === 0 && (
+                          <tr>
+                            <td colSpan={12} className="h-[300px]">
+                              <div className="flex items-center justify-center gap-3">
+                                <div className="h-8 w-8 animate-spin rounded-full border-4 border-[var(--border)] border-t-[var(--accent)]" />
+                                <span className="text-sm text-[var(--muted)]">Discovering URLs…</span>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                        {(pagesData?.pages ?? []).map((page, i) => (
+                          <tr
+                            key={`${page.id}-${page.address}`}
+                            onClick={() => setSelectedPage(page)}
+                            className={`cursor-pointer border-b border-[var(--border)]/50 hover:bg-[var(--surface-elevated)] transition-colors ${
+                              selectedPage?.id === page.id && selectedPage?.address === page.address
+                                ? "bg-[var(--accent-light)]"
+                                : ""
+                            }`}
+                          >
+                            <td className="px-2 py-2 text-[var(--muted)]">{i + 1}</td>
+                            <td className="min-w-[220px] max-w-[360px] truncate px-2 py-2" title={page.address}>
+                              {page.address}
+                            </td>
+                            <td className="px-2 py-2 text-[var(--muted)]">{page.type ?? "—"}</td>
+                            <td className="min-w-[140px] max-w-[180px] truncate px-2 py-2 text-[var(--muted)]" title={page.content_type ?? ""}>
+                              {page.content_type ?? "—"}
+                            </td>
+                            <td
+                              className={`min-w-[140px] max-w-[200px] truncate px-2 py-2 ${
+                                page.content_type?.includes("image") &&
+                                (page.alt_text == null || page.alt_text === "")
+                                  ? "text-[var(--warning)]"
+                                  : "text-[var(--muted)]"
+                              }`}
+                              title={page.alt_text ?? ""}
+                            >
+                              {page.content_type?.includes("image")
+                                ? page.alt_text != null
+                                  ? page.alt_text || "empty"
+                                  : "missing"
+                                : "—"}
+                            </td>
+                            <td className="px-2 py-2">{page.status_code ?? "—"}</td>
+                            <td className="min-w-[100px] max-w-[140px] truncate px-2 py-2 text-[var(--muted)]" title={page.status ?? ""}>
+                              {page.status ?? "—"}
+                            </td>
+                            <td className="px-2 py-2 text-[var(--muted)]">{page.indexability ?? "—"}</td>
+                            <td className="min-w-[80px] px-2 py-2 text-[var(--muted)]">{page.indexability_status ?? "—"}</td>
+                            <td className="min-w-[120px] max-w-[200px] truncate px-2 py-2" title={page.title ?? ""}>
+                              {page.title ?? "—"}
+                            </td>
+                            <td className="px-2 py-2 text-[var(--muted)]">{page.title_length ?? "—"}</td>
+                            <td className="min-w-[100px] max-w-[180px] truncate px-2 py-2 text-[var(--muted)]" title={page.meta_descp ?? ""}>
+                              {page.meta_descp ?? "—"}
+                            </td>
+                            <td className="min-w-[100px] max-w-[160px] truncate px-2 py-2" title={page.h1 ?? ""}>
+                              {page.h1 ?? "—"}
+                            </td>
+                            <td className="min-w-[180px] max-w-[280px] truncate px-2 py-2 text-[var(--muted)]" title={page.canonical ?? ""}>
+                              {page.canonical ?? "—"}
+                            </td>
+                            <td className="px-2 py-2 text-[var(--muted)]">{page.crawl_depth ?? "—"}</td>
+                            <td className="px-2 py-2 text-[var(--muted)]">{page.response_time ?? "—"}</td>
+                            <td className="px-2 py-2 text-[var(--muted)]">{page.language ?? "—"}</td>
+                            <td className="min-w-[120px] max-w-[180px] truncate px-2 py-2 text-[var(--muted)]" title={page.last_modified ?? ""}>
+                              {page.last_modified ?? "—"}
+                            </td>
+                            <td className="min-w-[180px] max-w-[280px] truncate px-2 py-2 text-[var(--muted)]" title={page.redirect_url ?? ""}>
+                              {page.redirect_url ?? "—"}
+                            </td>
+                            <td className="min-w-[80px] px-2 py-2 text-[var(--muted)]">{page.redirect_type ?? "—"}</td>
+                            <td className="px-2 py-2 text-[var(--muted)]">{page.http_version ?? "—"}</td>
+                            <td className="min-w-[80px] px-2 py-2 text-[var(--muted)]">{page.readability ?? "—"}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
+              {site && !crawlActive && (
+                <div className="flex flex-1 items-center justify-center text-[var(--muted)]">
+                  {site.status === "queued" ? "Starting crawl…" : "Crawling…"}
+                </div>
+              )}
+              {!site && (
+                <div className="flex flex-1 items-center justify-center">
+                  <div className="text-center space-y-3">
+                    <p className="text-2xl font-bold text-[var(--accent)]">AI SEO Tool</p>
+                    <p className="text-[var(--muted)] text-sm max-w-sm">
+                      Enter a URL above to crawl a website, run a technical audit, and get your AI Citation Score.
+                    </p>
                   </div>
                 </div>
-              </>
-            )}
+              )}
+            </div>
 
-            {/* Audit section — appears after crawl completes */}
-            {site?.status === "completed" && (
-              <>
-                <h3 className="shrink-0 border-y border-[var(--border)] bg-[var(--surface-elevated)] px-4 py-3 text-sm font-medium text-[var(--foreground)]">
-                  Technical Audit
+            {/* Right sidebar: Overview */}
+            {crawlActive && overview && (
+              <aside className="flex w-56 shrink-0 flex-col border-l border-[var(--border)] bg-[var(--surface)] overflow-auto">
+                <h3 className="shrink-0 border-b border-[var(--border)] bg-[var(--surface-elevated)] px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">
+                  Overview
                 </h3>
-                {(!audit || audit.audit_status === "pending" || audit.audit_status === "running") ? (
-                  <div className="flex items-center gap-2 px-4 py-4 text-xs text-[var(--muted)]">
-                    <div className="h-3 w-3 animate-spin rounded-full border-2 border-[var(--border)] border-t-[var(--accent)]" />
-                    Running audit…
+                <div className="p-3 space-y-2 text-xs">
+                  <div className="flex justify-between rounded-lg bg-[var(--surface-elevated)] px-3 py-2">
+                    <span className="text-[var(--muted)]">Total URLs</span>
+                    <span className="font-semibold">{overview.total_urls}</span>
                   </div>
-                ) : audit.audit_status === "failed" || !audit.audit ? (
-                  <p className="px-4 py-3 text-xs text-[var(--error)]">Audit failed.</p>
-                ) : (
-                  <AuditPanel audit={audit.audit} />
-                )}
-              </>
+                  {overview.images_total > 0 && (
+                    <div className="flex justify-between rounded-lg bg-[var(--surface-elevated)] px-3 py-2">
+                      <span className="text-[var(--muted)]">Missing Alt</span>
+                      <span
+                        className={`font-semibold ${
+                          overview.images_missing_alt > 0 ? "text-[var(--warning)]" : "text-[var(--success)]"
+                        }`}
+                      >
+                        {overview.images_missing_alt}
+                      </span>
+                    </div>
+                  )}
+                  <p className="pt-1 text-[var(--muted)]">By type</p>
+                  {overview.by_type.map((t, i) => (
+                    <div key={`${t.label}-${i}`} className="flex justify-between px-1">
+                      <span>{t.label}</span>
+                      <span className="text-[var(--muted)]">
+                        {t.count} ({t.percent}%)
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </aside>
             )}
-          </aside>
+          </div>
+        )}
+
+        {/* ── AUDIT TAB ── */}
+        {mainTab === "audit" && (
+          <div className="flex min-h-0 flex-1 flex-col bg-[var(--background)]">
+            {!site || site.status !== "completed" ? (
+              <div className="flex flex-1 items-center justify-center text-[var(--muted)]">
+                Complete a crawl to view the technical audit.
+              </div>
+            ) : !audit || audit.audit_status === "pending" || audit.audit_status === "running" ? (
+              <div className="flex flex-1 items-center justify-center">
+                <Spinner label="Running technical audit… (PageSpeed Insights may take 30–60s)" />
+              </div>
+            ) : audit.audit_status === "failed" || !audit.audit ? (
+              <div className="flex flex-1 items-center justify-center text-[var(--error)]">
+                Audit failed. Please try again.
+              </div>
+            ) : (
+              <AuditFullPanel audit={audit.audit} />
+            )}
+          </div>
+        )}
+
+        {/* ── GEO TAB ── */}
+        {mainTab === "geo" && (
+          <div className="flex min-h-0 flex-1 flex-col bg-[var(--background)]">
+            {!site || site.status !== "completed" ? (
+              <div className="flex flex-1 items-center justify-center text-[var(--muted)]">
+                Complete a crawl to view the GEO analysis.
+              </div>
+            ) : !geo ? (
+              <div className="flex flex-1 items-center justify-center">
+                <Spinner label="Starting GEO analysis…" />
+              </div>
+            ) : (
+              <GeoTab geo={geo} siteId={siteId!} />
+            )}
+          </div>
         )}
       </div>
 
-      {/* Details panel - scrollable with sticky header */}
-      {(site?.status === "completed" || site?.status === "processing") && (
-        <div className="flex shrink-0 flex-col border-t border-[var(--border)] bg-[var(--surface)]" style={{ maxHeight: "280px" }}>
+      {/* ── URL detail panel (bottom, crawl tab only) ─────────────────── */}
+      {mainTab === "crawl" && crawlActive && (
+        <div
+          className="flex shrink-0 flex-col border-t border-[var(--border)] bg-[var(--surface)]"
+          style={{ maxHeight: "240px" }}
+        >
           <div className="flex shrink-0 items-center gap-2 border-b border-[var(--border)] bg-[var(--surface-elevated)] px-3 py-2">
-            <span className="text-sm font-medium text-[var(--muted)]">URL details</span>
+            <span className="text-xs font-medium text-[var(--muted)]">URL details</span>
             {selectedPage && (
               <input
                 type="text"
                 placeholder="Filter details…"
                 value={detailSearch}
                 onChange={(e) => setDetailSearch(e.target.value)}
-                className="ml-2 flex-1 max-w-xs rounded border border-[var(--border)] bg-[var(--surface)] px-2 py-1 text-sm outline-none focus:border-[var(--accent)]"
+                className="ml-2 max-w-xs flex-1 rounded border border-[var(--border)] bg-[var(--surface)] px-2 py-1 text-xs outline-none focus:border-[var(--accent)]"
               />
             )}
           </div>
           <div className="min-h-0 flex-1 overflow-auto p-3">
             {selectedPage ? (
-              <table className="w-full min-w-[400px] text-sm">
+              <table className="w-full min-w-[400px] text-xs">
                 <tbody>
                   {filteredDetailRows.map(([key, val]) => (
                     <tr key={key} className="border-b border-[var(--border)]/50">
@@ -552,28 +802,36 @@ export default function Home() {
                 </tbody>
               </table>
             ) : (
-              <p className="text-sm text-[var(--muted)]">Select a row above to view details.</p>
+              <p className="text-xs text-[var(--muted)]">Select a row above to view details.</p>
             )}
           </div>
         </div>
       )}
 
-      {/* Status bar */}
-      <footer className="flex shrink-0 border-t border-[var(--border)] bg-[var(--surface-elevated)]">
-        <div className="px-4 py-1.5 text-xs text-[var(--muted)]">
+      {/* ── Status bar ──────────────────────────────────────────────────── */}
+      <footer className="flex shrink-0 items-center border-t border-[var(--border)] bg-[var(--surface-elevated)]">
+        <div className="flex flex-1 items-center gap-3 px-4 py-1.5 text-xs text-[var(--muted)]">
           {site ? (
             <>
               <span className="capitalize">{site.status}</span>
-              {site.robots_allowed === false && " · Crawling disallowed by robots.txt"}
-              {pagesData && (
-                <>
-                  {" · "}
-                  {pagesData.total} URL{pagesData.total !== 1 ? "s" : ""} loaded
-                </>
+              {site.robots_allowed === false && (
+                <span className="text-amber-600">· Crawling disallowed by robots.txt</span>
               )}
+              {pagesData && (
+                <span>
+                  · {pagesData.total} URL{pagesData.total !== 1 ? "s" : ""} crawled
+                </span>
+              )}
+              {audit?.audit_status === "completed" && <span>· Audit complete</span>}
+              {geo?.geo_status === "completed" && geo.score && (
+                <span className="font-medium text-[var(--accent)]">
+                  · GEO Score: {geo.score.overall_score}/100 ({geo.score.grade})
+                </span>
+              )}
+              {geo?.geo_status === "running" && <span>· GEO analysis running…</span>}
             </>
           ) : (
-            "Ready"
+            "Ready — enter a URL to start"
           )}
         </div>
       </footer>

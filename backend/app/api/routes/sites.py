@@ -41,6 +41,7 @@ def get_site(task_id: str):
         "robots_allowed": meta.get("robots_allowed", True),
         "ai_crawler_access": meta.get("ai_crawler_access"),
         "audit_status": meta.get("audit_status", "pending"),
+        "geo_status": meta.get("geo_status", "pending"),
     }
 
 

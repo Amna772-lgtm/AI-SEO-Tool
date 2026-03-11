@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from app.api.routes import analyze, sites
+from app.api.routes import analyze, sites, geo
 from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
@@ -18,6 +18,7 @@ app.add_middleware(
 
 app.include_router(analyze.router, prefix="/analyze")
 app.include_router(sites.router, prefix="/sites", tags=["sites"])
+app.include_router(geo.router, prefix="/sites", tags=["geo"])
 
 @app.get("/")
 def root():
