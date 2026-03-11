@@ -34,6 +34,7 @@ export interface PageRow {
   redirect_type: string | null;
   http_version: string | null;
   readability: string | null;
+  alt_text: string | null;
 }
 
 export interface PagesResponse {
@@ -52,6 +53,8 @@ export interface OverviewType {
 export interface OverviewResponse {
   site_id: string;
   total_urls: number;
+  images_total: number;
+  images_missing_alt: number;
   by_type: OverviewType[];
 }
 

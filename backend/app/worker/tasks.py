@@ -4,7 +4,7 @@ import threading
 from app.worker.celery_app import celery
 from app.analyzers.crawler import crawl_site
 from app.analyzers.audit import run_url_checks, run_page_checks
-from app.store.crawl_store import set_meta, append_page, flush_pages_buffer, get_meta, get_all_pages
+from app.store.crawl_store import set_meta, append_page, flush_pages_buffer, get_meta, get_all_pages, update_pages_alt_text
 
 
 @celery.task(name="app.worker.tasks.process_site")
@@ -39,11 +39,16 @@ def process_site(url: str, task_id: str, robots_allowed: bool = True, ai_crawler
         audit_thread = threading.Thread(target=_run_url_checks, daemon=True)
         audit_thread.start()
 
+        img_alt_map: dict = {}
+
         def on_page_crawled(page_data: dict) -> None:
             append_page(task_id, page_data)
 
-        crawl_site(url, on_page_crawled=on_page_crawled)
+        crawl_site(url, on_page_crawled=on_page_crawled, img_alt_out=img_alt_map)
         flush_pages_buffer(task_id)
+
+        # Write alt text for image URLs into Redis (annotation happens after all HTML is parsed)
+        update_pages_alt_text(task_id, img_alt_map)
 
         # Crawl done — mark as completed
         set_meta(

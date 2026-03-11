@@ -89,6 +89,7 @@ def list_pages(
             "redirect_type": p.get("redirect_type"),
             "http_version": p.get("http_version"),
             "readability": p.get("readability"),
+            "alt_text": p.get("alt_text"),
         }
 
     return {
@@ -138,8 +139,14 @@ def get_site_overview(task_id: str):
         for label, count in sorted(label_counts.items(), key=lambda x: -x[1])
     ]
 
+    image_pages = [p for p in pages if "image" in (p.get("content_type") or "").lower()]
+    images_total = len(image_pages)
+    images_missing_alt = sum(1 for p in image_pages if not p.get("alt_text"))
+
     return {
         "site_id": task_id,
         "total_urls": total,
+        "images_total": images_total,
+        "images_missing_alt": images_missing_alt,
         "by_type": by_type,
     }

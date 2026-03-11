@@ -262,6 +262,7 @@ export default function Home() {
         "Redirect Type": selectedPage.redirect_type ?? "—",
         "HTTP Version": selectedPage.http_version ?? "—",
         Readability: selectedPage.readability ?? "—",
+        "Alt Text": selectedPage.alt_text ?? "—",
       }).filter(
         ([key, val]) =>
           !detailSearch ||
@@ -374,6 +375,7 @@ export default function Home() {
                       <th className="min-w-[220px] px-2 py-2 text-left text-xs font-medium text-[var(--muted)]">Address</th>
                       <th className="w-20 shrink-0 px-2 py-2 text-left text-xs font-medium text-[var(--muted)]">Type</th>
                       <th className="min-w-[140px] px-2 py-2 text-left text-xs font-medium text-[var(--muted)]">Content Type</th>
+                      <th className="min-w-[140px] px-2 py-2 text-left text-xs font-medium text-[var(--muted)]">Image Alt Text</th>
                       <th className="w-20 shrink-0 px-2 py-2 text-left text-xs font-medium text-[var(--muted)]">Status Code</th>
                       <th className="min-w-[100px] px-2 py-2 text-left text-xs font-medium text-[var(--muted)]">Status</th>
                       <th className="w-24 shrink-0 px-2 py-2 text-left text-xs font-medium text-[var(--muted)]">Indexability</th>
@@ -413,6 +415,18 @@ export default function Home() {
                         <td className="min-w-[220px] max-w-[360px] truncate px-2 py-2" title={page.address}>{page.address}</td>
                         <td className="shrink-0 px-2 py-2 text-[var(--muted)]">{page.type ?? "—"}</td>
                         <td className="min-w-[140px] max-w-[180px] truncate px-2 py-2 text-[var(--muted)]" title={page.content_type ?? ""}>{page.content_type ?? "—"}</td>
+                        <td
+                          className={`min-w-[140px] max-w-[200px] truncate px-2 py-2 ${
+                            page.content_type?.includes("image") && (page.alt_text == null || page.alt_text === "")
+                              ? "text-[var(--warning)]"
+                              : "text-[var(--muted)]"
+                          }`}
+                          title={page.alt_text ?? ""}
+                        >
+                          {page.content_type?.includes("image")
+                            ? (page.alt_text != null ? page.alt_text || "empty" : "missing")
+                            : "—"}
+                        </td>
                         <td className="shrink-0 px-2 py-2">{page.status_code ?? "—"}</td>
                         <td className="min-w-[100px] max-w-[140px] truncate px-2 py-2 text-[var(--muted)]" title={page.status ?? ""}>{page.status ?? "—"}</td>
                         <td className="shrink-0 px-2 py-2 text-[var(--muted)]">{page.indexability ?? "—"}</td>
@@ -464,6 +478,16 @@ export default function Home() {
                       <span className="text-[var(--muted)]">Total URLs</span>
                       <span className="font-medium">{overview.total_urls}</span>
                     </div>
+                    {overview.images_total > 0 && (
+                      <>
+                        <div className="flex justify-between rounded bg-[var(--surface-elevated)] px-3 py-2">
+                          <span className="text-[var(--muted)]">Missing Image Alt</span>
+                          <span className={`font-medium ${overview.images_missing_alt > 0 ? "text-[var(--warning)]" : "text-[var(--success)]"}`}>
+                            {overview.images_missing_alt}
+                          </span>
+                        </div>
+                      </>
+                    )}
                     <div className="mt-3 text-[var(--muted)]">By resource type</div>
                     {overview.by_type.map((t, i) => (
                       <div key={`${t.label}-${i}`} className="flex justify-between rounded px-2 py-1">

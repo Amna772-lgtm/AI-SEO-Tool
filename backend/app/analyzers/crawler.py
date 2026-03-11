@@ -6,7 +6,7 @@ Crawl a URL and extract SEO + technical metadata.
 from collections import deque
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Callable
-from urllib.parse import urlparse, urljoin, urlunparse
+from urllib.parse import urlparse, urljoin, urlunparse, quote, unquote
 import time
 from datetime import datetime
 
@@ -75,6 +75,9 @@ def _normalize_for_dedupe(url: str) -> str | None:
         scheme = parsed.scheme.lower() if parsed.scheme else "https"
         netloc = parsed.netloc.lower()
         path = (parsed.path or "/").rstrip("/") or "/"
+        # Canonicalize percent-encoding: decode then re-encode so raw unicode and
+        # percent-encoded forms (e.g. "–" vs "%E2%80%93") compare equal.
+        path = quote(unquote(path), safe="/:@!$&'()*+,;=.-_~")
         return urlunparse((scheme, netloc, path, parsed.params, parsed.query, ""))
     except Exception:
         return None
@@ -136,6 +139,14 @@ def parse_html_metadata(html: str, base_url: str) -> dict:
         canonical = urljoin(base_url, canonical)
     html_tag = soup.find("html", lang=True)
     language = html_tag.get("lang") if html_tag else None
+    # Collect img src -> alt mapping (absolute URLs, first occurrence wins)
+    img_alts: dict[str, str] = {}
+    for img in soup.find_all("img", src=True):
+        src = img.get("src", "").strip()
+        if src and not src.startswith("data:"):
+            abs_src = urljoin(base_url, src)
+            if abs_src not in img_alts:
+                img_alts[abs_src] = img.get("alt", "").strip()
     return {
         "title": title,
         "title_length": title_length,
@@ -143,6 +154,7 @@ def parse_html_metadata(html: str, base_url: str) -> dict:
         "h1": h1,
         "canonical": canonical,
         "language": language,
+        "img_alts": img_alts,
     }
 
 
@@ -223,6 +235,7 @@ def build_page_data(
         "meta_descp": None,
         "h1": None,
         "canonical": None,
+        "_img_alts": {},  # temporary: collected by crawl_site to build img_alt_map
     }
     if response.status_code == 200 and response.text:
         html_meta = parse_html_metadata(response.text, str(response.url))
@@ -231,6 +244,7 @@ def build_page_data(
         out["meta_descp"] = html_meta["meta_descp"]
         out["h1"] = html_meta["h1"]
         out["canonical"] = html_meta["canonical"]
+        out["_img_alts"] = html_meta.get("img_alts", {})
         if html_meta.get("language") and not out["language"]:
             out["language"] = html_meta["language"]
     return out
@@ -468,6 +482,7 @@ def crawl_site(
     url: str,
     max_urls: int | None = None,
     on_page_crawled: Callable[[dict], None] | None = None,
+    img_alt_out: dict | None = None,
 ) -> list[dict]:
     """
     Follow redirects from the initial URL, then BFS-crawl all internal links on the
@@ -480,10 +495,21 @@ def crawl_site(
     results: list[dict] = []
     crawled_normalized: set[str] = set()
     queued_normalized: set[str] = set()
+    img_alt_map: dict[str, str] = {}  # normalized image URL -> alt text
     # Single queue: (normalized_url, depth, link_type) in discovery order
     to_fetch: deque[tuple[str, int, str]] = deque()
 
     def _emit(pd: dict) -> None:
+        # Absorb img alt mappings from HTML pages before emitting
+        for abs_src, alt in (pd.pop("_img_alts", None) or {}).items():
+            norm = _normalize_for_dedupe(abs_src)
+            if norm and norm not in img_alt_map:
+                img_alt_map[norm] = alt
+        # For image pages: look up alt text now so it's stored to Redis immediately
+        if "image" in (pd.get("content_type") or "").lower():
+            norm = _normalize_for_dedupe(pd.get("address") or "")
+            if norm:
+                pd["alt_text"] = img_alt_map.get(norm)
         results.append(pd)
         if on_page_crawled:
             on_page_crawled(pd)
@@ -597,4 +623,15 @@ def crawl_site(
                     html, base_url, depth, crawled_normalized, queued_normalized
                 ):
                     to_fetch.append(item)
+
+    # Annotate image URL entries with alt text collected from HTML pages
+    for pd in results:
+        if "image" in (pd.get("content_type") or "").lower():
+            norm = _normalize_for_dedupe(pd.get("address") or "")
+            pd["alt_text"] = img_alt_map.get(norm) if norm else None
+
+    # Expose map to caller so it can persist alt texts to Redis
+    if img_alt_out is not None:
+        img_alt_out.update(img_alt_map)
+
     return results

@@ -6,6 +6,7 @@ TTL: 2 hours so data expires after session.
 import json
 import os
 from typing import Any
+from urllib.parse import urlparse, urlunparse, quote, unquote
 
 import redis
 
@@ -77,6 +78,46 @@ def append_page(task_id: str, page_data: dict[str, Any]) -> None:
 def flush_pages_buffer(task_id: str) -> None:
     """Call after crawl completes so last buffered pages are written."""
     _flush_pages_buffer(task_id)
+
+
+def _norm_url(url: str | None) -> str | None:
+    """Normalize URL for alt text lookup (same logic as crawler's _normalize_for_dedupe)."""
+    try:
+        p = urlparse((url or "").strip())
+        if not p.netloc:
+            return None
+        path = (p.path or "/").rstrip("/") or "/"
+        path = quote(unquote(path), safe="/:@!$&'()*+,;=.-_~")
+        return urlunparse((p.scheme.lower(), p.netloc.lower(), path, p.params, p.query, ""))
+    except Exception:
+        return None
+
+
+def update_pages_alt_text(task_id: str, img_alt_map: dict[str, str]) -> None:
+    """Annotate image pages in Redis with alt text. Called once after crawl completes."""
+    if not img_alt_map:
+        return
+    r = get_redis()
+    key = _pages_key(task_id)
+    raw_list = r.lrange(key, 0, -1)
+    if not raw_list:
+        return
+    updated = []
+    changed = False
+    for raw in raw_list:
+        page = json.loads(raw)
+        if "image" in (page.get("content_type") or "").lower():
+            norm = _norm_url(page.get("address"))
+            if norm and norm in img_alt_map:
+                page["alt_text"] = img_alt_map[norm]
+                changed = True
+        updated.append(json.dumps(page, default=str))
+    if changed:
+        pipe = r.pipeline()
+        pipe.delete(key)
+        pipe.rpush(key, *updated)
+        pipe.expire(key, CRAWL_TTL_SECONDS)
+        pipe.execute()
 
 
 def get_all_pages(task_id: str) -> list[dict[str, Any]]:
