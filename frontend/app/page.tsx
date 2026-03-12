@@ -15,6 +15,7 @@ import {
   type AuditResponse,
   type AuditResult,
   type PageSpeedResult,
+  type SecurityHeadersResult,
   type GeoResponse,
 } from "./lib/api";
 import { GeoTab } from "./components/geo/GeoTab";
@@ -114,6 +115,51 @@ function PsiBlock({ psi, label }: { psi: PageSpeedResult; label: string }) {
   );
 }
 
+// ── Security Headers block ─────────────────────────────────────────────────────
+function SecurityHeadersBlock({ sh }: { sh: SecurityHeadersResult }) {
+  const headerOrder = [
+    "strict_transport_security",
+    "content_security_policy",
+    "x_frame_options",
+    "x_content_type_options",
+    "referrer_policy",
+  ];
+  return (
+    <div className="rounded-xl border border-[var(--border)] bg-white p-4 shadow-sm">
+      <h3 className="mb-3 text-sm font-semibold text-[var(--foreground)]">
+        Security Headers
+        <span className="ml-2 text-xs font-normal text-[var(--muted)]">
+          {sh.passed_count}/{sh.total_count} present
+        </span>
+      </h3>
+      {sh.error ? (
+        <p className="text-xs text-[var(--warning)]">{sh.error}</p>
+      ) : (
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+          {headerOrder.map((key) => {
+            const info = sh.headers[key];
+            if (!info) return null;
+            return (
+              <div
+                key={key}
+                className="flex flex-col items-center rounded border border-[var(--border)] px-2 py-2 text-center text-xs"
+                title={info.value ?? undefined}
+              >
+                <span
+                  className={`text-base font-bold ${info.present ? "text-green-600" : "text-red-500"}`}
+                >
+                  {info.present ? "✓" : "✗"}
+                </span>
+                <span className="mt-0.5 text-[var(--muted)] leading-tight">{info.label}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Technical Audit Panel ──────────────────────────────────────────────────────
 function AuditFullPanel({ audit }: { audit: AuditResult }) {
   const { https, sitemap, broken_links, missing_canonicals, pagespeed } = audit;
@@ -180,6 +226,11 @@ function AuditFullPanel({ audit }: { audit: AuditResult }) {
           <PsiBlock psi={pagespeed.mobile} label="Mobile" />
         </div>
       </div>
+
+      {/* Security Headers */}
+      {audit.security_headers && (
+        <SecurityHeadersBlock sh={audit.security_headers} />
+      )}
 
       {/* Sitemap URL */}
       {sitemap.found && sitemap.url && (
@@ -339,6 +390,8 @@ export default function Home() {
         "Title Length": selectedPage.title_length ?? "—",
         "Meta Description": selectedPage.meta_descp ?? "—",
         H1: selectedPage.h1 ?? "—",
+        "H2 Headings": selectedPage.h2s?.length ? selectedPage.h2s.join(" · ") : "—",
+        "H3 Headings": selectedPage.h3s?.length ? selectedPage.h3s.join(" · ") : "—",
         Canonical: selectedPage.canonical ?? "—",
         "Crawl Depth": selectedPage.crawl_depth ?? "—",
         "Response Time (ms)": selectedPage.response_time ?? "—",
@@ -726,6 +779,27 @@ export default function Home() {
                       </span>
                     </div>
                   ))}
+
+                  {/* Robots.txt disallowed paths */}
+                  {site?.disallowed_paths && site.disallowed_paths.length > 0 && (
+                    <>
+                      <p className="pt-2 text-[var(--muted)]">Robots.txt blocked</p>
+                      {site.disallowed_paths.slice(0, 8).map((p, i) => (
+                        <div
+                          key={i}
+                          className="truncate rounded bg-amber-50 px-2 py-1 text-amber-700"
+                          title={p}
+                        >
+                          {p}
+                        </div>
+                      ))}
+                      {site.disallowed_paths.length > 8 && (
+                        <p className="text-[var(--muted)] px-1">
+                          +{site.disallowed_paths.length - 8} more paths
+                        </p>
+                      )}
+                    </>
+                  )}
                 </div>
               </aside>
             )}

@@ -80,6 +80,52 @@ def check_sitemap(url: str) -> dict:
     return {"found": False, "url": f"{base}/sitemap.xml", "error": "No sitemap found at common paths or in robots.txt"}
 
 
+def check_security_headers(url: str) -> dict:
+    """
+    Check for important HTTP security response headers.
+    Makes a real request to inspect response headers.
+    """
+    checks = {
+        "strict_transport_security": "HSTS",
+        "content_security_policy": "CSP",
+        "x_frame_options": "X-Frame-Options",
+        "x_content_type_options": "X-Content-Type-Options",
+        "referrer_policy": "Referrer-Policy",
+    }
+    # Map underscore keys back to actual header names for lookup
+    header_names = {
+        "strict_transport_security": "strict-transport-security",
+        "content_security_policy": "content-security-policy",
+        "x_frame_options": "x-frame-options",
+        "x_content_type_options": "x-content-type-options",
+        "referrer_policy": "referrer-policy",
+    }
+    try:
+        with httpx.Client(timeout=10.0, follow_redirects=True,
+                          headers={"User-Agent": "AI-SEO-Bot/1.0"}) as client:
+            resp = client.head(url)
+            if resp.status_code >= 400:
+                resp = client.get(url)
+        headers = resp.headers
+        result: dict[str, dict] = {}
+        for key, label in checks.items():
+            val = headers.get(header_names[key])
+            result[key] = {
+                "present": val is not None,
+                "value": val[:200] if val else None,
+                "label": label,
+            }
+        passed = sum(1 for v in result.values() if v["present"])
+        return {"headers": result, "passed_count": passed, "total_count": len(checks)}
+    except Exception as exc:
+        return {
+            "headers": {},
+            "passed_count": 0,
+            "total_count": len(checks),
+            "error": str(exc)[:200],
+        }
+
+
 def check_broken_links(pages: list[dict]) -> dict:
     """Count internal pages that returned 4xx / 5xx or failed to fetch."""
     broken_urls = [
@@ -165,31 +211,33 @@ def fetch_pagespeed(url: str, strategy: str) -> dict:
 def run_url_checks(url: str) -> dict:
     """
     Checks that only need the URL — safe to run in parallel with the crawl.
-    Covers: HTTPS, sitemap, PageSpeed desktop + mobile.
-    PSI desktop and mobile run concurrently via threads.
+    Covers: HTTPS, sitemap, security headers, PageSpeed desktop + mobile.
+    PSI and security headers run concurrently via threads.
     """
     from concurrent.futures import ThreadPoolExecutor, as_completed
 
     https_result = check_https(url)
     sitemap_result = check_sitemap(url)
 
-    # PSI desktop + mobile in parallel (both are independent HTTP calls)
-    psi_results: dict[str, dict] = {}
-    with ThreadPoolExecutor(max_workers=2) as ex:
+    # PSI desktop + mobile + security headers run in parallel (all independent HTTP calls)
+    async_results: dict[str, dict] = {}
+    with ThreadPoolExecutor(max_workers=3) as ex:
         futures = {
-            ex.submit(fetch_pagespeed, url, "desktop"): "desktop",
-            ex.submit(fetch_pagespeed, url, "mobile"): "mobile",
+            ex.submit(fetch_pagespeed, url, "desktop"): "pagespeed_desktop",
+            ex.submit(fetch_pagespeed, url, "mobile"): "pagespeed_mobile",
+            ex.submit(check_security_headers, url): "security_headers",
         }
         for future in as_completed(futures):
-            strategy = futures[future]
-            psi_results[strategy] = future.result()
+            key = futures[future]
+            async_results[key] = future.result()
 
     return {
         "https": https_result,
         "sitemap": sitemap_result,
+        "security_headers": async_results.get("security_headers"),
         "pagespeed": {
-            "desktop": psi_results.get("desktop", {"strategy": "desktop", "error": "Not run"}),
-            "mobile": psi_results.get("mobile", {"strategy": "mobile", "error": "Not run"}),
+            "desktop": async_results.get("pagespeed_desktop", {"strategy": "desktop", "error": "Not run"}),
+            "mobile": async_results.get("pagespeed_mobile", {"strategy": "mobile", "error": "Not run"}),
         },
     }
 

@@ -31,6 +31,7 @@ def analyze_site(request: AnalyzeRequest):
             "status": "queued",
             "robots_allowed": robots_result["crawl_allowed"],
             "ai_crawler_access": robots_result.get("ai_crawler_access"),
+            "disallowed_paths": robots_result.get("disallowed_paths", []),
         },
     )
 
@@ -47,4 +48,5 @@ def analyze_site(request: AnalyzeRequest):
         "status": "queued",
         "robots_allowed": robots_result["crawl_allowed"],
         "ai_crawler_access": robots_result.get("ai_crawler_access"),
+        "disallowed_paths": robots_result.get("disallowed_paths", []),
     }

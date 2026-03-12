@@ -9,12 +9,26 @@ const READINESS_CONFIG = {
   Unknown: { color: "#6b7280", bg: "#f3f4f6", label: "Unknown" },
 };
 
+const RICHNESS_CONFIG = {
+  High:   { color: "#16a34a", bg: "#dcfce7" },
+  Medium: { color: "#ca8a04", bg: "#fef9c3" },
+  Low:    { color: "#dc2626", bg: "#fef2f2" },
+};
+
 const INTENT_LABELS: Record<string, string> = {
   informational:  "Informational",
   commercial:     "Commercial",
   transactional:  "Transactional",
   navigational:   "Navigational",
 };
+
+const PATTERN_LABELS: Array<{ key: keyof NonNullable<NlpResult["query_patterns"]>; label: string }> = [
+  { key: "how_to",     label: "How-to" },
+  { key: "what_is",    label: "What is" },
+  { key: "why",        label: "Why" },
+  { key: "best",       label: "Best / Top" },
+  { key: "comparison", label: "Comparison" },
+];
 
 interface Props {
   nlp: NlpResult;
@@ -23,6 +37,7 @@ interface Props {
 export function NlpPanel({ nlp }: Props) {
   const readiness = nlp.ai_snippet_readiness ?? "Unknown";
   const cfg = READINESS_CONFIG[readiness] ?? READINESS_CONFIG["Unknown"];
+  const richnessCfg = nlp.synonym_richness ? RICHNESS_CONFIG[nlp.synonym_richness] : null;
 
   return (
     <div className="space-y-4">
@@ -70,6 +85,48 @@ export function NlpPanel({ nlp }: Props) {
           <p className="text-[10px] text-[var(--muted)]">Answer blocks</p>
         </div>
       </div>
+
+      {/* Synonym richness */}
+      {richnessCfg && (
+        <div className="flex items-center justify-between">
+          <p className="text-xs text-[var(--muted)]">Synonym richness</p>
+          <span
+            className="rounded-full px-3 py-1 text-xs font-bold"
+            style={{ backgroundColor: richnessCfg.bg, color: richnessCfg.color }}
+          >
+            {nlp.synonym_richness}
+          </span>
+        </div>
+      )}
+
+      {/* Query patterns */}
+      {nlp.query_patterns && (
+        <div>
+          <p className="mb-1.5 text-xs font-medium text-[var(--foreground)]">Query patterns detected</p>
+          <div className="grid grid-cols-2 gap-1">
+            {PATTERN_LABELS.map(({ key, label }) => {
+              const active = nlp.query_patterns![key];
+              return (
+                <div
+                  key={key}
+                  className="flex items-center gap-1.5 rounded-md px-2 py-1"
+                  style={{
+                    backgroundColor: active ? "#dcfce7" : "var(--surface-elevated)",
+                    border: `1px solid ${active ? "#86efac" : "var(--border)"}`,
+                  }}
+                >
+                  <span className="text-[10px]" style={{ color: active ? "#16a34a" : "#9ca3af" }}>
+                    {active ? "✓" : "✗"}
+                  </span>
+                  <span className="text-[10px]" style={{ color: active ? "#15803d" : "var(--muted)" }}>
+                    {label}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Key topics */}
       {(nlp.key_topics ?? []).length > 0 && (

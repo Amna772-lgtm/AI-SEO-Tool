@@ -40,6 +40,7 @@ def get_site(task_id: str):
         "created_at": None,
         "robots_allowed": meta.get("robots_allowed", True),
         "ai_crawler_access": meta.get("ai_crawler_access"),
+        "disallowed_paths": meta.get("disallowed_paths", []),
         "audit_status": meta.get("audit_status", "pending"),
         "geo_status": meta.get("geo_status", "pending"),
     }
@@ -81,6 +82,8 @@ def list_pages(
             "title_length": p.get("title_length"),
             "meta_descp": p.get("meta_descp"),
             "h1": p.get("h1"),
+            "h2s": p.get("h2s", []),
+            "h3s": p.get("h3s", []),
             "canonical": p.get("canonical"),
             "crawl_depth": p.get("crawl_depth"),
             "response_time": p.get("response_time"),

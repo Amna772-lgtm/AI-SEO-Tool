@@ -100,24 +100,45 @@ def _extract_headings(html: str) -> dict:
     return {"h1": h1, "h2": h2, "h3": h3}
 
 
-def _detect_faq(html: str) -> tuple[bool, list[str]]:
-    """Detect FAQ-style question-answer blocks."""
+def _detect_faq(html: str) -> tuple[bool, list[str], list[dict]]:
+    """
+    Detect FAQ-style question-answer blocks.
+    Returns (has_faq, question_list, qa_pairs).
+    qa_pairs: list of {"question": str, "answer": str} dicts.
+    """
     try:
         soup = BeautifulSoup(html, "lxml")
     except Exception:
         soup = BeautifulSoup(html, "html.parser")
 
     questions: list[str] = []
+    qa_pairs: list[dict] = []
 
     # Check for FAQ schema markup
     for tag in soup.find_all(attrs={"itemtype": re.compile(r"FAQPage|Question", re.I)}):
         questions.append("FAQ schema detected")
 
-    # Check headings for question patterns
+    # Check headings for question patterns and capture following answer text
     for tag in soup.find_all(["h2", "h3", "h4", "dt"]):
         text = tag.get_text(strip=True)
         if _QUESTION_RE.search(text):
             questions.append(text)
+            # Extract answer from following sibling elements until next heading
+            answer_parts: list[str] = []
+            for sibling in tag.next_siblings:
+                if not isinstance(sibling, Tag):
+                    continue
+                if sibling.name in ("h1", "h2", "h3", "h4", "h5", "h6", "dt"):
+                    break  # reached next heading
+                if sibling.name in ("p", "div", "ul", "ol", "dd", "blockquote"):
+                    sibling_text = sibling.get_text(strip=True)
+                    if sibling_text:
+                        answer_parts.append(sibling_text)
+                        if len(" ".join(answer_parts)) > 300:
+                            break
+            if answer_parts:
+                answer = " ".join(answer_parts)[:300]
+                qa_pairs.append({"question": text, "answer": answer})
 
     # Check bold text for question patterns
     for tag in soup.find_all(["strong", "b"]):
@@ -126,7 +147,8 @@ def _detect_faq(html: str) -> tuple[bool, list[str]]:
             questions.append(text)
 
     questions = list(dict.fromkeys(questions))  # deduplicate
-    return len(questions) > 0, questions[:10]
+    return len(questions) > 0, questions[:10], qa_pairs[:10]
+
 
 
 def _count_lists(html: str) -> int:
@@ -174,6 +196,7 @@ def analyze_content(pages_html: list[tuple[str, str]]) -> dict:
     word_counts: list[int] = []
     fk_grades: list[float] = []
     all_faq_questions: list[str] = []
+    all_qa_pairs: list[dict] = []
     pages_with_faq = 0
     pages_with_h2 = 0
     pages_with_h3 = 0
@@ -208,10 +231,11 @@ def analyze_content(pages_html: list[tuple[str, str]]) -> dict:
 
         total_lists += _count_lists(html)
 
-        has_faq, faq_qs = _detect_faq(html)
+        has_faq, faq_qs, qa_pairs = _detect_faq(html)
         if has_faq:
             pages_with_faq += 1
             all_faq_questions.extend(faq_qs)
+            all_qa_pairs.extend(qa_pairs)
 
     if not word_counts:
         return {
@@ -221,6 +245,7 @@ def analyze_content(pages_html: list[tuple[str, str]]) -> dict:
             "flesch_kincaid_grade": 0.0,
             "pages_with_faq": 0,
             "faq_questions": [],
+            "faq_pairs": [],
             "heading_structure": {"pages_with_h2": 0, "pages_with_h3": 0, "avg_headings_per_page": 0.0},
             "conversational_tone_score": 0.0,
             "thin_content_pages": 0,
@@ -236,8 +261,14 @@ def analyze_content(pages_html: list[tuple[str, str]]) -> dict:
     avg_headings = round(total_headings / pages_analyzed, 1) if pages_analyzed else 0.0
     avg_lists = round(total_lists / pages_analyzed, 1) if pages_analyzed else 0.0
 
-    # Deduplicate FAQ questions
+    # Deduplicate FAQ questions and Q&A pairs
     unique_faqs = list(dict.fromkeys(all_faq_questions))
+    seen_qs: set[str] = set()
+    unique_qa_pairs: list[dict] = []
+    for pair in all_qa_pairs:
+        if pair["question"] not in seen_qs:
+            seen_qs.add(pair["question"])
+            unique_qa_pairs.append(pair)
 
     return {
         "avg_word_count": avg_wc,
@@ -246,6 +277,7 @@ def analyze_content(pages_html: list[tuple[str, str]]) -> dict:
         "flesch_kincaid_grade": avg_fk,
         "pages_with_faq": pages_with_faq,
         "faq_questions": unique_faqs[:10],
+        "faq_pairs": unique_qa_pairs[:10],
         "heading_structure": {
             "pages_with_h2": pages_with_h2,
             "pages_with_h3": pages_with_h3,

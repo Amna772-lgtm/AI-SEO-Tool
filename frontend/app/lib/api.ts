@@ -9,6 +9,7 @@ export interface Site {
   created_at: string | null;
   robots_allowed: boolean;
   ai_crawler_access: Record<string, boolean> | null;
+  disallowed_paths?: string[];
   audit_status?: "pending" | "running" | "completed" | "failed";
   geo_status?: "pending" | "running" | "completed" | "failed";
 }
@@ -26,6 +27,8 @@ export interface PageRow {
   title_length: number | null;
   meta_descp: string | null;
   h1: string | null;
+  h2s: string[] | null;
+  h3s: string[] | null;
   canonical: string | null;
   crawl_depth: number | null;
   response_time: number | null;
@@ -115,12 +118,26 @@ export interface PageSpeedResult {
   error?: string;
 }
 
+export interface SecurityHeaderCheck {
+  present: boolean;
+  value: string | null;
+  label: string;
+}
+
+export interface SecurityHeadersResult {
+  headers: Record<string, SecurityHeaderCheck>;
+  passed_count: number;
+  total_count: number;
+  error?: string;
+}
+
 export interface AuditResult {
   https: { passed: boolean; detail: string };
   sitemap: { found: boolean; url: string; status_code?: number; error?: string };
   broken_links: { count: number; urls: string[] };
   missing_canonicals: { total_html_pages: number; missing_count: number; urls: string[] };
   pagespeed: { desktop: PageSpeedResult; mobile: PageSpeedResult };
+  security_headers?: SecurityHeadersResult | null;
 }
 
 export interface AuditResponse {
@@ -170,6 +187,11 @@ export interface HeadingStructure {
   avg_headings_per_page: number;
 }
 
+export interface FaqPair {
+  question: string;
+  answer: string;
+}
+
 export interface ContentResult {
   avg_word_count: number;
   median_word_count: number;
@@ -177,11 +199,20 @@ export interface ContentResult {
   flesch_kincaid_grade: number;
   pages_with_faq: number;
   faq_questions: string[];
+  faq_pairs?: FaqPair[];
   heading_structure: HeadingStructure;
   conversational_tone_score: number;
   thin_content_pages: number;
   pages_analyzed: number;
   avg_lists_per_page: number;
+}
+
+export interface QueryPatterns {
+  how_to: boolean;
+  what_is: boolean;
+  why: boolean;
+  best: boolean;
+  comparison: boolean;
 }
 
 export interface NlpResult {
@@ -192,6 +223,8 @@ export interface NlpResult {
   key_topics: string[];
   entity_types: string[];
   ai_snippet_readiness: "High" | "Medium" | "Low" | "Unknown";
+  synonym_richness?: "High" | "Medium" | "Low";
+  query_patterns?: QueryPatterns;
   reasoning: string;
   source?: string;
   error?: string;

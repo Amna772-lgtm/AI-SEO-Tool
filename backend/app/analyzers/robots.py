@@ -55,6 +55,42 @@ def _parse_robots(robots_body: str) -> RobotFileParser:
     return rp
 
 
+def _extract_disallowed_paths(body: str, user_agent: str) -> list[str]:
+    """
+    Extract Disallow: paths that apply to a specific user-agent from robots.txt body.
+    If agent-specific rules exist, returns those; otherwise returns wildcard (*) rules.
+    """
+    agent_paths: list[str] = []
+    wildcard_paths: list[str] = []
+    has_agent_section = False
+
+    current_is_agent = False
+    current_is_wildcard = False
+
+    for line in body.splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if ":" not in line:
+            continue
+        key, _, val = line.partition(":")
+        key = key.strip().lower()
+        val = val.strip()
+        if key == "user-agent":
+            current_is_agent = val.lower() == user_agent.lower()
+            current_is_wildcard = val == "*"
+            if current_is_agent:
+                has_agent_section = True
+        elif key == "disallow" and val:
+            if current_is_agent:
+                agent_paths.append(val)
+            elif current_is_wildcard:
+                wildcard_paths.append(val)
+
+    result = agent_paths if has_agent_section else wildcard_paths
+    return result[:20]  # cap at 20 paths
+
+
 def check_robots(origin_url: str) -> dict:
     """
     Fetch and parse robots.txt for the given URL's origin; check crawl permission
@@ -64,7 +100,8 @@ def check_robots(origin_url: str) -> dict:
         {
             "crawl_allowed": bool,   # for CRAWLER_USER_AGENT on path "/"
             "ai_crawler_access": { "GPTBot": bool, "ChatGPT-User": bool, ... },
-            "robots_fetched": bool   # True if we got a 200 body
+            "robots_fetched": bool,  # True if we got a 200 body
+            "disallowed_paths": list[str]  # paths blocked for our crawler
         }
     """
     parsed = urlparse(origin_url)
@@ -77,6 +114,7 @@ def check_robots(origin_url: str) -> dict:
         "crawl_allowed": True,
         "ai_crawler_access": {},
         "robots_fetched": body is not None,
+        "disallowed_paths": [],
     }
 
     if body is None:
@@ -89,5 +127,6 @@ def check_robots(origin_url: str) -> dict:
     result["crawl_allowed"] = rp.can_fetch(CRAWLER_USER_AGENT, path)
     for agent in AI_CRAWLER_AGENTS:
         result["ai_crawler_access"][agent] = rp.can_fetch(agent, path)
+    result["disallowed_paths"] = _extract_disallowed_paths(body, CRAWLER_USER_AGENT)
 
     return result

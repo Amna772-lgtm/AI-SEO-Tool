@@ -9,6 +9,7 @@ const READING_LEVEL_COLORS: Record<string, string> = {
   "College":      "#dc2626",
 };
 
+
 interface Props {
   content: ContentResult;
 }
@@ -23,6 +24,8 @@ export function ContentPanel({ content }: Props) {
   const thinPct = content.pages_analyzed > 0
     ? Math.round((content.thin_content_pages / content.pages_analyzed) * 100)
     : 0;
+
+  const hasFaqPairs = (content.faq_pairs ?? []).length > 0;
 
   return (
     <div className="space-y-4">
@@ -89,8 +92,27 @@ export function ContentPanel({ content }: Props) {
         </div>
       </div>
 
-      {/* FAQ questions */}
-      {content.faq_questions.length > 0 && (
+      {/* FAQ Q&A pairs */}
+      {hasFaqPairs && (
+        <div>
+          <p className="mb-1.5 text-xs font-medium text-[var(--foreground)]">FAQ Q&amp;A pairs</p>
+          <div className="space-y-2">
+            {content.faq_pairs!.slice(0, 5).map((pair, i) => (
+              <div key={i} className="rounded-lg border border-[var(--border)] p-2.5">
+                <p className="text-[10px] font-semibold text-[var(--foreground)] mb-1 leading-snug">
+                  {pair.question.length > 100 ? pair.question.slice(0, 100) + "…" : pair.question}
+                </p>
+                <p className="text-[10px] text-[var(--muted)] leading-relaxed">
+                  {pair.answer.length > 150 ? pair.answer.slice(0, 150) + "…" : pair.answer}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* FAQ questions (fallback when no pairs) */}
+      {!hasFaqPairs && content.faq_questions.length > 0 && (
         <div>
           <p className="mb-1.5 text-xs font-medium text-[var(--foreground)]">Detected FAQ questions</p>
           <div className="space-y-1">

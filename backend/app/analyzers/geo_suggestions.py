@@ -1,7 +1,7 @@
 """
 Agent 7 — Prioritized Suggestion Engine
-Generates actionable, prioritized recommendations using OpenAI API.
-Falls back to rule-based suggestions if OpenAI is unavailable.
+Generates actionable, prioritized recommendations using Claude API.
+Falls back to rule-based suggestions if Claude is unavailable.
 """
 from __future__ import annotations
 
@@ -9,8 +9,8 @@ import json
 import os
 import re
 
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
-OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
+ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "")
 
 _SYSTEM_PROMPT = """You are an expert in SEO and GEO (Generative Engine Optimization).
 Generate prioritized action items based on the site analysis data provided.
@@ -145,7 +145,6 @@ def _rule_based_suggestions(
 
     # E-E-A-T checks
     if eeat:
-        missing_signals = eeat.get("missing_signals", [])
         if not eeat.get("has_about_page"):
             critical.append({
                 "title": "Missing About Page",
@@ -236,25 +235,25 @@ def generate_suggestions(
     Returns:
         {"critical": [...], "important": [...], "optional": [...]}
     """
-    if not OPENAI_API_KEY:
+    if not ANTHROPIC_API_KEY:
         return _rule_based_suggestions(schema, eeat, content, nlp, audit)
 
     try:
-        from openai import OpenAI
+        import anthropic
 
         context = _build_context(score_data, schema, eeat, content, nlp, audit, site_type)
 
-        client = OpenAI(api_key=OPENAI_API_KEY)
-        response = client.chat.completions.create(
-            model=OPENAI_MODEL,
+        client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+        message = client.messages.create(
+            model=ANTHROPIC_MODEL,
             max_tokens=2048,
+            system=_SYSTEM_PROMPT,
             messages=[
-                {"role": "system", "content": _SYSTEM_PROMPT},
                 {"role": "user", "content": f"Generate prioritized suggestions for this website analysis:\n\n{context}"},
             ],
         )
 
-        response_text = response.choices[0].message.content.strip()
+        response_text = message.content[0].text.strip()
         json_match = re.search(r"\{.*\}", response_text, re.DOTALL)
         if json_match:
             result = json.loads(json_match.group(0))
@@ -271,7 +270,7 @@ def generate_suggestions(
         result["important"] = result["important"][:5]
         result["optional"] = result["optional"][:5]
 
-        result["source"] = "openai"
+        result["source"] = "claude"
         return result
 
     except Exception as e:

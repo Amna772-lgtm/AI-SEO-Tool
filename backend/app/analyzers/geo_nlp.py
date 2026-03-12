@@ -1,6 +1,6 @@
 """
 Agent 4 — NLP & Semantic Analysis
-Uses OpenAI API to assess content intent, question density,
+Uses Claude API to assess content intent, question density,
 semantic coverage, and AI snippet readiness.
 """
 from __future__ import annotations
@@ -10,8 +10,8 @@ import os
 import re
 from bs4 import BeautifulSoup
 
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
-OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
+ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "")
 
 _SYSTEM_PROMPT = """You are an expert in SEO content analysis and Generative Engine Optimization (GEO).
 Analyze the provided website content and return a JSON object with exactly this structure:
@@ -23,8 +23,17 @@ Analyze the provided website content and return a JSON object with exactly this 
   "key_topics": ["topic1", "topic2", ...up to 8],
   "entity_types": ["Person", "Organization", "Product", ...],
   "ai_snippet_readiness": "High|Medium|Low",
+  "synonym_richness": "High|Medium|Low",
+  "query_patterns": {
+    "how_to": <bool, content answers how-to questions>,
+    "what_is": <bool, content defines or explains concepts>,
+    "why": <bool, content explains reasons or causes>,
+    "best": <bool, content recommends or ranks options>,
+    "comparison": <bool, content compares alternatives>
+  },
   "reasoning": "<2-3 sentence explanation>"
 }
+For synonym_richness: High = diverse vocabulary with many synonyms and related terms, Medium = some variety, Low = repetitive or narrow vocabulary.
 Return ONLY valid JSON. No markdown, no explanation outside JSON."""
 
 _USER_TEMPLATE = """Website URL: {url}
@@ -49,11 +58,22 @@ def _extract_text(html: str, max_words: int = 600) -> str:
 
 
 def _fallback_analysis(pages_html: list[tuple[str, str]], url: str) -> dict:
-    """Rule-based fallback when OpenAI API is unavailable."""
+    """Rule-based fallback when Claude API is unavailable."""
     combined_text = " ".join(_extract_text(html) for _, html in pages_html[:3])
     words = re.findall(r"\b\w+\b", combined_text)
     questions = re.findall(r"\b(how|what|why|when|where|who|which)\b.{5,80}\?", combined_text, re.I)
     q_density = round((len(questions) / max(len(words), 1)) * 100, 2)
+
+    has_how_to = bool(re.search(r"\bhow\s+to\b", combined_text, re.I))
+    has_what_is = bool(re.search(r"\bwhat\s+is\b|\bwhat\s+are\b", combined_text, re.I))
+    has_why = bool(re.search(r"\bwhy\b.{3,60}\?", combined_text, re.I))
+    has_best = bool(re.search(r"\b(best|top\s+\d|recommended)\b", combined_text, re.I))
+    has_comparison = bool(re.search(r"\b(vs\.?|versus|compared\s+to|comparison)\b", combined_text, re.I))
+
+    # Rough synonym richness via unique-word ratio
+    unique_ratio = len(set(w.lower() for w in words)) / max(len(words), 1)
+    synonym_richness = "High" if unique_ratio > 0.6 else "Medium" if unique_ratio > 0.4 else "Low"
+
     return {
         "primary_intent": "informational",
         "secondary_intents": [],
@@ -62,14 +82,22 @@ def _fallback_analysis(pages_html: list[tuple[str, str]], url: str) -> dict:
         "key_topics": [],
         "entity_types": [],
         "ai_snippet_readiness": "Medium" if q_density > 0.5 else "Low",
-        "reasoning": "Analysis performed using rule-based fallback (OpenAI API unavailable).",
+        "synonym_richness": synonym_richness,
+        "query_patterns": {
+            "how_to": has_how_to,
+            "what_is": has_what_is,
+            "why": has_why,
+            "best": has_best,
+            "comparison": has_comparison,
+        },
+        "reasoning": "Analysis performed using rule-based fallback (Claude API unavailable).",
         "source": "fallback",
     }
 
 
 def analyze_nlp(pages_html: list[tuple[str, str]], site_url: str) -> dict:
     """
-    Analyze content using OpenAI API for NLP and semantic assessment.
+    Analyze content using Claude API for NLP and semantic assessment.
 
     Args:
         pages_html: List of (url, html_content) tuples — up to 5 key pages
@@ -77,11 +105,11 @@ def analyze_nlp(pages_html: list[tuple[str, str]], site_url: str) -> dict:
 
     Returns structured NLP analysis dict.
     """
-    if not OPENAI_API_KEY:
+    if not ANTHROPIC_API_KEY:
         return _fallback_analysis(pages_html, site_url)
 
     try:
-        from openai import OpenAI
+        import anthropic
 
         # Build content string from up to 5 pages, ~600 words each
         content_parts = []
@@ -98,17 +126,17 @@ def analyze_nlp(pages_html: list[tuple[str, str]], site_url: str) -> dict:
         words = combined.split()
         combined = " ".join(words[:3000])
 
-        client = OpenAI(api_key=OPENAI_API_KEY)
-        response = client.chat.completions.create(
-            model=OPENAI_MODEL,
+        client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+        message = client.messages.create(
+            model=ANTHROPIC_MODEL,
             max_tokens=1024,
+            system=_SYSTEM_PROMPT,
             messages=[
-                {"role": "system", "content": _SYSTEM_PROMPT},
                 {"role": "user", "content": _USER_TEMPLATE.format(url=site_url, content=combined)},
             ],
         )
 
-        response_text = response.choices[0].message.content.strip()
+        response_text = message.content[0].text.strip()
 
         # Extract JSON even if wrapped in markdown code blocks
         json_match = re.search(r"\{.*\}", response_text, re.DOTALL)
@@ -117,7 +145,7 @@ def analyze_nlp(pages_html: list[tuple[str, str]], site_url: str) -> dict:
         else:
             result = json.loads(response_text)
 
-        result["source"] = "openai"
+        result["source"] = "claude"
         return result
 
     except Exception as e:

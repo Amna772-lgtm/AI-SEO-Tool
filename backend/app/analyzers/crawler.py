@@ -120,8 +120,8 @@ def get_indexability(status_code: int, redirect_url: str | None) -> tuple[str, s
 
 def parse_html_metadata(html: str, base_url: str) -> dict:
     """
-    Parse title, title length, h1, meta description, canonical, language from HTML.
-    Returns dict with keys: title, title_length, h1, meta_descp, canonical, language.
+    Parse title, title length, h1, h2s, h3s, meta description, canonical, language from HTML.
+    Returns dict with keys: title, title_length, h1, h2s, h3s, meta_descp, canonical, language.
     language falls back to <html lang="..."> if not in headers.
     """
     soup = BeautifulSoup(html, "html.parser")
@@ -133,6 +133,9 @@ def parse_html_metadata(html: str, base_url: str) -> dict:
     meta_descp = meta_tag.get("content") if meta_tag and meta_tag.get("content") else None
     h1_tag = soup.find("h1")
     h1 = h1_tag.get_text(strip=True) if h1_tag else None
+    # Extract all H2 and H3 headings (capped at 10 each)
+    h2s = [tag.get_text(strip=True) for tag in soup.find_all("h2") if tag.get_text(strip=True)][:10]
+    h3s = [tag.get_text(strip=True) for tag in soup.find_all("h3") if tag.get_text(strip=True)][:10]
     canonical_tag = soup.find("link", rel="canonical")
     canonical = canonical_tag.get("href") if canonical_tag and canonical_tag.get("href") else None
     if canonical and base_url:
@@ -152,6 +155,8 @@ def parse_html_metadata(html: str, base_url: str) -> dict:
         "title_length": title_length,
         "meta_descp": meta_descp,
         "h1": h1,
+        "h2s": h2s,
+        "h3s": h3s,
         "canonical": canonical,
         "language": language,
         "img_alts": img_alts,
@@ -234,6 +239,8 @@ def build_page_data(
         "crawl_timestamp": datetime.utcnow(),
         "meta_descp": None,
         "h1": None,
+        "h2s": [],
+        "h3s": [],
         "canonical": None,
         "_img_alts": {},  # temporary: collected by crawl_site to build img_alt_map
     }
@@ -243,6 +250,8 @@ def build_page_data(
         out["title_length"] = html_meta["title_length"]
         out["meta_descp"] = html_meta["meta_descp"]
         out["h1"] = html_meta["h1"]
+        out["h2s"] = html_meta.get("h2s", [])
+        out["h3s"] = html_meta.get("h3s", [])
         out["canonical"] = html_meta["canonical"]
         out["_img_alts"] = html_meta.get("img_alts", {})
         if html_meta.get("language") and not out["language"]:
@@ -450,6 +459,105 @@ def _extract_links_ordered(
     return out
 
 
+def _parse_sitemap(xml_text: str) -> tuple[list[str], list[str]]:
+    """
+    Parse sitemap XML. Returns (page_locs, sitemap_locs).
+    page_locs: URLs from <url><loc> elements (regular sitemap).
+    sitemap_locs: URLs from <sitemap><loc> elements (sitemap index).
+    """
+    try:
+        import xml.etree.ElementTree as ET
+        root = ET.fromstring(xml_text)
+        ns = ""
+        if root.tag.startswith("{"):
+            ns = root.tag.split("}")[0] + "}"
+        page_locs = []
+        sitemap_locs = []
+        for elem in root.findall(f"{ns}url"):
+            loc = elem.find(f"{ns}loc")
+            if loc is not None and loc.text and loc.text.strip():
+                page_locs.append(loc.text.strip())
+        for elem in root.findall(f"{ns}sitemap"):
+            loc = elem.find(f"{ns}loc")
+            if loc is not None and loc.text and loc.text.strip():
+                sitemap_locs.append(loc.text.strip())
+        return page_locs, sitemap_locs
+    except Exception:
+        return [], []
+
+
+def _fetch_sitemap_urls(base_url: str, max_urls: int = 500) -> set[str]:
+    """
+    Fetch sitemap.xml and extract page URLs to seed the BFS crawl queue.
+    Handles both regular sitemaps and sitemap index files (one level of nesting).
+    Returns a set of normalized internal URLs.
+    """
+    parsed_base = urlparse(base_url)
+    origin = f"{parsed_base.scheme}://{parsed_base.netloc}"
+    base_netloc = parsed_base.netloc.lower()
+
+    # Discover sitemap URL: check robots.txt first, then common paths
+    candidates: list[str] = []
+    try:
+        with httpx.Client(timeout=6.0, follow_redirects=True,
+                          headers={"User-Agent": USER_AGENT}) as client:
+            robots_resp = client.get(f"{origin}/robots.txt")
+            if robots_resp.status_code == 200:
+                for line in robots_resp.text.splitlines():
+                    if line.lower().startswith("sitemap:"):
+                        ref = line.split(":", 1)[1].strip()
+                        if ref:
+                            candidates.append(ref)
+    except Exception:
+        pass
+    candidates += [f"{origin}/sitemap_index.xml", f"{origin}/sitemap.xml"]
+
+    urls: set[str] = set()
+    try:
+        with httpx.Client(timeout=10.0, follow_redirects=True,
+                          headers={"User-Agent": USER_AGENT}) as client:
+            for candidate in candidates[:3]:
+                try:
+                    resp = client.get(candidate)
+                    if resp.status_code >= 400:
+                        continue
+                    page_locs, sitemap_locs = _parse_sitemap(resp.text)
+
+                    # Regular sitemap: collect page URLs directly
+                    for loc in page_locs:
+                        norm = _normalize_for_dedupe(loc)
+                        if norm and urlparse(norm).netloc.lower() == base_netloc:
+                            urls.add(norm)
+                            if len(urls) >= max_urls:
+                                break
+
+                    # Sitemap index: fetch each sub-sitemap (max 5)
+                    for sub_url in sitemap_locs[:5]:
+                        if len(urls) >= max_urls:
+                            break
+                        try:
+                            sub_resp = client.get(sub_url)
+                            if sub_resp.status_code < 400:
+                                sub_locs, _ = _parse_sitemap(sub_resp.text)
+                                for loc in sub_locs:
+                                    norm = _normalize_for_dedupe(loc)
+                                    if norm and urlparse(norm).netloc.lower() == base_netloc:
+                                        urls.add(norm)
+                                        if len(urls) >= max_urls:
+                                            break
+                        except Exception:
+                            continue
+
+                    if page_locs or sitemap_locs:
+                        break  # Valid sitemap found, stop trying candidates
+                except Exception:
+                    continue
+    except Exception:
+        pass
+
+    return urls
+
+
 def _fetch_one_internal(args: tuple[str, int]) -> tuple[str, int, str | None, httpx.Response | None, float, Exception | None]:
     """Worker: fetch one internal URL. Returns (normal, depth, url, response, elapsed, error)."""
     current_normal, depth = args
@@ -552,6 +660,12 @@ def crawl_site(
     # Seed links (internal + external) in discovery order into single queue
     for item in _extract_links_ordered(seed_html, seed_base, 0, crawled_normalized, queued_normalized):
         to_fetch.append(item)
+
+    # Also seed from sitemap.xml — discovers pages not linked from HTML
+    for sitemap_norm in _fetch_sitemap_urls(seed_base):
+        if sitemap_norm not in crawled_normalized and sitemap_norm not in queued_normalized:
+            queued_normalized.add(sitemap_norm)
+            to_fetch.append((sitemap_norm, 1, "internal"))
 
     # Process queue in fetch order: pop batch, fetch in parallel, emit in batch order, extend queue with new links
     with ThreadPoolExecutor(max_workers=CONCURRENT_REQUESTS) as executor:
