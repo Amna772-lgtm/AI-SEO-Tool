@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { GeoResponse, SiteTypeResult } from "../../lib/api";
+import type { GeoResponse, SiteTypeResult, PageRow } from "../../lib/api";
 import { getGeoExportUrl } from "../../lib/api";
 import { GeoScoreRing } from "./GeoScoreRing";
 import { ScoreBreakdown } from "./ScoreBreakdown";
@@ -61,9 +61,11 @@ function LoadingCard({ label }: LoadingCardProps) {
 interface Props {
   geo: GeoResponse;
   siteId: string;
+  siteUrl: string;
+  pages: PageRow[];
 }
 
-export function GeoTab({ geo, siteId }: Props) {
+export function GeoTab({ geo, siteId, siteUrl, pages }: Props) {
   const [detailTab, setDetailTab] = useState<DetailTab>("schema");
   const isLoading = geo.geo_status === "running" || geo.geo_status === "pending";
 

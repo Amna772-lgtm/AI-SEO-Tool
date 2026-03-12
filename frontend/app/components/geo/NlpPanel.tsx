@@ -22,13 +22,6 @@ const INTENT_LABELS: Record<string, string> = {
   navigational:   "Navigational",
 };
 
-const PATTERN_LABELS: Array<{ key: keyof NonNullable<NlpResult["query_patterns"]>; label: string }> = [
-  { key: "how_to",     label: "How-to" },
-  { key: "what_is",    label: "What is" },
-  { key: "why",        label: "Why" },
-  { key: "best",       label: "Best / Top" },
-  { key: "comparison", label: "Comparison" },
-];
 
 interface Props {
   nlp: NlpResult;
@@ -96,35 +89,6 @@ export function NlpPanel({ nlp }: Props) {
           >
             {nlp.synonym_richness}
           </span>
-        </div>
-      )}
-
-      {/* Query patterns */}
-      {nlp.query_patterns && (
-        <div>
-          <p className="mb-1.5 text-xs font-medium text-[var(--foreground)]">Query patterns detected</p>
-          <div className="grid grid-cols-2 gap-1">
-            {PATTERN_LABELS.map(({ key, label }) => {
-              const active = nlp.query_patterns![key];
-              return (
-                <div
-                  key={key}
-                  className="flex items-center gap-1.5 rounded-md px-2 py-1"
-                  style={{
-                    backgroundColor: active ? "#dcfce7" : "var(--surface-elevated)",
-                    border: `1px solid ${active ? "#86efac" : "var(--border)"}`,
-                  }}
-                >
-                  <span className="text-[10px]" style={{ color: active ? "#16a34a" : "#9ca3af" }}>
-                    {active ? "✓" : "✗"}
-                  </span>
-                  <span className="text-[10px]" style={{ color: active ? "#15803d" : "var(--muted)" }}>
-                    {label}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
         </div>
       )}
 

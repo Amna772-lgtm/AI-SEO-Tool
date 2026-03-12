@@ -168,6 +168,14 @@ export interface SchemaCompletenessIssue {
   missing_fields: string[];
 }
 
+export interface SchemaSemanticIssue {
+  url: string;
+  type: string;
+  field: string;
+  schema_value: string;
+  issue: string;
+}
+
 export interface SchemaResult {
   has_json_ld: boolean;
   has_microdata: boolean;
@@ -179,6 +187,7 @@ export interface SchemaResult {
   pages_analyzed: number;
   missing_recommended: string[];
   completeness_issues: SchemaCompletenessIssue[];
+  semantic_issues?: SchemaSemanticIssue[];
 }
 
 export interface HeadingStructure {

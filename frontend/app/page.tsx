@@ -19,9 +19,11 @@ import {
   type GeoResponse,
 } from "./lib/api";
 import { GeoTab } from "./components/geo/GeoTab";
+import { ChecklistPanel } from "./components/geo/ChecklistPanel";
+import { SiteStructurePanel } from "./components/geo/SiteStructurePanel";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
-type MainTab = "crawl" | "audit" | "geo";
+type MainTab = "crawl" | "audit" | "geo" | "insights";
 type TypeTab = "all" | "internal" | "external";
 
 // ── Small UI helpers ───────────────────────────────────────────────────────────
@@ -557,6 +559,18 @@ export default function Home() {
             )}
           </button>
 
+          {/* Insights tab */}
+          <button
+            onClick={() => setMainTab("insights")}
+            className={`flex items-center gap-1.5 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
+              mainTab === "insights"
+                ? "border-[var(--accent)] text-[var(--accent)]"
+                : "border-transparent text-[var(--muted)] hover:text-[var(--foreground)]"
+            }`}
+          >
+            Insights
+          </button>
+
           {/* AI Crawlers info */}
           {site?.ai_crawler_access && (
             <div className="ml-auto flex items-center gap-2">
@@ -827,6 +841,48 @@ export default function Home() {
           </div>
         )}
 
+        {/* ── INSIGHTS TAB ── */}
+        {mainTab === "insights" && (
+          <div className="flex min-h-0 flex-1 flex-col overflow-auto bg-[var(--background)] p-4">
+            {!site || site.status !== "completed" ? (
+              <div className="flex flex-1 items-center justify-center text-[var(--muted)]">
+                Complete a crawl to view Insights.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+                {/* Checklist */}
+                <div className="rounded-xl border border-[var(--border)] bg-white shadow-sm">
+                  <div className="border-b border-[var(--border)] bg-[var(--surface-elevated)] px-4 py-3 rounded-t-xl">
+                    <h2 className="text-sm font-semibold text-[var(--foreground)]">SEO Checklist</h2>
+                    <p className="text-[10px] text-[var(--muted)]">Track your fixes — state saved locally</p>
+                  </div>
+                  <div className="p-4">
+                    {geo && (geo.schema || geo.eeat || geo.content || geo.nlp) ? (
+                      <ChecklistPanel geo={geo} siteId={siteId!} />
+                    ) : (
+                      <div className="flex items-center gap-2 py-6 text-xs text-[var(--muted)]">
+                        <div className="h-3 w-3 animate-spin rounded-full border-2 border-[var(--border)] border-t-[var(--accent)]" />
+                        Waiting for GEO analysis…
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Site Structure */}
+                <div className="rounded-xl border border-[var(--border)] bg-white shadow-sm">
+                  <div className="border-b border-[var(--border)] bg-[var(--surface-elevated)] px-4 py-3 rounded-t-xl">
+                    <h2 className="text-sm font-semibold text-[var(--foreground)]">Site Structure</h2>
+                    <p className="text-[10px] text-[var(--muted)]">URL path hierarchy from crawled pages</p>
+                  </div>
+                  <div className="p-4">
+                    <SiteStructurePanel pages={pagesData?.pages ?? []} siteUrl={site.url} queryPatterns={geo?.nlp?.query_patterns} />
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* ── GEO TAB ── */}
         {mainTab === "geo" && (
           <div className="flex min-h-0 flex-1 flex-col bg-[var(--background)]">
@@ -839,7 +895,7 @@ export default function Home() {
                 <Spinner label="Starting GEO analysis…" />
               </div>
             ) : (
-              <GeoTab geo={geo} siteId={siteId!} />
+              <GeoTab geo={geo} siteId={siteId!} siteUrl={site?.url ?? ""} pages={pagesData?.pages ?? []} />
             )}
           </div>
         )}

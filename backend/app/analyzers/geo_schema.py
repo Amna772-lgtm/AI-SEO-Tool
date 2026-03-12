@@ -99,6 +99,95 @@ def _check_completeness(schema_obj: dict, type_name: str) -> list[str]:
     return [f for f in required if f not in schema_obj]
 
 
+def _check_semantic_match(schema_obj: dict, type_name: str, soup: BeautifulSoup) -> list[dict]:
+    """
+    Heuristic check: do key schema field values actually appear in the page content?
+    Returns a list of semantic mismatch dicts with field/value/issue.
+    """
+    issues: list[dict] = []
+
+    page_text = soup.get_text(" ", strip=True).lower()
+    title_tag = soup.find("title")
+    page_title = title_tag.get_text(strip=True).lower() if title_tag else ""
+    h1_texts = [t.get_text(strip=True).lower() for t in soup.find_all("h1")]
+
+    def _in_page(value: str) -> bool:
+        v = value.lower().strip()
+        if not v or len(v) < 3:
+            return True
+        return v in page_text
+
+    def _in_h1_or_title(value: str) -> bool:
+        v = value.lower().strip()
+        if not v or len(v) < 5:
+            return True
+        return any(v in h or h in v for h in h1_texts) or v in page_title or page_title in v
+
+    # Article / BlogPosting / NewsArticle / HowTo: headline should match H1 or title
+    if type_name in ("Article", "BlogPosting", "NewsArticle", "HowTo"):
+        headline = schema_obj.get("headline")
+        if isinstance(headline, str) and len(headline) > 10:
+            if not _in_h1_or_title(headline):
+                issues.append({
+                    "field": "headline",
+                    "schema_value": headline[:80],
+                    "issue": "Headline does not match any H1 tag or page title",
+                })
+
+    # Organization / LocalBusiness: name should appear in page text
+    if type_name in ("Organization", "LocalBusiness"):
+        name = schema_obj.get("name")
+        if isinstance(name, str) and len(name) > 2:
+            if not _in_page(name):
+                issues.append({
+                    "field": "name",
+                    "schema_value": name[:80],
+                    "issue": "Organization name not found in page content",
+                })
+
+    # Person: name should appear in page text
+    if type_name == "Person":
+        name = schema_obj.get("name")
+        if isinstance(name, str) and len(name) > 2:
+            if not _in_page(name):
+                issues.append({
+                    "field": "name",
+                    "schema_value": name[:80],
+                    "issue": "Person name not found in page content",
+                })
+
+    # Product: name should appear in H1 or page title
+    if type_name == "Product":
+        name = schema_obj.get("name")
+        if isinstance(name, str) and len(name) > 2:
+            if not _in_h1_or_title(name):
+                issues.append({
+                    "field": "name",
+                    "schema_value": name[:80],
+                    "issue": "Product name not found in page H1 or title",
+                })
+
+    # FAQPage: question names should appear in visible page text
+    if type_name == "FAQPage":
+        main_entity = schema_obj.get("mainEntity", [])
+        if isinstance(main_entity, list) and main_entity:
+            found_any = False
+            for qa in main_entity[:5]:
+                if isinstance(qa, dict):
+                    q = str(qa.get("name", "")).strip()
+                    if q and q.lower() in page_text:
+                        found_any = True
+                        break
+            if not found_any:
+                issues.append({
+                    "field": "mainEntity",
+                    "schema_value": f"{len(main_entity)} questions in schema",
+                    "issue": "FAQ questions in schema not found in visible page text",
+                })
+
+    return issues
+
+
 def analyze_schemas(pages_html: list[tuple[str, str]], site_type: str = "informational") -> dict:
     """
     Analyze structured data across a sample of pages.
@@ -117,6 +206,7 @@ def analyze_schemas(pages_html: list[tuple[str, str]], site_type: str = "informa
     has_rdfa = False
     raw_schemas: list[dict] = []
     completeness_issues: list[dict] = []
+    semantic_issues: list[dict] = []
 
     for url, html in pages_html:
         if not html:
@@ -144,6 +234,8 @@ def analyze_schemas(pages_html: list[tuple[str, str]], site_type: str = "informa
                             "type": t,
                             "missing_fields": missing,
                         })
+                    for sem in _check_semantic_match(block, t, soup):
+                        semantic_issues.append({"url": url, "type": t, **sem})
             if len(raw_schemas) < 5:
                 raw_schemas.extend(json_ld_blocks[:2])
 
@@ -185,5 +277,6 @@ def analyze_schemas(pages_html: list[tuple[str, str]], site_type: str = "informa
         "pages_analyzed": pages_analyzed,
         "missing_recommended": missing_recommended,
         "completeness_issues": completeness_issues[:10],
+        "semantic_issues": semantic_issues[:10],
         "raw_schemas": raw_schemas[:5],
     }

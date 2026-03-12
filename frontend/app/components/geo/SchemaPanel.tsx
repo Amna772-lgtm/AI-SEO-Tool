@@ -1,6 +1,6 @@
 "use client";
 
-import type { SchemaResult } from "../../lib/api";
+import type { SchemaResult, SchemaSemanticIssue } from "../../lib/api";
 
 function Badge({ ok, label }: { ok: boolean; label: string }) {
   return (
@@ -101,6 +101,26 @@ export function SchemaPanel({ schema }: Props) {
                 <span className="font-medium text-[var(--foreground)]">{issue.type}</span>
                 <span className="text-[var(--muted)]"> — missing: </span>
                 <span className="text-amber-600">{issue.missing_fields.join(", ")}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Semantic issues */}
+      {(schema.semantic_issues ?? []).length > 0 && (
+        <div>
+          <p className="mb-1.5 text-xs font-medium text-[var(--foreground)]">Semantic mismatches</p>
+          <div className="space-y-1">
+            {(schema.semantic_issues as SchemaSemanticIssue[]).slice(0, 4).map((issue, i) => (
+              <div key={i} className="rounded border border-orange-200 bg-orange-50 p-2 text-[10px]">
+                <div className="flex items-center gap-1.5 mb-0.5">
+                  <span className="font-semibold text-orange-700">{issue.type}</span>
+                  <span className="text-orange-500">·</span>
+                  <span className="font-medium text-orange-600">{issue.field}</span>
+                </div>
+                <p className="text-orange-700 mb-0.5">{issue.issue}</p>
+                <p className="text-[var(--muted)] italic truncate">Value: "{issue.schema_value}"</p>
               </div>
             ))}
           </div>
