@@ -41,28 +41,19 @@ function shortenUrl(url: string, maxChars = 55): string {
   }
 }
 
-function ScoreMini({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="flex flex-col items-center gap-0.5">
-      <span className="text-[9px] text-[var(--muted)] uppercase tracking-wide">{label}</span>
-      <span className="text-xs font-bold" style={{ color: scoreColor(value) }}>
-        {value}
-      </span>
-    </div>
-  );
-}
-
-function CheckBadge({ ok, label }: { ok: boolean; label: string }) {
+function Badge({ color, label }: { color: "green" | "red" | "amber" | "neutral"; label: string }) {
+  const styles = {
+    green:   { bg: "#dcfce7", text: "#166534" },
+    red:     { bg: "#fee2e2", text: "#991b1b" },
+    amber:   { bg: "#fef3c7", text: "#78350f" },
+    neutral: { bg: "#f3f4f6", text: "#374151" },
+  }[color];
   return (
     <span
-      className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[9px] font-medium"
-      style={{
-        background: ok ? "#dcfce7" : "#fee2e2",
-        color: ok ? "#15803d" : "#dc2626",
-      }}
-      title={label}
+      className="rounded-full px-2 py-0.5 text-[9px] font-medium"
+      style={{ background: styles.bg, color: styles.text }}
     >
-      {ok ? "✓" : "✗"} {label}
+      {label}
     </span>
   );
 }
@@ -119,55 +110,65 @@ function PageRow({ page }: { page: PageScoreResult }) {
           </div>
         </div>
 
-        {/* Mini scores */}
-        <div className="hidden sm:flex items-center gap-4 shrink-0">
-          <ScoreMini label="Content" value={page.breakdown.content} />
-          <ScoreMini label="Schema" value={page.breakdown.schema} />
-          <ScoreMini label="Meta" value={page.breakdown.meta} />
-        </div>
-
-        {/* Quick checks */}
-        <div className="hidden lg:flex items-center gap-1 shrink-0">
-          <CheckBadge ok={page.has_h1} label="H1" />
-          <CheckBadge ok={page.has_schema} label="Schema" />
-          <CheckBadge ok={page.has_canonical} label="Canonical" />
-        </div>
-
-        {/* Word count */}
-        <span className="hidden md:block text-[10px] text-[var(--muted)] shrink-0 w-16 text-right">
-          {page.word_count.toLocaleString()} words
-        </span>
-
-        <span className="text-[10px] text-[var(--muted)]">{expanded ? "▲" : "▼"}</span>
+        {/* AI engine citation scores */}
+        {page.engine_scores && (
+          <div className="hidden sm:flex items-center gap-3 shrink-0">
+            {(["claude", "chatgpt", "gemini", "grok", "perplexity"] as const).map((key) => {
+              const val = page.engine_scores![key];
+              const color = val >= 80 ? "#16a34a" : val >= 60 ? "#ca8a04" : val >= 40 ? "#ea580c" : "#dc2626";
+              const ENGINE_LABELS: Record<string, string> = {
+                claude: "Claude", chatgpt: "ChatGPT", gemini: "Gemini", grok: "Grok", perplexity: "Perplexity",
+              };
+              return (
+                <div key={key} className="flex flex-col items-center gap-0.5 w-12">
+                  <span className="text-[9px] text-[var(--muted)] truncate w-full text-center">{ENGINE_LABELS[key]}</span>
+                  <span className="text-xs font-bold leading-none" style={{ color }}>{val}</span>
+                  <div className="w-full h-1 rounded-full bg-gray-200 overflow-hidden mt-0.5">
+                    <div className="h-full rounded-full" style={{ width: `${val}%`, background: color }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
-      {/* Expanded: engine scores + full issue list */}
+      {/* Expanded: signal badges + breakdown bars + issues */}
       {expanded && (
         <div className="px-3 pb-3 pl-[60px] space-y-3">
-          {/* Per-engine citation scores */}
-          {page.engine_scores && (
-            <div className="rounded-md border border-[var(--border)] bg-[var(--surface-elevated)] p-2">
-              <p className="text-[9px] font-semibold uppercase tracking-wide text-[var(--muted)] mb-2">
-                AI Engine Citation Score
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {(["claude", "chatgpt", "gemini", "grok", "perplexity"] as const).map((key) => {
-                  const val = page.engine_scores![key];
-                  const color = val >= 80 ? "#16a34a" : val >= 60 ? "#ca8a04" : val >= 40 ? "#ea580c" : "#dc2626";
-                  const ENGINE_LABELS: Record<string, string> = {
-                    claude: "Claude", chatgpt: "ChatGPT", gemini: "Gemini", grok: "Grok", perplexity: "Perplexity",
-                  };
-                  return (
-                    <div key={key} className="flex flex-col items-center gap-0.5 min-w-[52px]">
-                      <span className="text-[9px] font-bold" style={{ color }}>{val}</span>
-                      <div className="w-full h-1 rounded-full bg-gray-200 overflow-hidden">
-                        <div className="h-full rounded-full" style={{ width: `${val}%`, background: color }} />
-                      </div>
-                      <span className="text-[9px] text-[var(--muted)]">{ENGINE_LABELS[key]}</span>
+          {/* Signal badges */}
+          <div className="flex flex-wrap gap-1.5">
+            <Badge color={page.has_author ? "green" : "red"} label={page.has_author ? "Author" : "No Author"} />
+            <Badge color={page.has_date ? "green" : "amber"} label={page.has_date ? "Dated" : "No Date"} />
+            <Badge color={page.has_citations ? "green" : "amber"} label={page.has_citations ? "Citations" : "No Citations"} />
+            {page.reading_grade != null && (
+              <Badge color="neutral" label={`Grade ${page.reading_grade.toFixed(1)}`} />
+            )}
+          </div>
+
+          {/* 5-category breakdown bars */}
+          {page.breakdown && (
+            <div className="space-y-1.5">
+              {(["structured_data", "eeat", "content", "meta", "nlp"] as const).map((key) => {
+                const val = page.breakdown[key];
+                const LABELS: Record<string, string> = {
+                  structured_data: "Structured Data (25%)",
+                  eeat:            "E-E-A-T (25%)",
+                  content:         "Content (20%)",
+                  meta:            "Meta (15%)",
+                  nlp:             "NLP / Semantic (15%)",
+                };
+                const color = val >= 80 ? "#16a34a" : val >= 60 ? "#ca8a04" : "#dc2626";
+                return (
+                  <div key={key} className="flex items-center gap-2">
+                    <span className="w-36 shrink-0 text-[9px] text-[var(--muted)]">{LABELS[key]}</span>
+                    <div className="flex-1 h-1.5 rounded-full bg-gray-200 overflow-hidden">
+                      <div className="h-full rounded-full" style={{ width: `${val}%`, background: color }} />
                     </div>
-                  );
-                })}
-              </div>
+                    <span className="w-6 shrink-0 text-[9px] font-bold text-right" style={{ color }}>{val}</span>
+                  </div>
+                );
+              })}
             </div>
           )}
 
@@ -264,7 +265,7 @@ export function PageScoresPanel({ pageScores }: Props) {
         <div className="grid grid-cols-[48px_1fr] sm:grid-cols-[48px_1fr_auto] gap-2 border-b border-[var(--border)] bg-[var(--surface-elevated)] px-3 py-2 text-[9px] font-semibold uppercase tracking-wide text-[var(--muted)]">
           <span>Score</span>
           <span>Page</span>
-          <span className="hidden sm:block">Breakdown</span>
+          <span className="hidden sm:block">AI Engine Citation Score</span>
         </div>
         {sorted.map((page) => (
           <PageRow key={page.url} page={page} />

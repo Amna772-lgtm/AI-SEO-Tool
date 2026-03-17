@@ -334,10 +334,17 @@ export interface PageScoreResult {
   has_h1: boolean;
   has_meta_descp: boolean;
   has_canonical: boolean;
+  has_author: boolean;
+  has_date: boolean;
+  has_citations: boolean;
+  reading_grade: number;
+  question_density: number;
   breakdown: {
+    structured_data: number;
+    eeat: number;
     content: number;
-    schema: number;
     meta: number;
+    nlp: number;
   };
   issues: PageScoreIssue[];
   engine_scores?: {

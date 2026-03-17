@@ -218,13 +218,12 @@ def _probe_engine(
     site_type: str,
     topics: list[str],
 ) -> tuple[str, dict]:
-    """Run all questions for one engine. Returns (engine_key, result)."""
+    """Run all questions for one engine in parallel. Returns (engine_key, result)."""
     import anthropic
     client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
     system_prompt = _build_persona(engine_key, domain, site_name, site_type, topics)
-    probes = []
 
-    for q in questions:
+    def _ask_one(q: str) -> dict:
         try:
             msg = client.messages.create(
                 model=ANTHROPIC_MODEL,
@@ -233,19 +232,23 @@ def _probe_engine(
                 messages=[{"role": "user", "content": q}],
             )
             resp = msg.content[0].text.strip()
-            probes.append({
+            return {
                 "query": q,
                 "response_excerpt": _truncate(resp),
                 "domain_mentioned": _domain_in_text(domain, resp),
                 "engine": engine_key,
-            })
+            }
         except Exception:
-            probes.append({
+            return {
                 "query": q,
                 "response_excerpt": None,
                 "domain_mentioned": False,
                 "engine": engine_key,
-            })
+            }
+
+    # Run all questions for this engine concurrently
+    with ThreadPoolExecutor(max_workers=len(questions)) as q_executor:
+        probes = list(q_executor.map(_ask_one, questions))
 
     mention_count = sum(1 for p in probes if p["domain_mentioned"])
     return engine_key, {
