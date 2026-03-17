@@ -10,6 +10,8 @@ import { SchemaPanel } from "./SchemaPanel";
 import { EeatPanel } from "./EeatPanel";
 import { ContentPanel } from "./ContentPanel";
 import { NlpPanel } from "./NlpPanel";
+import { ProbePanel } from "./ProbePanel";
+import { PageScoresPanel } from "./PageScoresPanel";
 
 const SITE_TYPE_ICONS: Record<string, string> = {
   ecommerce:      "🛒",
@@ -37,13 +39,15 @@ function SiteTypeBadge({ siteType }: { siteType: SiteTypeResult }) {
   );
 }
 
-type DetailTab = "schema" | "content" | "eeat" | "nlp";
+type DetailTab = "schema" | "content" | "eeat" | "nlp" | "visibility" | "pages";
 
 const DETAIL_TABS: { key: DetailTab; label: string }[] = [
-  { key: "schema",  label: "Schema" },
-  { key: "content", label: "Content" },
-  { key: "eeat",   label: "E-E-A-T" },
-  { key: "nlp",    label: "NLP" },
+  { key: "schema",     label: "Schema" },
+  { key: "content",    label: "Content" },
+  { key: "eeat",       label: "E-E-A-T" },
+  { key: "nlp",        label: "NLP" },
+  { key: "visibility", label: "Visibility" },
+  { key: "pages",      label: "Pages" },
 ];
 
 interface LoadingCardProps {
@@ -185,6 +189,12 @@ export function GeoTab({ geo, siteId, siteUrl, pages }: Props) {
           )}
           {detailTab === "nlp" && (
             geo.nlp ? <NlpPanel nlp={geo.nlp} /> : <LoadingCard label="NLP analysis" />
+          )}
+          {detailTab === "visibility" && (
+            geo.probe ? <ProbePanel probe={geo.probe} /> : <LoadingCard label="AI visibility probe" />
+          )}
+          {detailTab === "pages" && (
+            geo.page_scores ? <PageScoresPanel pageScores={geo.page_scores} /> : <LoadingCard label="per-page scoring" />
           )}
         </div>
       </div>

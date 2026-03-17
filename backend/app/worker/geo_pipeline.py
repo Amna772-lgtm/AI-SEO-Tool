@@ -2,7 +2,7 @@
 GEO Pipeline Orchestrator
 Runs all GEO agents after the main crawl completes.
 Uses ThreadPoolExecutor to run heuristic agents in parallel,
-then Claude agents after heuristics are done.
+then Claude/API agents after heuristics are done.
 """
 from __future__ import annotations
 
@@ -17,6 +17,8 @@ from app.analyzers.geo_schema import analyze_schemas
 from app.analyzers.geo_content import analyze_content
 from app.analyzers.geo_eeat import analyze_eeat
 from app.analyzers.geo_nlp import analyze_nlp
+from app.analyzers.geo_probe import analyze_probe
+from app.analyzers.geo_page_scores import score_pages
 from app.analyzers.geo_score import compute_score
 from app.analyzers.geo_suggestions import generate_suggestions
 from app.store.crawl_store import set_geo
@@ -128,11 +130,12 @@ def run_geo_pipeline(
         all_page_urls = [p.get("address", "") for p in pages if p.get("address")]
         html_pages = [(u, h) for u, h in fetched if h]
 
-        # --- Step 2: Run heuristic agents in parallel ---
+        # --- Step 2: Wave 1 — Heuristic agents in parallel (5 workers) ---
         schema_result = None
         content_result = None
         eeat_result = None
         site_type_result = None
+        page_scores_result = None
 
         def _run_site_type():
             return detect_site_type(all_page_urls, homepage_html)
@@ -146,14 +149,18 @@ def run_geo_pipeline(
         def _run_eeat():
             return analyze_eeat(all_page_urls, homepage_html, about_html)
 
+        def _run_page_scores():
+            return score_pages(html_pages)
+
         heuristic_tasks = {
-            "site_type": _run_site_type,
-            "schema":    _run_schema,
-            "content":   _run_content,
-            "eeat":      _run_eeat,
+            "site_type":   _run_site_type,
+            "schema":      _run_schema,
+            "content":     _run_content,
+            "eeat":        _run_eeat,
+            "page_scores": _run_page_scores,
         }
 
-        with ThreadPoolExecutor(max_workers=4) as executor:
+        with ThreadPoolExecutor(max_workers=5) as executor:
             future_map = {executor.submit(fn): name for name, fn in heuristic_tasks.items()}
             results = {}
             for future in as_completed(future_map):
@@ -161,13 +168,14 @@ def run_geo_pipeline(
                 try:
                     results[name] = future.result()
                 except Exception:
-                    results[name] = {}
+                    results[name] = {} if name != "page_scores" else []
                     print(f"GEO agent '{name}' failed: {traceback.format_exc()}")
 
-        site_type_result = results.get("site_type", {})
-        schema_result = results.get("schema", {})
-        content_result = results.get("content", {})
-        eeat_result = results.get("eeat", {})
+        site_type_result   = results.get("site_type", {})
+        schema_result      = results.get("schema", {})
+        content_result     = results.get("content", {})
+        eeat_result        = results.get("eeat", {})
+        page_scores_result = results.get("page_scores", [])
 
         site_type = site_type_result.get("site_type", "informational")
 
@@ -176,54 +184,42 @@ def run_geo_pipeline(
             schema_result = analyze_schemas(html_pages, site_type=site_type)
 
         # Persist heuristic results
-        set_geo(task_id, "site_type", site_type_result)
-        set_geo(task_id, "schema", schema_result)
-        set_geo(task_id, "content", content_result)
-        set_geo(task_id, "eeat", eeat_result)
+        set_geo(task_id, "site_type",   site_type_result)
+        set_geo(task_id, "schema",      schema_result)
+        set_geo(task_id, "content",     content_result)
+        set_geo(task_id, "eeat",        eeat_result)
+        set_geo(task_id, "page_scores", page_scores_result)
 
-        # --- Step 3: Run Claude API agents in parallel ---
-        nlp_result = None
-        suggestions_result = None
-
-        def _run_nlp():
-            return analyze_nlp(html_pages, url)
-
-        # Compute preliminary score for suggestions context (without NLP)
-        prelim_score = compute_score(
-            schema=schema_result,
-            eeat=eeat_result,
-            content=content_result,
-            nlp=None,
-            audit=audit_result,
-            site_type=site_type,
-        )
-
-        def _run_suggestions():
-            return generate_suggestions(
-                score_data=prelim_score,
-                schema=schema_result,
-                eeat=eeat_result,
-                content=content_result,
-                nlp=None,  # NLP may not be ready; suggestions use pre-score
-                audit=audit_result,
-                site_type=site_type,
-            )
+        # --- Step 3: Wave 2a — NLP and Probe in parallel (independent of each other) ---
+        nlp_result   = None
+        probe_result = None
 
         with ThreadPoolExecutor(max_workers=2) as executor:
-            nlp_future = executor.submit(_run_nlp)
-            sug_future = executor.submit(_run_suggestions)
+            nlp_future = executor.submit(analyze_nlp, html_pages, url)
+            prb_future = executor.submit(
+                analyze_probe,
+                url, None, content_result, site_type,
+            )
+
             try:
                 nlp_result = nlp_future.result(timeout=60)
             except Exception:
                 nlp_result = {"ai_snippet_readiness": "Unknown", "source": "error"}
                 print(f"GEO NLP agent failed: {traceback.format_exc()}")
-            try:
-                suggestions_result = sug_future.result(timeout=90)
-            except Exception:
-                suggestions_result = {"critical": [], "important": [], "optional": []}
-                print(f"GEO suggestions agent failed: {traceback.format_exc()}")
 
-        # --- Step 4: Final score with NLP ---
+            try:
+                probe_result = prb_future.result(timeout=120)
+            except Exception:
+                probe_result = {
+                    "engines": {},
+                    "overall_mention_rate": 0.0,
+                    "visibility_label": "Unknown",
+                    "engines_tested": 0,
+                    "source": "error",
+                }
+                print(f"GEO probe agent failed: {traceback.format_exc()}")
+
+        # --- Step 4: Final score with real NLP ---
         final_score = compute_score(
             schema=schema_result,
             eeat=eeat_result,
@@ -233,14 +229,30 @@ def run_geo_pipeline(
             site_type=site_type,
         )
 
-        # Persist Claude + score results
-        set_geo(task_id, "nlp", nlp_result)
+        # --- Step 5: Suggestions using real NLP + final score ---
+        # Must run after NLP so it sees the correct NLP score (not 0/100)
+        try:
+            suggestions_result = generate_suggestions(
+                score_data=final_score,
+                schema=schema_result,
+                eeat=eeat_result,
+                content=content_result,
+                nlp=nlp_result,
+                audit=audit_result,
+                site_type=site_type,
+            )
+        except Exception:
+            suggestions_result = {"critical": [], "important": [], "optional": []}
+            print(f"GEO suggestions agent failed: {traceback.format_exc()}")
+
+        # Persist Wave 2 + score results
+        set_geo(task_id, "nlp",         nlp_result)
         set_geo(task_id, "suggestions", suggestions_result)
-        set_geo(task_id, "score", final_score)
+        set_geo(task_id, "probe",       probe_result)
+        set_geo(task_id, "score",       final_score)
 
     except Exception:
         print(f"GEO pipeline failed for {task_id}: {traceback.format_exc()}")
-        # Store error state so frontend can show partial results
         set_geo(task_id, "score", {
             "overall_score": 0,
             "grade": "F",

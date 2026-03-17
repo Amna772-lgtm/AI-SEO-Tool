@@ -290,6 +290,65 @@ export interface SuggestionsResult {
   source?: string;
 }
 
+// ── AI Visibility Probe Types ────────────────────────────────────────────────
+
+export interface ProbeItem {
+  query: string;
+  response_excerpt: string | null;
+  domain_mentioned: boolean;
+  engine: string;
+  error?: string;
+}
+
+export interface EngineProbeDetail {
+  available: true;
+  mention_count: number;
+  mention_rate: number;
+  probes: ProbeItem[];
+}
+
+export interface ProbeResult {
+  questions: string[];
+  domain_checked: string;
+  engines: Record<string, EngineProbeDetail>;
+  overall_mention_rate: number;
+  visibility_label: "High" | "Medium" | "Low" | "Not Visible";
+  engines_tested: number;
+  source: string;
+  note: string;
+}
+
+// ── Per-Page GEO Score Types ─────────────────────────────────────────────────
+
+export interface PageScoreIssue {
+  priority: "critical" | "important" | "optional";
+  message: string;
+}
+
+export interface PageScoreResult {
+  url: string;
+  score: number;
+  grade: string;
+  word_count: number;
+  has_schema: boolean;
+  has_h1: boolean;
+  has_meta_descp: boolean;
+  has_canonical: boolean;
+  breakdown: {
+    content: number;
+    schema: number;
+    meta: number;
+  };
+  issues: PageScoreIssue[];
+  engine_scores?: {
+    claude: number;
+    chatgpt: number;
+    gemini: number;
+    grok: number;
+    perplexity: number;
+  };
+}
+
 export interface GeoResponse {
   site_id: string;
   geo_status: GeoStatus;
@@ -300,6 +359,8 @@ export interface GeoResponse {
   nlp: NlpResult | null;
   score: ScoreResult | null;
   suggestions: SuggestionsResult | null;
+  probe: ProbeResult | null;
+  page_scores: PageScoreResult[] | null;
 }
 
 export async function getGeo(taskId: string): Promise<GeoResponse> {

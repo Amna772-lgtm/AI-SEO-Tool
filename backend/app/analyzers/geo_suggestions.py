@@ -34,7 +34,7 @@ Rules:
 - "critical": Score impact > 10 pts, blocking AI citation readiness
 - "important": Score impact 5-10 pts, significant improvements
 - "optional": Nice-to-have enhancements
-- Max 5 items per priority level
+- Max 10 items per priority level
 - Be specific and actionable, not generic
 - Return ONLY valid JSON."""
 
@@ -217,7 +217,7 @@ def _rule_based_suggestions(
                 "category": "technical",
             })
 
-    return {"critical": critical[:5], "important": important[:5], "optional": optional[:5]}
+    return {"critical": critical, "important": important, "optional": optional}
 
 
 def generate_suggestions(
@@ -265,10 +265,10 @@ def generate_suggestions(
         result.setdefault("important", [])
         result.setdefault("optional", [])
 
-        # Cap to 5 per level
-        result["critical"] = result["critical"][:5]
-        result["important"] = result["important"][:5]
-        result["optional"] = result["optional"][:5]
+        # Cap to 10 per level
+        result["critical"] = result["critical"][:10]
+        result["important"] = result["important"][:10]
+        result["optional"] = result["optional"][:10]
 
         result["source"] = "claude"
         return result

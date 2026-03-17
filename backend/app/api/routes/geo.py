@@ -47,6 +47,8 @@ def get_geo_all(task_id: str):
         "nlp":         get_geo(task_id, "nlp"),
         "score":       get_geo(task_id, "score"),
         "suggestions": get_geo(task_id, "suggestions"),
+        "probe":       get_geo(task_id, "probe"),
+        "page_scores": get_geo(task_id, "page_scores"),
     }
 
 
@@ -111,6 +113,24 @@ def get_geo_suggestions(task_id: str):
     if not data:
         raise HTTPException(status_code=404, detail="Suggestions not yet available")
     return {"site_id": task_id, **data}
+
+
+@router.get("/{task_id}/geo/probe")
+def get_geo_probe(task_id: str):
+    _require_meta(task_id)
+    data = get_geo(task_id, "probe")
+    if not data:
+        raise HTTPException(status_code=404, detail="Probe results not yet available")
+    return {"site_id": task_id, **data}
+
+
+@router.get("/{task_id}/geo/pages")
+def get_geo_page_scores(task_id: str):
+    _require_meta(task_id)
+    data = get_geo(task_id, "page_scores")
+    if data is None:
+        raise HTTPException(status_code=404, detail="Per-page scores not yet available")
+    return {"site_id": task_id, "page_scores": data}
 
 
 @router.get("/{task_id}/geo/export")
