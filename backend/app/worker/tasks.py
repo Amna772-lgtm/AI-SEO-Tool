@@ -4,7 +4,8 @@ import threading
 from app.worker.celery_app import celery
 from app.analyzers.crawler import crawl_site
 from app.analyzers.audit import run_url_checks, run_page_checks
-from app.store.crawl_store import set_meta, append_page, flush_pages_buffer, get_meta, get_all_pages, update_pages_alt_text
+from app.store.crawl_store import set_meta, append_page, flush_pages_buffer, get_meta, get_all_pages, update_pages_alt_text, get_geo
+from app.store.history_store import save_analysis
 from app.worker.geo_pipeline import run_geo_pipeline
 
 
@@ -82,6 +83,25 @@ def process_site(url: str, task_id: str, robots_allowed: bool = True, ai_crawler
 
         # Run GEO pipeline (schema, content, E-E-A-T, NLP, scoring, suggestions)
         run_geo_pipeline(url, task_id, pages, audit_result)
+
+        # Persist completed analysis to history (non-fatal — never breaks the main flow)
+        try:
+            geo_snapshot = {
+                "site_id":     task_id,
+                "geo_status":  "completed",
+                "site_type":   get_geo(task_id, "site_type"),
+                "schema":      get_geo(task_id, "schema"),
+                "content":     get_geo(task_id, "content"),
+                "eeat":        get_geo(task_id, "eeat"),
+                "nlp":         get_geo(task_id, "nlp"),
+                "score":       get_geo(task_id, "score"),
+                "suggestions": get_geo(task_id, "suggestions"),
+                "probe":       get_geo(task_id, "probe"),
+                "page_scores": get_geo(task_id, "page_scores"),
+            }
+            save_analysis(task_id, url, len(pages), geo_snapshot, audit_result)
+        except Exception:
+            print("History save failed (non-fatal):\n" + traceback.format_exc())
 
         meta = get_meta(task_id) or {}
         meta["geo_status"] = "completed"

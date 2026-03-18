@@ -21,9 +21,10 @@ import {
 import { GeoTab } from "./components/geo/GeoTab";
 import { ChecklistPanel } from "./components/geo/ChecklistPanel";
 import { SiteStructurePanel } from "./components/geo/SiteStructurePanel";
+import { HistoryTab } from "./components/history/HistoryTab";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
-type MainTab = "crawl" | "audit" | "geo" | "insights";
+type MainTab = "crawl" | "audit" | "geo" | "insights" | "history";
 type TypeTab = "all" | "internal" | "external";
 
 // ── Small UI helpers ───────────────────────────────────────────────────────────
@@ -232,14 +233,6 @@ function AuditFullPanel({ audit }: { audit: AuditResult }) {
       {/* Security Headers */}
       {audit.security_headers && (
         <SecurityHeadersBlock sh={audit.security_headers} />
-      )}
-
-      {/* Sitemap URL */}
-      {sitemap.found && sitemap.url && (
-        <div className="rounded-xl border border-[var(--border)] bg-white p-4 shadow-sm">
-          <h3 className="mb-2 text-sm font-semibold text-[var(--foreground)]">Sitemap</h3>
-          <p className="break-all text-xs text-[var(--muted)]">{sitemap.url}</p>
-        </div>
       )}
     </div>
   );
@@ -571,6 +564,18 @@ export default function Home() {
             Insights
           </button>
 
+          {/* History tab */}
+          <button
+            onClick={() => setMainTab("history")}
+            className={`flex items-center gap-1.5 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
+              mainTab === "history"
+                ? "border-[var(--accent)] text-[var(--accent)]"
+                : "border-transparent text-[var(--muted)] hover:text-[var(--foreground)]"
+            }`}
+          >
+            History
+          </button>
+
           {/* AI Crawlers info */}
           {site?.ai_crawler_access && (
             <div className="ml-auto flex items-center gap-2">
@@ -881,6 +886,11 @@ export default function Home() {
               </div>
             )}
           </div>
+        )}
+
+        {/* ── HISTORY TAB ── */}
+        {mainTab === "history" && (
+          <HistoryTab initialDomain={site?.url ? new URL(site.url).hostname.replace(/^www\./, "") : ""} />
         )}
 
         {/* ── GEO TAB ── */}

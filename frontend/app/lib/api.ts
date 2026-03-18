@@ -379,3 +379,68 @@ export async function getGeo(taskId: string): Promise<GeoResponse> {
 export function getGeoExportUrl(taskId: string, format: "csv" | "pdf"): string {
   return `${API_BASE}/sites/${taskId}/geo/export?format=${format}`;
 }
+
+// ── History Types ─────────────────────────────────────────────────────────────
+
+export interface AuditSummary {
+  https_passed: boolean | null;
+  sitemap_found: boolean | null;
+  broken_links_count: number | null;
+  missing_canonicals_count: number | null;
+  psi_desktop_performance: number | null;
+  psi_mobile_performance: number | null;
+}
+
+/** List item — no geo_data blob (kept small for the list view and trend chart) */
+export interface HistoryItem {
+  id: string;
+  url: string;
+  domain: string;
+  analyzed_at: string;
+  overall_score: number | null;
+  grade: string | null;
+  site_type: string | null;
+  pages_count: number | null;
+  score_breakdown: ScoreResult["breakdown"] | null;
+  audit_summary: AuditSummary | null;
+}
+
+/** Single record — includes full GeoResponse blob for comparison view */
+export interface HistoryRecord extends HistoryItem {
+  geo_data: GeoResponse | null;
+}
+
+export interface HistoryResponse {
+  items: HistoryItem[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+// ── History API Functions ─────────────────────────────────────────────────────
+
+export async function getHistory(opts?: {
+  domain?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<HistoryResponse> {
+  const params = new URLSearchParams();
+  if (opts?.domain) params.set("domain", opts.domain);
+  if (opts?.limit != null) params.set("limit", String(opts.limit));
+  if (opts?.offset != null) params.set("offset", String(opts.offset));
+  const q = params.toString();
+  const res = await fetch(`${API_BASE}/history/${q ? `?${q}` : ""}`);
+  if (!res.ok) throw new Error("Failed to load history");
+  return res.json();
+}
+
+export async function getHistoryRecord(id: string): Promise<HistoryRecord> {
+  const res = await fetch(`${API_BASE}/history/${id}`);
+  if (!res.ok) throw new Error("History record not found");
+  return res.json();
+}
+
+export async function deleteHistoryRecord(id: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/history/${id}`, { method: "DELETE" });
+  if (!res.ok && res.status !== 204) throw new Error("Failed to delete history record");
+}
