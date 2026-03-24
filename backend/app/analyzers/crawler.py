@@ -10,10 +10,49 @@ from urllib.parse import urlparse, urljoin, urlunparse, quote, unquote
 import time
 from datetime import datetime
 
+import re
+
 import httpx
 from bs4 import BeautifulSoup
 
 from app.utils.url_validator import normalize_url
+
+
+def _compute_readability(html: str) -> str:
+    """Return 'Good', 'Poor', or 'N/A' based on Flesch-Kincaid grade level."""
+    try:
+        soup = BeautifulSoup(html, "html.parser")
+        for tag in soup.find_all(["script", "style", "nav", "header", "footer", "aside"]):
+            tag.decompose()
+        text = soup.get_text(separator=" ", strip=True)
+        words = re.findall(r"\b\w+\b", text)
+        sentences = [s for s in re.split(r"[.!?]+", text) if s.strip()]
+        if len(words) < 30 or not sentences:
+            return "N/A"
+        num_words = len(words)
+        num_sentences = len(sentences)
+        num_syllables = sum(_count_syllables_simple(w) for w in words)
+        grade = (0.39 * (num_words / num_sentences)) + (11.8 * (num_syllables / num_words)) - 15.59
+        grade = max(0.0, min(grade, 20.0))
+        return "Good" if grade <= 10 else "Poor"
+    except Exception:
+        return "N/A"
+
+
+def _count_syllables_simple(word: str) -> int:
+    word = word.lower().strip(".,!?;:")
+    if not word:
+        return 1
+    count = 0
+    prev_vowel = False
+    for ch in word:
+        is_vowel = ch in "aeiouy"
+        if is_vowel and not prev_vowel:
+            count += 1
+        prev_vowel = is_vowel
+    if word.endswith("e"):
+        count = max(1, count - 1)
+    return max(1, count)
 
 USER_AGENT = "AI-SEO-Bot/1.0"
 REQUEST_TIMEOUT = 15.0  # total request; slightly lower for faster failure on slow hosts
@@ -100,7 +139,7 @@ def extract_response_metadata(response: httpx.Response, request_url: str) -> dic
         "redirect_url": _resolve_redirect_url(
             headers.get("location"), request_url
         ) if status_code in (301, 302, 303, 307, 308) else None,
-        "redirect_type": "HTTP Redirect" if status_code in (301, 302, 303, 307, 308) else None,
+        
     }
 
 
@@ -233,7 +272,6 @@ def build_page_data(
         "response_time": response_time,
         "last_modified": meta["last_modified"],
         "redirect_url": meta["redirect_url"],
-        "redirect_type": meta["redirect_type"],
         "language": meta["language"],
         "http_version": meta["http_version"],
         "crawl_timestamp": datetime.utcnow(),
@@ -245,17 +283,22 @@ def build_page_data(
         "_img_alts": {},  # temporary: collected by crawl_site to build img_alt_map
     }
     if response.status_code == 200 and response.text:
-        html_meta = parse_html_metadata(response.text, str(response.url))
-        out["title"] = html_meta["title"]
-        out["title_length"] = html_meta["title_length"]
-        out["meta_descp"] = html_meta["meta_descp"]
-        out["h1"] = html_meta["h1"]
-        out["h2s"] = html_meta.get("h2s", [])
-        out["h3s"] = html_meta.get("h3s", [])
-        out["canonical"] = html_meta["canonical"]
-        out["_img_alts"] = html_meta.get("img_alts", {})
-        if html_meta.get("language") and not out["language"]:
-            out["language"] = html_meta["language"]
+        ct = meta.get("content_type", "") or ""
+        if "html" in ct:
+            html_meta = parse_html_metadata(response.text, str(response.url))
+            out["title"] = html_meta["title"]
+            out["title_length"] = html_meta["title_length"]
+            out["meta_descp"] = html_meta["meta_descp"]
+            out["h1"] = html_meta["h1"]
+            out["h2s"] = html_meta.get("h2s", [])
+            out["h3s"] = html_meta.get("h3s", [])
+            out["canonical"] = html_meta["canonical"]
+            out["_img_alts"] = html_meta.get("img_alts", {})
+            if html_meta.get("language") and not out["language"]:
+                out["language"] = html_meta["language"]
+            out["readability"] = _compute_readability(response.text)
+        else:
+            out["readability"] = "N/A"
     return out
 
 
@@ -291,7 +334,6 @@ def build_error_page_data(
         "response_time": None,
         "last_modified": None,
         "redirect_url": None,
-        "redirect_type": None,
         "language": None,
         "http_version": None,
         "crawl_timestamp": datetime.utcnow(),
@@ -331,14 +373,34 @@ def build_external_page_data(
         "response_time": response_time,
         "last_modified": None,
         "redirect_url": None,
-        "redirect_type": None,
         "language": None,
         "http_version": None,
     }
 
 
+_SKIP_EXTENSIONS = frozenset({
+    # Images
+    ".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg", ".ico", ".bmp", ".tiff", ".avif",
+    # Stylesheets / scripts
+    ".css", ".js", ".jsx", ".ts", ".tsx",
+    # Fonts
+    ".woff", ".woff2", ".ttf", ".eot", ".otf",
+    # Media
+    ".mp4", ".mp3", ".avi", ".mov", ".webm", ".ogg", ".wav",
+    # Archives / binaries
+    ".zip", ".tar", ".gz", ".exe", ".dmg",
+})
+
+
+def _is_asset_url(url: str) -> bool:
+    """Return True if the URL path ends with a non-HTML asset extension."""
+    path = urlparse(url).path.lower().split("?")[0]
+    _, ext = path.rsplit(".", 1) if "." in path else ("", "")
+    return f".{ext}" in _SKIP_EXTENSIONS
+
+
 def _resolve_and_classify(url: str, base_url: str) -> dict | None:
-    """Resolve URL to absolute and return {address, type} or None if invalid."""
+    """Resolve URL to absolute and return {address, type} or None if invalid/asset."""
     if not url or not (url := url.strip()) or url.startswith(("#", "mailto:", "tel:", "javascript:", "data:")):
         return None
     if not url.startswith("http"):
@@ -349,6 +411,8 @@ def _resolve_and_classify(url: str, base_url: str) -> dict | None:
             return None
     except Exception:
         return None
+    if _is_asset_url(url):
+        return None
     parsed_base = urlparse(base_url)
     link_type = "internal" if parsed.netloc.lower() == parsed_base.netloc.lower() else "external"
     return {"address": url, "type": link_type}
@@ -356,7 +420,9 @@ def _resolve_and_classify(url: str, base_url: str) -> dict | None:
 
 def extract_links(html: str, base_url: str) -> list[dict]:
     """
-    Extract all link-like URLs: <a href>, <img src>, CSS <link href>, JS <script src>.
+    Extract navigable links from <a href> only.
+    CSS, JS, and image assets are intentionally excluded — they have no SEO value
+    and would waste crawl budget. Alt text is collected separately via parse_html_metadata().
     Returns list of {address, type} (internal/external). Reusable for any page.
     """
     soup = BeautifulSoup(html, "html.parser")
@@ -373,17 +439,6 @@ def extract_links(html: str, base_url: str) -> list[dict]:
 
     for tag in soup.find_all("a", href=True):
         add_record(_resolve_and_classify(tag["href"], base_url))
-    for tag in soup.find_all("img", src=True):
-        add_record(_resolve_and_classify(tag["src"], base_url))
-    for tag in soup.find_all("link", href=True):
-        rel = tag.get("rel") or []
-        if isinstance(rel, str):
-            rel = [rel]
-        rel_lower = [r.lower() for r in rel] if rel else []
-        if "stylesheet" in rel_lower:
-            add_record(_resolve_and_classify(tag["href"], base_url))
-    for tag in soup.find_all("script", src=True):
-        add_record(_resolve_and_classify(tag["src"], base_url))
     return records
 
 

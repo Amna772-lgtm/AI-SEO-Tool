@@ -52,6 +52,9 @@ def process_site(url: str, task_id: str, robots_allowed: bool = True, ai_crawler
         # Write alt text for image URLs into Redis (annotation happens after all HTML is parsed)
         update_pages_alt_text(task_id, img_alt_map)
 
+        images_total = len(img_alt_map)
+        images_missing_alt = sum(1 for alt in img_alt_map.values() if not alt)
+
         # Crawl done — mark as completed
         set_meta(
             task_id,
@@ -63,6 +66,8 @@ def process_site(url: str, task_id: str, robots_allowed: bool = True, ai_crawler
                 "ai_crawler_access": ai_crawler_access,
                 "audit_status": "running",
                 "audit": None,
+                "images_total": images_total,
+                "images_missing_alt": images_missing_alt,
             },
         )
 

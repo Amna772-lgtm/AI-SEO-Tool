@@ -90,7 +90,6 @@ def list_pages(
             "language": p.get("language"),
             "last_modified": p.get("last_modified"),
             "redirect_url": p.get("redirect_url"),
-            "redirect_type": p.get("redirect_type"),
             "http_version": p.get("http_version"),
             "readability": p.get("readability"),
             "alt_text": p.get("alt_text"),
@@ -143,14 +142,21 @@ def get_site_overview(task_id: str):
         for label, count in sorted(label_counts.items(), key=lambda x: -x[1])
     ]
 
-    image_pages = [p for p in pages if "image" in (p.get("content_type") or "").lower()]
-    images_total = len(image_pages)
-    images_missing_alt = sum(1 for p in image_pages if not p.get("alt_text"))
+    ok_count = sum(1 for p in pages if p.get("status_code") == 200)
+    redirect_count = sum(1 for p in pages if p.get("status_code") and 300 <= p["status_code"] < 400)
+    error_4xx_count = sum(1 for p in pages if p.get("status_code") and 400 <= p["status_code"] < 500)
+    error_5xx_count = sum(1 for p in pages if p.get("status_code") and p["status_code"] >= 500)
 
     return {
         "site_id": task_id,
         "total_urls": total,
-        "images_total": images_total,
-        "images_missing_alt": images_missing_alt,
         "by_type": by_type,
+        "status_counts": {
+            "ok": ok_count,
+            "redirect": redirect_count,
+            "error_4xx": error_4xx_count,
+            "error_5xx": error_5xx_count,
+        },
+        "images_total": meta.get("images_total", 0),
+        "images_missing_alt": meta.get("images_missing_alt", 0),
     }

@@ -35,7 +35,6 @@ export interface PageRow {
   language: string | null;
   last_modified: string | null;
   redirect_url: string | null;
-  redirect_type: string | null;
   http_version: string | null;
   readability: string | null;
   alt_text: string | null;
@@ -57,9 +56,15 @@ export interface OverviewType {
 export interface OverviewResponse {
   site_id: string;
   total_urls: number;
+  by_type: OverviewType[];
   images_total: number;
   images_missing_alt: number;
-  by_type: OverviewType[];
+  status_counts?: {
+    ok: number;
+    redirect: number;
+    error_4xx: number;
+    error_5xx: number;
+  };
 }
 
 export async function startAnalysis(url: string): Promise<{ site_id: string; status: string; message: string; robots_allowed: boolean }> {

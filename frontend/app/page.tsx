@@ -28,12 +28,6 @@ type MainTab = "crawl" | "audit" | "geo" | "insights" | "history";
 type TypeTab = "all" | "internal" | "external";
 
 // ── Small UI helpers ───────────────────────────────────────────────────────────
-function ScoreChip({ score }: { score?: number }) {
-  if (score == null) return <span className="text-[var(--muted)]">—</span>;
-  const color =
-    score >= 90 ? "text-[var(--success)]" : score >= 50 ? "text-[var(--warning)]" : "text-[var(--error)]";
-  return <span className={`font-semibold ${color}`}>{score}</span>;
-}
 
 function psiErrorMessage(error: string): string {
   if (error.includes("NO_FCP"))
@@ -55,105 +49,72 @@ function Spinner({ label }: { label: string }) {
   );
 }
 
-// ── PageSpeed block ────────────────────────────────────────────────────────────
-function PsiBlock({ psi, label }: { psi: PageSpeedResult; label: string }) {
+// ── Semicircle gauge (PageSpeed) ──────────────────────────────────────────────
+function SemiGauge({ score, label }: { score: number; label: string }) {
+  const r = 36, cx = 56, cy = 48;
+  const circ = Math.PI * r;
+  const filled = Math.min(score / 100, 1) * circ;
+  const color = score >= 90 ? "var(--success)" : score >= 50 ? "#f59e0b" : "#ef4444";
   return (
-    <div className="rounded border border-[var(--border)] p-2 text-xs space-y-1">
-      <div className="font-medium text-[var(--foreground)] mb-1">{label}</div>
-      {psi.error ? (
-        <p className="text-[var(--warning)] leading-snug">{psiErrorMessage(psi.error)}</p>
-      ) : (
-        <>
-          <div className="flex justify-between">
-            <span className="text-[var(--muted)]">Performance</span>
-            <ScoreChip score={psi.performance} />
-          </div>
-          <div className="flex justify-between">
-            <span className="text-[var(--muted)]">Accessibility</span>
-            <ScoreChip score={psi.accessibility} />
-          </div>
-          <div className="flex justify-between">
-            <span className="text-[var(--muted)]">Best Practices</span>
-            <ScoreChip score={psi.best_practices} />
-          </div>
-          <div className="flex justify-between">
-            <span className="text-[var(--muted)]">SEO</span>
-            <ScoreChip score={psi.seo} />
-          </div>
-          <div className="border-t border-[var(--border)] mt-1 pt-1 space-y-0.5 text-[var(--muted)]">
-            {psi.fcp && (
-              <div className="flex justify-between">
-                <span>FCP</span>
-                <span>{psi.fcp}</span>
-              </div>
-            )}
-            {psi.lcp && (
-              <div className="flex justify-between">
-                <span>LCP</span>
-                <span>{psi.lcp}</span>
-              </div>
-            )}
-            {psi.tbt && (
-              <div className="flex justify-between">
-                <span>TBT</span>
-                <span>{psi.tbt}</span>
-              </div>
-            )}
-            {psi.cls && (
-              <div className="flex justify-between">
-                <span>CLS</span>
-                <span>{psi.cls}</span>
-              </div>
-            )}
-            {psi.speed_index && (
-              <div className="flex justify-between">
-                <span>Speed Index</span>
-                <span>{psi.speed_index}</span>
-              </div>
-            )}
-          </div>
-        </>
-      )}
+    <div className="flex flex-col items-center gap-1">
+      <svg width="112" height="58" viewBox="0 0 112 58">
+        <path
+          d={`M ${cx - r} ${cy} A ${r} ${r} 0 0 1 ${cx + r} ${cy}`}
+          fill="none" stroke="var(--border)" strokeWidth="7" strokeLinecap="round"
+        />
+        <path
+          d={`M ${cx - r} ${cy} A ${r} ${r} 0 0 1 ${cx + r} ${cy}`}
+          fill="none" stroke={color} strokeWidth="7" strokeLinecap="round"
+          strokeDasharray={`${filled} ${circ}`}
+        />
+        <text x={cx} y={cy - 5} textAnchor="middle" fontSize="22" fontWeight="bold"
+          fill={color} fontFamily="monospace">
+          {score}
+        </text>
+      </svg>
+      <span className="text-xs uppercase tracking-wide text-[var(--muted)]">{label}</span>
     </div>
   );
 }
 
 // ── Security Headers block ─────────────────────────────────────────────────────
 function SecurityHeadersBlock({ sh }: { sh: SecurityHeadersResult }) {
-  const headerOrder = [
+  const preferredOrder = [
+    "x_content_type_options",
+    "x_frame_options",
     "strict_transport_security",
     "content_security_policy",
-    "x_frame_options",
-    "x_content_type_options",
     "referrer_policy",
   ];
+  const displayKeys = [
+    ...preferredOrder.filter((k) => sh.headers[k]),
+    ...Object.keys(sh.headers).filter((k) => !preferredOrder.includes(k)),
+  ];
   return (
-    <div className="rounded-xl border border-[var(--border)] bg-white p-4 shadow-sm">
-      <h3 className="mb-3 text-sm font-semibold text-[var(--foreground)]">
-        Security Headers
-        <span className="ml-2 text-xs font-normal text-[var(--muted)]">
-          {sh.passed_count}/{sh.total_count} present
+    <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4">
+      <div className="mb-4 flex items-center justify-between">
+        <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">
+          Security Headers
+        </p>
+        <span className={`font-mono text-xs font-bold ${
+          sh.passed_count === sh.total_count ? "text-[var(--success)]" : "text-[var(--warning)]"
+        }`}>
+          {sh.passed_count}/{sh.total_count}
         </span>
-      </h3>
+      </div>
       {sh.error ? (
         <p className="text-xs text-[var(--warning)]">{sh.error}</p>
       ) : (
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
-          {headerOrder.map((key) => {
+        <div className="space-y-2.5">
+          {displayKeys.map((key) => {
             const info = sh.headers[key];
             if (!info) return null;
             return (
-              <div
-                key={key}
-                className="flex flex-col items-center rounded border border-[var(--border)] px-2 py-2 text-center text-xs"
-                title={info.value ?? undefined}
-              >
-                <span
-                  className={`text-base font-bold ${info.present ? "text-green-600" : "text-red-500"}`}
-                >
+              <div key={key} className="flex items-center justify-between text-xs">
+                <span className="text-[var(--foreground)]">{info.label}</span>
+                <span className={info.present ? "text-[var(--success)]" : "text-red-500"}>
                   {info.present ? "✓" : "✗"}
                 </span>
-                <span className="mt-0.5 text-[var(--muted)] leading-tight">{info.label}</span>
               </div>
             );
           })}
@@ -166,75 +127,209 @@ function SecurityHeadersBlock({ sh }: { sh: SecurityHeadersResult }) {
 // ── Technical Audit Panel ──────────────────────────────────────────────────────
 function AuditFullPanel({ audit }: { audit: AuditResult }) {
   const { https, sitemap, broken_links, missing_canonicals, pagespeed } = audit;
+  const desk = pagespeed.desktop;
+  const mob = pagespeed.mobile;
 
-  function Row({ label, ok, value }: { label: string; ok: boolean; value: string }) {
+  function StatusCard({
+    icon, title, ok, badge,
+  }: {
+    icon: React.ReactNode; title: string; ok: boolean; badge: string;
+  }) {
     return (
-      <div className="flex items-center justify-between rounded-lg border border-[var(--border)] p-3">
-        <div>
-          <p className="text-sm font-medium text-[var(--foreground)]">{label}</p>
+      <div className="flex flex-col gap-4 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4">
+        <div className="flex items-center gap-2">
+          <span className={ok ? "text-[var(--success)]" : "text-[var(--warning)]"}>{icon}</span>
+          <span className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">{title}</span>
         </div>
-        <span
-          className={`rounded-full px-3 py-1 text-xs font-semibold ${
-            ok
-              ? "bg-green-100 text-green-700"
-              : "bg-red-100 text-red-700"
-          }`}
-        >
-          {value}
+        <span className={`self-start rounded px-3 py-1 text-xs font-bold ${
+          ok
+            ? "bg-[var(--success)]/15 text-[var(--success)]"
+            : "bg-red-500/15 text-red-400"
+        }`}>
+          {badge}
         </span>
       </div>
     );
   }
 
+  const cwvMetrics: { key: keyof PageSpeedResult; label: string }[] = [
+    { key: "fcp", label: "FCP" },
+    { key: "lcp", label: "LCP" },
+    { key: "tbt", label: "TBT" },
+    { key: "cls", label: "CLS" },
+    { key: "speed_index", label: "SI" },
+  ];
+
+  const hasSecHeaders = !!audit.security_headers;
+
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-auto p-4">
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Row label="HTTPS" ok={https.passed} value={https.passed ? "✓ Secure" : "✗ Not Secure"} />
-        <Row label="Sitemap" ok={sitemap.found} value={sitemap.found ? "✓ Found" : "✗ Not Found"} />
-        <Row
-          label="Broken Links"
-          ok={broken_links.count === 0}
-          value={broken_links.count === 0 ? "✓ None" : `✗ ${broken_links.count} broken`}
+      {/* Top: 4 status cards */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <StatusCard
+          title="HTTPS"
+          ok={https.passed}
+          badge={https.passed ? "Secure" : "Not Secure"}
+          icon={
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" />
+            </svg>
+          }
         />
-        <Row
-          label="Missing Canonicals"
+        <StatusCard
+          title="Sitemap"
+          ok={sitemap.found}
+          badge={sitemap.found ? "Found" : "Not Found"}
+          icon={
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+              <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+            </svg>
+          }
+        />
+        <StatusCard
+          title="Broken Links"
+          ok={broken_links.count === 0}
+          badge={broken_links.count === 0 ? "None" : `${broken_links.count} found`}
+          icon={
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+              <line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" />
+            </svg>
+          }
+        />
+        <StatusCard
+          title="Canonicals"
           ok={missing_canonicals.missing_count === 0}
-          value={
-            missing_canonicals.missing_count === 0
-              ? "✓ None"
-              : `${missing_canonicals.missing_count} / ${missing_canonicals.total_html_pages}`
+          badge={missing_canonicals.missing_count === 0 ? "OK" : `${missing_canonicals.missing_count} missing`}
+          icon={
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+              <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+            </svg>
           }
         />
       </div>
 
       {/* Broken links list */}
       {broken_links.urls.length > 0 && (
-        <div className="rounded-xl border border-[var(--border)] bg-white p-4 shadow-sm">
-          <h3 className="mb-3 text-sm font-semibold text-[var(--foreground)]">Broken Links</h3>
-          <div className="max-h-40 overflow-auto space-y-1">
-            {broken_links.urls.map((url, i) => (
-              <p key={i} className="truncate rounded bg-red-50 px-2 py-1 text-xs text-red-600" title={url}>
-                {url}
+        <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)]">
+          <p className="border-b border-[var(--border)] px-4 py-2 text-xs font-semibold uppercase tracking-wide text-[var(--warning)]">
+            Broken Links
+          </p>
+          <div className="max-h-40 overflow-auto">
+            {broken_links.urls.map((u, i) => (
+              <p key={i} className="truncate border-b border-[var(--border)]/40 px-4 py-1.5 font-mono text-xs text-red-400" title={u}>
+                {u}
               </p>
             ))}
           </div>
         </div>
       )}
 
-      {/* PageSpeed */}
-      <div className="rounded-xl border border-[var(--border)] bg-white p-4 shadow-sm">
-        <h3 className="mb-3 text-sm font-semibold text-[var(--foreground)]">PageSpeed Insights</h3>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <PsiBlock psi={pagespeed.desktop} label="Desktop" />
-          <PsiBlock psi={pagespeed.mobile} label="Mobile" />
+      {/* Missing canonicals list */}
+      {missing_canonicals.missing_count > 0 && (
+        <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)]">
+          <p className="border-b border-[var(--border)] px-4 py-2 text-xs font-semibold uppercase tracking-wide text-[var(--warning)]">
+            Missing Canonicals ({missing_canonicals.missing_count} / {missing_canonicals.total_html_pages})
+          </p>
+          <div className="max-h-40 overflow-auto">
+            {missing_canonicals.urls.map((u, i) => (
+              <p key={i} className="truncate border-b border-[var(--border)]/40 px-4 py-1.5 font-mono text-xs text-[var(--muted)]" title={u}>
+                {u}
+              </p>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Bottom: Security Headers + PageSpeed */}
+      <div className={`grid gap-4 ${hasSecHeaders ? "grid-cols-1 lg:grid-cols-2" : "grid-cols-1"}`}>
+        {hasSecHeaders && <SecurityHeadersBlock sh={audit.security_headers!} />}
+
+        {/* PageSpeed */}
+        <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4">
+          <p className="mb-4 text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">Pagespeed</p>
+          {desk.error && mob.error ? (
+            <p className="text-xs text-[var(--warning)]">{psiErrorMessage(desk.error)}</p>
+          ) : (
+            <>
+              <div className="flex justify-around mb-5">
+                {!desk.error && desk.performance != null && <SemiGauge score={desk.performance} label="Desktop" />}
+                {!mob.error && mob.performance != null && <SemiGauge score={mob.performance} label="Mobile" />}
+              </div>
+              <div className="grid grid-cols-2 gap-3 text-xs">
+                <div className="rounded-lg bg-[var(--surface-elevated)] px-4 py-3 space-y-2">
+                  {cwvMetrics.map(({ key, label }) => {
+                    const val = desk[key];
+                    if (!val) return null;
+                    return (
+                      <div key={label} className="flex justify-between">
+                        <span className="text-[var(--muted)]">{label}</span>
+                        <span className="font-mono text-[var(--accent)]">{val}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="rounded-lg bg-[var(--surface-elevated)] px-4 py-3 space-y-2">
+                  {cwvMetrics.map(({ key, label }) => {
+                    const val = mob[key];
+                    if (!val) return null;
+                    return (
+                      <div key={label} className="flex justify-between">
+                        <span className="text-[var(--muted)]">{label}</span>
+                        <span className="font-mono text-[var(--accent)]">{val}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </div>
-
-      {/* Security Headers */}
-      {audit.security_headers && (
-        <SecurityHeadersBlock sh={audit.security_headers} />
-      )}
     </div>
+  );
+}
+
+// ── Donut Chart ────────────────────────────────────────────────────────────────
+const TYPE_COLORS: Record<string, string> = {
+  HTML:       "#4f46e5",
+  Images:     "#0ea5e9",
+  CSS:        "#f59e0b",
+  JavaScript: "#f97316",
+  PDF:        "#8b5cf6",
+  Other:      "#94a3b8",
+};
+
+function DonutChart({ slices, size = 110 }: {
+  slices: { label: string; value: number; color: string }[];
+  size?: number;
+}) {
+  const total = slices.reduce((s, d) => s + d.value, 0);
+  if (!total) return null;
+  const r = size / 2 - 14;
+  const cx = size / 2;
+  const cy = size / 2;
+  const C = 2 * Math.PI * r;
+  let cum = 0;
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ transform: "rotate(-90deg)", flexShrink: 0 }}>
+      <circle cx={cx} cy={cy} r={r} fill="none" stroke="var(--border)" strokeWidth="13" />
+      {slices.map((s, i) => {
+        const fraction = s.value / total;
+        const dash = fraction * C;
+        const offset = C * (1 - cum);
+        cum += fraction;
+        return (
+          <circle key={i} cx={cx} cy={cy} r={r} fill="none"
+            stroke={s.color} strokeWidth="13"
+            strokeDasharray={`${dash} ${C}`}
+            strokeDashoffset={offset}
+          />
+        );
+      })}
+    </svg>
   );
 }
 
@@ -376,13 +471,9 @@ export default function Home() {
     ? Object.entries({
         Address: selectedPage.address,
         Type: selectedPage.type ?? "—",
-        "Content Type": selectedPage.content_type ?? "—",
         "Status Code": selectedPage.status_code ?? "—",
-        Status: selectedPage.status ?? "—",
         Indexability: selectedPage.indexability ?? "—",
-        "Indexability Status": selectedPage.indexability_status ?? "—",
         Title: selectedPage.title ?? "—",
-        "Title Length": selectedPage.title_length ?? "—",
         "Meta Description": selectedPage.meta_descp ?? "—",
         H1: selectedPage.h1 ?? "—",
         "H2 Headings": selectedPage.h2s?.length ? selectedPage.h2s.join(" · ") : "—",
@@ -390,13 +481,8 @@ export default function Home() {
         Canonical: selectedPage.canonical ?? "—",
         "Crawl Depth": selectedPage.crawl_depth ?? "—",
         "Response Time (ms)": selectedPage.response_time ?? "—",
-        Language: selectedPage.language ?? "—",
-        "Last Modified": selectedPage.last_modified ?? "—",
         "Redirect URL": selectedPage.redirect_url ?? "—",
-        "Redirect Type": selectedPage.redirect_type ?? "—",
-        "HTTP Version": selectedPage.http_version ?? "—",
         Readability: selectedPage.readability ?? "—",
-        "Alt Text": selectedPage.alt_text ?? "—",
       }).filter(
         ([key, val]) =>
           !detailSearch ||
@@ -576,27 +662,6 @@ export default function Home() {
             History
           </button>
 
-          {/* AI Crawlers info */}
-          {site?.ai_crawler_access && (
-            <div className="ml-auto flex items-center gap-2">
-              <span className="text-xs text-[var(--muted)]">AI crawlers:</span>
-              {Object.entries(site.ai_crawler_access)
-                .slice(0, 4)
-                .map(([bot, allowed]) => (
-                  <span
-                    key={bot}
-                    className="rounded-full px-2 py-0.5 text-[10px] font-medium"
-                    style={
-                      allowed
-                        ? { backgroundColor: "#dcfce7", color: "#166534" }
-                        : { backgroundColor: "#fee2e2", color: "#991b1b" }
-                    }
-                  >
-                    {bot} {allowed ? "✓" : "✗"}
-                  </span>
-                ))}
-            </div>
-          )}
         </nav>
       )}
 
@@ -640,37 +705,28 @@ export default function Home() {
                     </span>
                   </div>
                   <div className="min-h-0 flex-1 overflow-auto">
-                    <table className="w-full border-collapse text-sm" style={{ minWidth: "2200px" }}>
+                    <table className="w-full border-collapse text-sm" style={{ minWidth: "1600px" }}>
                       <thead className="sticky top-0 z-10 border-b border-[var(--border)] bg-[var(--surface-elevated)] shadow-[0_1px_0_0_var(--border)]">
                         <tr>
                           <th className="w-12 px-2 py-2 text-left text-xs font-medium text-[var(--muted)]">#</th>
                           <th className="min-w-[220px] px-2 py-2 text-left text-xs font-medium text-[var(--muted)]">Address</th>
                           <th className="w-20 px-2 py-2 text-left text-xs font-medium text-[var(--muted)]">Type</th>
-                          <th className="min-w-[140px] px-2 py-2 text-left text-xs font-medium text-[var(--muted)]">Content Type</th>
-                          <th className="min-w-[140px] px-2 py-2 text-left text-xs font-medium text-[var(--muted)]">Image Alt Text</th>
-                          <th className="w-20 px-2 py-2 text-left text-xs font-medium text-[var(--muted)]">Status Code</th>
-                          <th className="min-w-[100px] px-2 py-2 text-left text-xs font-medium text-[var(--muted)]">Status</th>
+                          <th className="w-20 px-2 py-2 text-left text-xs font-medium text-[var(--muted)]">Status</th>
                           <th className="w-24 px-2 py-2 text-left text-xs font-medium text-[var(--muted)]">Indexability</th>
-                          <th className="min-w-[80px] px-2 py-2 text-left text-xs font-medium text-[var(--muted)]">Index. Status</th>
                           <th className="min-w-[120px] px-2 py-2 text-left text-xs font-medium text-[var(--muted)]">Title</th>
-                          <th className="w-16 px-2 py-2 text-left text-xs font-medium text-[var(--muted)]">Title Len</th>
                           <th className="min-w-[100px] px-2 py-2 text-left text-xs font-medium text-[var(--muted)]">Meta Desc</th>
                           <th className="min-w-[100px] px-2 py-2 text-left text-xs font-medium text-[var(--muted)]">H1</th>
                           <th className="min-w-[180px] px-2 py-2 text-left text-xs font-medium text-[var(--muted)]">Canonical</th>
                           <th className="w-14 px-2 py-2 text-left text-xs font-medium text-[var(--muted)]">Depth</th>
                           <th className="w-20 px-2 py-2 text-left text-xs font-medium text-[var(--muted)]">Resp. Time</th>
-                          <th className="w-16 px-2 py-2 text-left text-xs font-medium text-[var(--muted)]">Language</th>
-                          <th className="min-w-[120px] px-2 py-2 text-left text-xs font-medium text-[var(--muted)]">Last Modified</th>
                           <th className="min-w-[180px] px-2 py-2 text-left text-xs font-medium text-[var(--muted)]">Redirect URL</th>
-                          <th className="min-w-[80px] px-2 py-2 text-left text-xs font-medium text-[var(--muted)]">Redirect Type</th>
-                          <th className="w-14 px-2 py-2 text-left text-xs font-medium text-[var(--muted)]">HTTP Ver</th>
                           <th className="min-w-[80px] px-2 py-2 text-left text-xs font-medium text-[var(--muted)]">Readability</th>
                         </tr>
                       </thead>
                       <tbody>
                         {site?.status === "processing" && pagesData?.pages?.length === 0 && (
                           <tr>
-                            <td colSpan={12} className="h-[300px]">
+                            <td colSpan={14} className="h-[300px]">
                               <div className="flex items-center justify-center gap-3">
                                 <div className="h-8 w-8 animate-spin rounded-full border-4 border-[var(--border)] border-t-[var(--accent)]" />
                                 <span className="text-sm text-[var(--muted)]">Discovering URLs…</span>
@@ -678,7 +734,10 @@ export default function Home() {
                             </td>
                           </tr>
                         )}
-                        {(pagesData?.pages ?? []).map((page, i) => (
+                        {(pagesData?.pages ?? []).filter(page => {
+                          const ct = page.content_type ?? "";
+                          return !ct.startsWith("image/") && !ct.includes("css") && !ct.includes("javascript") && !ct.includes("font");
+                        }).map((page, i) => (
                           <tr
                             key={`${page.id}-${page.address}`}
                             onClick={() => setSelectedPage(page)}
@@ -693,34 +752,23 @@ export default function Home() {
                               {page.address}
                             </td>
                             <td className="px-2 py-2 text-[var(--muted)]">{page.type ?? "—"}</td>
-                            <td className="min-w-[140px] max-w-[180px] truncate px-2 py-2 text-[var(--muted)]" title={page.content_type ?? ""}>
-                              {page.content_type ?? "—"}
-                            </td>
-                            <td
-                              className={`min-w-[140px] max-w-[200px] truncate px-2 py-2 ${
-                                page.content_type?.includes("image") &&
-                                (page.alt_text == null || page.alt_text === "")
-                                  ? "text-[var(--warning)]"
-                                  : "text-[var(--muted)]"
-                              }`}
-                              title={page.alt_text ?? ""}
-                            >
-                              {page.content_type?.includes("image")
-                                ? page.alt_text != null
-                                  ? page.alt_text || "empty"
-                                  : "missing"
-                                : "—"}
-                            </td>
-                            <td className="px-2 py-2">{page.status_code ?? "—"}</td>
-                            <td className="min-w-[100px] max-w-[140px] truncate px-2 py-2 text-[var(--muted)]" title={page.status ?? ""}>
-                              {page.status ?? "—"}
+                            <td className="px-2 py-2">
+                              {page.status_code != null ? (
+                                <span className={`inline-block rounded px-2 py-0.5 text-xs font-semibold ${
+                                  page.status_code < 300
+                                    ? "bg-[var(--success)]/15 text-[var(--success)]"
+                                    : page.status_code < 400
+                                    ? "bg-[var(--warning)]/15 text-[var(--warning)]"
+                                    : "bg-red-500/15 text-red-400"
+                                }`}>
+                                  {page.status_code}
+                                </span>
+                              ) : "—"}
                             </td>
                             <td className="px-2 py-2 text-[var(--muted)]">{page.indexability ?? "—"}</td>
-                            <td className="min-w-[80px] px-2 py-2 text-[var(--muted)]">{page.indexability_status ?? "—"}</td>
                             <td className="min-w-[120px] max-w-[200px] truncate px-2 py-2" title={page.title ?? ""}>
                               {page.title ?? "—"}
                             </td>
-                            <td className="px-2 py-2 text-[var(--muted)]">{page.title_length ?? "—"}</td>
                             <td className="min-w-[100px] max-w-[180px] truncate px-2 py-2 text-[var(--muted)]" title={page.meta_descp ?? ""}>
                               {page.meta_descp ?? "—"}
                             </td>
@@ -732,15 +780,9 @@ export default function Home() {
                             </td>
                             <td className="px-2 py-2 text-[var(--muted)]">{page.crawl_depth ?? "—"}</td>
                             <td className="px-2 py-2 text-[var(--muted)]">{page.response_time ?? "—"}</td>
-                            <td className="px-2 py-2 text-[var(--muted)]">{page.language ?? "—"}</td>
-                            <td className="min-w-[120px] max-w-[180px] truncate px-2 py-2 text-[var(--muted)]" title={page.last_modified ?? ""}>
-                              {page.last_modified ?? "—"}
-                            </td>
                             <td className="min-w-[180px] max-w-[280px] truncate px-2 py-2 text-[var(--muted)]" title={page.redirect_url ?? ""}>
                               {page.redirect_url ?? "—"}
                             </td>
-                            <td className="min-w-[80px] px-2 py-2 text-[var(--muted)]">{page.redirect_type ?? "—"}</td>
-                            <td className="px-2 py-2 text-[var(--muted)]">{page.http_version ?? "—"}</td>
                             <td className="min-w-[80px] px-2 py-2 text-[var(--muted)]">{page.readability ?? "—"}</td>
                           </tr>
                         ))}
@@ -768,57 +810,111 @@ export default function Home() {
 
             {/* Right sidebar: Overview */}
             {crawlActive && overview && (
-              <aside className="flex w-56 shrink-0 flex-col border-l border-[var(--border)] bg-[var(--surface)] overflow-auto">
-                <h3 className="shrink-0 border-b border-[var(--border)] bg-[var(--surface-elevated)] px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">
-                  Overview
-                </h3>
-                <div className="p-3 space-y-2 text-xs">
-                  <div className="flex justify-between rounded-lg bg-[var(--surface-elevated)] px-3 py-2">
-                    <span className="text-[var(--muted)]">Total URLs</span>
-                    <span className="font-semibold">{overview.total_urls}</span>
-                  </div>
-                  {overview.images_total > 0 && (
-                    <div className="flex justify-between rounded-lg bg-[var(--surface-elevated)] px-3 py-2">
-                      <span className="text-[var(--muted)]">Missing Alt</span>
-                      <span
-                        className={`font-semibold ${
-                          overview.images_missing_alt > 0 ? "text-[var(--warning)]" : "text-[var(--success)]"
-                        }`}
-                      >
-                        {overview.images_missing_alt}
-                      </span>
-                    </div>
-                  )}
-                  <p className="pt-1 text-[var(--muted)]">By type</p>
-                  {overview.by_type.map((t, i) => (
-                    <div key={`${t.label}-${i}`} className="flex justify-between px-1">
-                      <span>{t.label}</span>
-                      <span className="text-[var(--muted)]">
-                        {t.count} ({t.percent}%)
-                      </span>
-                    </div>
-                  ))}
+              <aside className="flex w-100 shrink-0 flex-col border-l border-[var(--border)] bg-[var(--background)] overflow-auto">
+                <div className="p-3 space-y-3 text-xs">
 
-                  {/* Robots.txt disallowed paths */}
-                  {site?.disallowed_paths && site.disallowed_paths.length > 0 && (
-                    <>
-                      <p className="pt-2 text-[var(--muted)]">Robots.txt blocked</p>
-                      {site.disallowed_paths.slice(0, 8).map((p, i) => (
-                        <div
-                          key={i}
-                          className="truncate rounded bg-amber-50 px-2 py-1 text-amber-700"
-                          title={p}
-                        >
-                          {p}
+                  {/* Summary card */}
+                  <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3">
+                    <p className="mb-3 text-[14px] font-bold uppercase tracking-widest text-[var(--muted)]">Summary</p>
+
+                    {/* Donut chart + stats vertical */}
+                    {(() => {
+                      const sc = overview.status_counts;
+                      const ok      = sc?.ok        ?? 0;
+                      const r3xx    = sc?.redirect  ?? 0;
+                      const r4xx    = sc?.error_4xx ?? 0;
+                      const r5xx    = sc?.error_5xx ?? 0;
+                      const known   = ok + r3xx + r4xx + r5xx;
+                      const unknown = Math.max(0, overview.total_urls - known);
+
+                      const sliceDefs = [
+                        { label: "200 OK",       value: ok,      color: "#10b981", cls: "font-bold text-[var(--success)]" },
+                        { label: "3xx Redirect", value: r3xx,    color: "#f59e0b", cls: "font-bold text-[var(--warning)]" },
+                        { label: "4xx Error",    value: r4xx,    color: "#f43f5e", cls: "font-bold text-rose-500" },
+                        { label: "5xx Error",    value: r5xx,    color: "#dc2626", cls: "font-bold text-red-600" },
+                        { label: "Unknown",      value: unknown, color: "#94a3b8", cls: "font-bold text-[var(--muted)]" },
+                      ];
+
+                      const pieSlices = sliceDefs.filter(s => s.value > 0);
+
+                      return (
+                        <div className="flex flex-col items-center gap-3">
+                          {/* Donut with total in center */}
+                          <div className="relative">
+                            <DonutChart slices={pieSlices} size={140} />
+                            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                              <span className="text-xl font-black tabular-nums text-[var(--foreground)]">{overview.total_urls}</span>
+                              <span className="text-[10px] text-[var(--muted)]">Total URLs</span>
+                            </div>
+                          </div>
+
+                          {/* Stats list */}
+                          <div className="w-full space-y-1.5">
+                            {sliceDefs.map(r => (
+                              <div key={r.label} className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <span className="inline-block h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: r.color }} />
+                                  <span className="text-[var(--muted)]">{r.label}</span>
+                                </div>
+                                <span className={r.cls}>{r.value}</span>
+                              </div>
+                            ))}
+                            {overview.images_total > 0 && (
+                              <>
+                                <div className="my-1 border-t border-[var(--border)]" />
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-[var(--muted)]">Images</span>
+                                  </div>
+                                  <span className="font-bold text-sky-500">{overview.images_total}</span>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-[var(--muted)]">Missing Alt</span>
+                                  </div>
+                                  <span className={`font-bold ${overview.images_missing_alt > 0 ? "text-[var(--warning)]" : "text-[var(--success)]"}`}>
+                                    {overview.images_missing_alt}
+                                  </span>
+                                </div>
+                              </>
+                            )}
+                          </div>
                         </div>
-                      ))}
-                      {site.disallowed_paths.length > 8 && (
-                        <p className="text-[var(--muted)] px-1">
-                          +{site.disallowed_paths.length - 8} more paths
-                        </p>
-                      )}
-                    </>
+                      );
+                    })()}
+                  </div>
+                  {/* AI Crawler Access card */}
+                  {site?.ai_crawler_access && Object.keys(site.ai_crawler_access).length > 0 && (
+                    <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3">
+                      <p className="mb-3 text-[14px] font-bold uppercase tracking-widest text-[var(--muted)]">AI Crawler Access</p>
+                      <div className="space-y-2.5">
+                        {Object.entries(site.ai_crawler_access).map(([bot, allowed]) => (
+                          <div key={bot} className="flex justify-between">
+                            <span className="text-[var(--foreground)]">{bot}</span>
+                            <span className={`font-bold ${allowed ? "text-[var(--success)]" : "text-red-500"}`}>
+                              {allowed ? "Allowed" : "Blocked"}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   )}
+
+                  {/* Robots.txt disallowed paths card */}
+                  {site?.disallowed_paths && site.disallowed_paths.length > 0 && (
+                    <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3">
+                      <p className="mb-3 text-[10px] font-bold uppercase tracking-widest text-[var(--muted)]">Robots.txt Blocked</p>
+                      <div className="space-y-1.5">
+                        {site.disallowed_paths.slice(0, 8).map((p, i) => (
+                          <p key={i} className="truncate font-mono text-[var(--warning)]" title={p}>{p}</p>
+                        ))}
+                        {site.disallowed_paths.length > 8 && (
+                          <p className="text-[var(--muted)]">+{site.disallowed_paths.length - 8} more</p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
                 </div>
               </aside>
             )}
@@ -927,6 +1023,17 @@ export default function Home() {
                 onChange={(e) => setDetailSearch(e.target.value)}
                 className="ml-2 max-w-xs flex-1 rounded border border-[var(--border)] bg-[var(--surface)] px-2 py-1 text-xs outline-none focus:border-[var(--accent)]"
               />
+            )}
+            {selectedPage && (
+              <button
+                onClick={() => { setSelectedPage(null); setDetailSearch(""); }}
+                className="ml-auto text-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
+                title="Close"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                  <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
             )}
           </div>
           <div className="min-h-0 flex-1 overflow-auto p-3">
