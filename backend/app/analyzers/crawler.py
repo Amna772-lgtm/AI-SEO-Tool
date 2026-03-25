@@ -521,6 +521,10 @@ def _parse_sitemap(xml_text: str) -> tuple[list[str], list[str]]:
     sitemap_locs: URLs from <sitemap><loc> elements (sitemap index).
     """
     try:
+        # Guard: if response looks like HTML (server returned error page with 200), bail early
+        stripped = xml_text.lstrip()
+        if stripped.lower().startswith("<!doctype") or stripped.lower().startswith("<html"):
+            return [], []
         import xml.etree.ElementTree as ET
         root = ET.fromstring(xml_text)
         ns = ""
@@ -550,6 +554,11 @@ def _fetch_sitemap_urls(base_url: str, max_urls: int = 500) -> set[str]:
     parsed_base = urlparse(base_url)
     origin = f"{parsed_base.scheme}://{parsed_base.netloc}"
     base_netloc = parsed_base.netloc.lower()
+    # Also accept www <-> non-www variants so sitemap URLs aren't filtered by domain mismatch
+    if base_netloc.startswith("www."):
+        alt_netloc = base_netloc[4:]
+    else:
+        alt_netloc = "www." + base_netloc
 
     # Discover sitemap URL: check robots.txt first, then common paths
     candidates: list[str] = []
@@ -571,23 +580,27 @@ def _fetch_sitemap_urls(base_url: str, max_urls: int = 500) -> set[str]:
     try:
         with httpx.Client(timeout=10.0, follow_redirects=True,
                           headers={"User-Agent": USER_AGENT}) as client:
-            for candidate in candidates[:3]:
+            for candidate in candidates[:4]:
                 try:
                     resp = client.get(candidate)
                     if resp.status_code >= 400:
                         continue
                     page_locs, sitemap_locs = _parse_sitemap(resp.text)
 
+                    def _is_same_site(norm_url: str) -> bool:
+                        nloc = urlparse(norm_url).netloc.lower()
+                        return nloc in (base_netloc, alt_netloc)
+
                     # Regular sitemap: collect page URLs directly
                     for loc in page_locs:
                         norm = _normalize_for_dedupe(loc)
-                        if norm and urlparse(norm).netloc.lower() == base_netloc:
+                        if norm and _is_same_site(norm):
                             urls.add(norm)
                             if len(urls) >= max_urls:
                                 break
 
-                    # Sitemap index: fetch each sub-sitemap (max 5)
-                    for sub_url in sitemap_locs[:5]:
+                    # Sitemap index: fetch each sub-sitemap (max 10)
+                    for sub_url in sitemap_locs[:10]:
                         if len(urls) >= max_urls:
                             break
                         try:
@@ -596,7 +609,7 @@ def _fetch_sitemap_urls(base_url: str, max_urls: int = 500) -> set[str]:
                                 sub_locs, _ = _parse_sitemap(sub_resp.text)
                                 for loc in sub_locs:
                                     norm = _normalize_for_dedupe(loc)
-                                    if norm and urlparse(norm).netloc.lower() == base_netloc:
+                                    if norm and _is_same_site(norm):
                                         urls.add(norm)
                                         if len(urls) >= max_urls:
                                             break
