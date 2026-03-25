@@ -25,6 +25,15 @@ from app.store.crawl_store import set_geo
 
 # Max pages to fetch for deep analysis (keeps analysis time bounded)
 _MAX_PAGES_TO_FETCH = 15
+
+
+def _geo_page_limit(inventory_total: int | None) -> int:
+    """Scale GEO analysis page limit based on how many pages the site has."""
+    if not inventory_total or inventory_total <= 200:
+        return 15
+    if inventory_total <= 1000:
+        return 25
+    return 40
 _FETCH_TIMEOUT = 10.0
 
 # Pages that give the most signal for E-E-A-T / content analysis
@@ -113,6 +122,7 @@ def run_geo_pipeline(
     task_id: str,
     pages: list[dict],
     audit_result: dict | None,
+    inventory_total: int | None = None,
 ) -> None:
     """
     Run all GEO agents and persist results to Redis.
@@ -120,7 +130,8 @@ def run_geo_pipeline(
     """
     try:
         # --- Step 1: Select and fetch pages using a shared httpx client ---
-        urls_to_fetch = _select_pages_to_fetch(url, pages)
+        page_limit = _geo_page_limit(inventory_total)
+        urls_to_fetch = _select_pages_to_fetch(url, pages, max_count=page_limit)
         fetched: list[tuple[str, str]] = []
 
         with httpx.Client(timeout=_FETCH_TIMEOUT, follow_redirects=True) as http_client:

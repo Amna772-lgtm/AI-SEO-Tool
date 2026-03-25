@@ -181,14 +181,21 @@ def parse_html_metadata(html: str, base_url: str) -> dict:
         canonical = urljoin(base_url, canonical)
     html_tag = soup.find("html", lang=True)
     language = html_tag.get("lang") if html_tag else None
-    # Collect img src -> alt mapping (absolute URLs, first occurrence wins)
-    img_alts: dict[str, str] = {}
+    # Collect img src -> optimization attributes (absolute URLs, first occurrence wins)
+    img_alts: dict[str, dict] = {}
     for img in soup.find_all("img", src=True):
         src = img.get("src", "").strip()
         if src and not src.startswith("data:"):
             abs_src = urljoin(base_url, src)
             if abs_src not in img_alts:
-                img_alts[abs_src] = img.get("alt", "").strip()
+                ext = abs_src.rsplit("?", 1)[0].rsplit(".", 1)[-1].lower()
+                img_alts[abs_src] = {
+                    "alt":      img.get("alt", "").strip(),
+                    "modern":   ext in ("webp", "avif"),
+                    "lazy":     img.get("loading", "").lower() == "lazy",
+                    "has_dims": bool(img.get("width") and img.get("height")),
+                    "srcset":   bool(img.get("srcset")),
+                }
     return {
         "title": title,
         "title_length": title_length,
@@ -671,21 +678,22 @@ def crawl_site(
     results: list[dict] = []
     crawled_normalized: set[str] = set()
     queued_normalized: set[str] = set()
-    img_alt_map: dict[str, str] = {}  # normalized image URL -> alt text
+    img_alt_map: dict[str, dict] = {}  # normalized image URL -> optimization attrs
     # Single queue: (normalized_url, depth, link_type) in discovery order
     to_fetch: deque[tuple[str, int, str]] = deque()
 
     def _emit(pd: dict) -> None:
-        # Absorb img alt mappings from HTML pages before emitting
-        for abs_src, alt in (pd.pop("_img_alts", None) or {}).items():
+        # Absorb img optimization attrs from HTML pages before emitting
+        for abs_src, attrs in (pd.pop("_img_alts", None) or {}).items():
             norm = _normalize_for_dedupe(abs_src)
             if norm and norm not in img_alt_map:
-                img_alt_map[norm] = alt
+                img_alt_map[norm] = attrs
         # For image pages: look up alt text now so it's stored to Redis immediately
         if "image" in (pd.get("content_type") or "").lower():
             norm = _normalize_for_dedupe(pd.get("address") or "")
             if norm:
-                pd["alt_text"] = img_alt_map.get(norm)
+                attrs = img_alt_map.get(norm)
+                pd["alt_text"] = attrs["alt"] if isinstance(attrs, dict) else attrs
         results.append(pd)
         if on_page_crawled:
             on_page_crawled(pd)
@@ -810,9 +818,84 @@ def crawl_site(
     for pd in results:
         if "image" in (pd.get("content_type") or "").lower():
             norm = _normalize_for_dedupe(pd.get("address") or "")
-            pd["alt_text"] = img_alt_map.get(norm) if norm else None
+            if norm:
+                attrs = img_alt_map.get(norm)
+                pd["alt_text"] = attrs["alt"] if isinstance(attrs, dict) else attrs
 
     # Expose map to caller so it can persist alt texts to Redis
+    if img_alt_out is not None:
+        img_alt_out.update(img_alt_map)
+
+    return results
+
+
+def crawl_sampled(
+    urls: list[str],
+    on_page_crawled: Callable[[dict], None] | None = None,
+    img_alt_out: dict | None = None,
+) -> list[dict]:
+    """
+    Fetch a pre-selected list of URLs in parallel. No BFS, no link following.
+    Same output format as crawl_site(). Used by the Two-Phase crawl strategy.
+    """
+    if not urls:
+        return []
+
+    results: list[dict] = []
+    img_alt_map: dict[str, dict] = {}
+
+    def _emit(pd: dict) -> None:
+        for abs_src, attrs in (pd.pop("_img_alts", None) or {}).items():
+            norm = _normalize_for_dedupe(abs_src)
+            if norm and norm not in img_alt_map:
+                img_alt_map[norm] = attrs
+        if "image" in (pd.get("content_type") or "").lower():
+            norm = _normalize_for_dedupe(pd.get("address") or "")
+            if norm:
+                attrs = img_alt_map.get(norm)
+                pd["alt_text"] = attrs["alt"] if isinstance(attrs, dict) else attrs
+        results.append(pd)
+        if on_page_crawled:
+            on_page_crawled(pd)
+
+    with ThreadPoolExecutor(max_workers=CONCURRENT_REQUESTS) as executor:
+        futures = {
+            executor.submit(_fetch_one_internal, (url, 1)): (i, url)
+            for i, url in enumerate(urls)
+        }
+        results_by_idx: dict[int, dict] = {}
+        for future in as_completed(futures):
+            idx, original_url = futures[future]
+            current_normal, depth, current_url, response, resp_time, err = future.result()
+            if err is not None:
+                pd = build_error_page_data(
+                    current_url or current_normal or original_url,
+                    type(err).__name__ + (f": {err!s}" if str(err) else ""),
+                    depth,
+                    "internal",
+                )
+                results_by_idx[idx] = pd
+                continue
+            pd = build_page_data(
+                current_url or current_normal,
+                response,
+                resp_time,
+                crawl_depth=depth,
+                store_final_url=True,
+            )
+            results_by_idx[idx] = pd
+
+        for idx in sorted(results_by_idx.keys()):
+            _emit(results_by_idx[idx])
+
+    # Annotate image entries
+    for pd in results:
+        if "image" in (pd.get("content_type") or "").lower():
+            norm = _normalize_for_dedupe(pd.get("address") or "")
+            if norm:
+                attrs = img_alt_map.get(norm)
+                pd["alt_text"] = attrs["alt"] if isinstance(attrs, dict) else attrs
+
     if img_alt_out is not None:
         img_alt_out.update(img_alt_map)
 

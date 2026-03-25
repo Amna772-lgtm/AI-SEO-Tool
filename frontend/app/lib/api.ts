@@ -12,6 +12,10 @@ export interface Site {
   disallowed_paths?: string[];
   audit_status?: "pending" | "running" | "completed" | "failed";
   geo_status?: "pending" | "running" | "completed" | "failed";
+  inventory_total?: number | null;
+  inventory_sections?: Record<string, number> | null;
+  inventory_strategy?: string | null;
+  inventory_sample_size?: number | null;
 }
 
 export interface PageRow {
@@ -59,6 +63,12 @@ export interface OverviewResponse {
   by_type: OverviewType[];
   images_total: number;
   images_missing_alt: number;
+  images_optimized?: number;
+  indexability_counts?: {
+    indexable: number;
+    non_indexable: number;
+    external: number;
+  };
   status_counts?: {
     ok: number;
     redirect: number;

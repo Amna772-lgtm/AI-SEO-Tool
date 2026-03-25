@@ -93,7 +93,7 @@ def _norm_url(url: str | None) -> str | None:
         return None
 
 
-def update_pages_alt_text(task_id: str, img_alt_map: dict[str, str]) -> None:
+def update_pages_alt_text(task_id: str, img_alt_map: dict) -> None:
     """Annotate image pages in Redis with alt text. Called once after crawl completes."""
     if not img_alt_map:
         return
@@ -109,7 +109,8 @@ def update_pages_alt_text(task_id: str, img_alt_map: dict[str, str]) -> None:
         if "image" in (page.get("content_type") or "").lower():
             norm = _norm_url(page.get("address"))
             if norm and norm in img_alt_map:
-                page["alt_text"] = img_alt_map[norm]
+                attrs = img_alt_map[norm]
+                page["alt_text"] = attrs["alt"] if isinstance(attrs, dict) else attrs
                 changed = True
         updated.append(json.dumps(page, default=str))
     if changed:
@@ -127,6 +128,40 @@ def get_all_pages(task_id: str) -> list[dict[str, Any]]:
     if not raw_list:
         return []
     return [json.loads(s) for s in raw_list]
+
+
+def get_pages_paginated(
+    task_id: str, skip: int = 0, limit: int = 100
+) -> tuple[list[dict[str, Any]], int]:
+    """
+    Redis-level pagination — avoids loading all pages into Python.
+    Returns (page_list, total_count).
+    Does NOT support filtering; callers that need filter must use get_all_pages().
+    """
+    r = get_redis()
+    key = _pages_key(task_id)
+    total = r.llen(key)
+    if total == 0:
+        return [], 0
+    raw = r.lrange(key, skip, skip + limit - 1)
+    return [json.loads(s) for s in raw], total
+
+
+# ── Inventory storage ──────────────────────────────────────────────────────────
+
+def _inventory_key(task_id: str) -> str:
+    return f"crawl:inventory:{task_id}"
+
+
+def set_inventory(task_id: str, data: dict[str, Any]) -> None:
+    r = get_redis()
+    r.setex(_inventory_key(task_id), CRAWL_TTL_SECONDS, json.dumps(data, default=str))
+
+
+def get_inventory(task_id: str) -> dict[str, Any] | None:
+    r = get_redis()
+    raw = r.get(_inventory_key(task_id))
+    return json.loads(raw) if raw else None
 
 
 # ── GEO agent storage ──────────────────────────────────────────────────────────

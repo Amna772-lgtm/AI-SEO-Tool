@@ -8,3 +8,7 @@ celery = Celery(
 )
 
 celery.autodiscover_tasks(["app.worker"])
+
+# Worker resource limits — restart after 10 tasks or if memory exceeds 512MB
+celery.conf.worker_max_tasks_per_child = 10
+celery.conf.worker_max_memory_per_child = 512000

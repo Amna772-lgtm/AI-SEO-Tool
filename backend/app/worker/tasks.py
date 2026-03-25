@@ -2,14 +2,22 @@ import traceback
 import threading
 
 from app.worker.celery_app import celery
-from app.analyzers.crawler import crawl_site
+from app.analyzers.crawler import crawl_site, crawl_sampled
 from app.analyzers.audit import run_url_checks, run_page_checks
-from app.store.crawl_store import set_meta, append_page, flush_pages_buffer, get_meta, get_all_pages, update_pages_alt_text, get_geo
+from app.analyzers.page_inventory import build_inventory, smart_sample
+from app.store.crawl_store import (
+    set_meta, append_page, flush_pages_buffer, get_meta, get_all_pages,
+    update_pages_alt_text, get_geo, set_inventory,
+)
 from app.store.history_store import save_analysis
 from app.worker.geo_pipeline import run_geo_pipeline
 
 
-@celery.task(name="app.worker.tasks.process_site")
+@celery.task(
+    name="app.worker.tasks.process_site",
+    time_limit=3600,        # 1-hour hard kill
+    soft_time_limit=3300,   # 55-min soft kill (raises SoftTimeLimitExceeded)
+)
 def process_site(url: str, task_id: str, robots_allowed: bool = True, ai_crawler_access: dict | None = None):
     try:
         set_meta(
@@ -25,8 +33,26 @@ def process_site(url: str, task_id: str, robots_allowed: bool = True, ai_crawler
             },
         )
 
+        # ── Phase 1: Build URL inventory from sitemap (fast, ~2-5s) ──────────
+        inventory = build_inventory(url)
+
+        # Persist inventory metadata so the frontend can display it
+        set_inventory(task_id, {
+            "total": inventory.total,
+            "strategy": inventory.strategy,
+            "sample_size": inventory.sample_size,
+            "has_sitemap": inventory.has_sitemap,
+            "sections": inventory.sections,
+        })
+
+        # Expose inventory totals in meta so GET /sites/{id} can return them
+        meta_with_inv = get_meta(task_id) or {}
+        meta_with_inv["inventory_total"] = inventory.total
+        meta_with_inv["inventory_sections"] = inventory.sections
+        meta_with_inv["inventory_strategy"] = inventory.strategy
+        set_meta(task_id, meta_with_inv)
+
         # Start URL-only audit checks (HTTPS, sitemap, PSI) in parallel with the crawl.
-        # These only need the URL so they can run immediately — no need to wait for pages.
         url_checks: dict = {}
         url_checks_done = threading.Event()
 
@@ -46,30 +72,62 @@ def process_site(url: str, task_id: str, robots_allowed: bool = True, ai_crawler
         def on_page_crawled(page_data: dict) -> None:
             append_page(task_id, page_data)
 
-        crawl_site(url, on_page_crawled=on_page_crawled, img_alt_out=img_alt_map)
+        # ── Phase 2: Crawl — adaptive strategy ───────────────────────────────
+        if inventory.has_sitemap and inventory.total >= 100:
+            # Large site with a good sitemap → sample + direct fetch (no BFS)
+            sample_urls = smart_sample(inventory)
+
+            # Update inventory with finalized sample size
+            set_inventory(task_id, {
+                "total": inventory.total,
+                "strategy": inventory.strategy,
+                "sample_size": inventory.sample_size,
+                "has_sitemap": inventory.has_sitemap,
+                "sections": inventory.sections,
+            })
+            meta_with_inv = get_meta(task_id) or {}
+            meta_with_inv["inventory_sample_size"] = inventory.sample_size
+            set_meta(task_id, meta_with_inv)
+
+            crawl_sampled(sample_urls, on_page_crawled=on_page_crawled, img_alt_out=img_alt_map)
+        else:
+            # Small site or no sitemap → traditional BFS
+            crawl_site(url, on_page_crawled=on_page_crawled, img_alt_out=img_alt_map)
+
         flush_pages_buffer(task_id)
 
         # Write alt text for image URLs into Redis (annotation happens after all HTML is parsed)
         update_pages_alt_text(task_id, img_alt_map)
 
         images_total = len(img_alt_map)
-        images_missing_alt = sum(1 for alt in img_alt_map.values() if not alt)
+        images_missing_alt = sum(
+            1 for attrs in img_alt_map.values()
+            if not (attrs["alt"] if isinstance(attrs, dict) else attrs)
+        )
+        # Optimized = has alt text AND at least one of: modern format (WebP/AVIF),
+        # lazy loading enabled, or explicit width+height dimensions set
+        images_optimized = sum(
+            1 for attrs in img_alt_map.values()
+            if isinstance(attrs, dict)
+            and attrs.get("alt")
+            and (attrs.get("modern") or attrs.get("lazy") or attrs.get("has_dims"))
+        )
 
         # Crawl done — mark as completed
-        set_meta(
-            task_id,
-            {
-                "id": task_id,
-                "url": url,
-                "status": "completed",
-                "robots_allowed": robots_allowed,
-                "ai_crawler_access": ai_crawler_access,
-                "audit_status": "running",
-                "audit": None,
-                "images_total": images_total,
-                "images_missing_alt": images_missing_alt,
-            },
-        )
+        meta = get_meta(task_id) or {}
+        meta.update({
+            "id": task_id,
+            "url": url,
+            "status": "completed",
+            "robots_allowed": robots_allowed,
+            "ai_crawler_access": ai_crawler_access,
+            "audit_status": "running",
+            "audit": None,
+            "images_total": images_total,
+            "images_missing_alt": images_missing_alt,
+            "images_optimized": images_optimized,
+        })
+        set_meta(task_id, meta)
 
         # Run page-dependent checks (broken links, missing canonicals)
         pages = get_all_pages(task_id)
@@ -87,7 +145,7 @@ def process_site(url: str, task_id: str, robots_allowed: bool = True, ai_crawler
         set_meta(task_id, meta)
 
         # Run GEO pipeline (schema, content, E-E-A-T, NLP, scoring, suggestions)
-        run_geo_pipeline(url, task_id, pages, audit_result)
+        run_geo_pipeline(url, task_id, pages, audit_result, inventory_total=inventory.total)
 
         # Persist completed analysis to history (non-fatal — never breaks the main flow)
         try:

@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Query
 
-from app.store.crawl_store import get_meta, get_all_pages
+from app.store.crawl_store import get_meta, get_all_pages, get_pages_paginated
 
 router = APIRouter()
 
@@ -43,6 +43,10 @@ def get_site(task_id: str):
         "disallowed_paths": meta.get("disallowed_paths", []),
         "audit_status": meta.get("audit_status", "pending"),
         "geo_status": meta.get("geo_status", "pending"),
+        "inventory_total": meta.get("inventory_total"),
+        "inventory_sections": meta.get("inventory_sections"),
+        "inventory_strategy": meta.get("inventory_strategy"),
+        "inventory_sample_size": meta.get("inventory_sample_size"),
     }
 
 
@@ -52,21 +56,30 @@ def list_pages(
     type_filter: str | None = Query(None, alias="type"),
     search: str | None = Query(None),
     skip: int = Query(0, ge=0),
-    limit: int = Query(500, ge=1, le=100000),
+    limit: int = Query(100, ge=1, le=100000),
 ):
     meta = get_meta(task_id)
     if not meta:
         raise HTTPException(status_code=404, detail="Crawl not found")
 
-    pages = get_all_pages(task_id)
-    if type_filter:
-        pages = [p for p in pages if (p.get("type") or "internal") == type_filter]
-    if search:
-        search_lower = search.lower()
-        pages = [p for p in pages if search_lower in (p.get("address") or "").lower()]
-
-    total = len(pages)
-    slice_pages = pages[skip : skip + limit]
+    if type_filter or search:
+        # Filtered/search queries: load all, then slice (necessary for correctness)
+        pages = get_all_pages(task_id)
+        if type_filter:
+            pages = [p for p in pages if (p.get("type") or "internal") == type_filter]
+        if search:
+            search_lower = search.lower()
+            pages = [
+                p for p in pages
+                if search_lower in (p.get("address") or "").lower()
+                or search_lower in (p.get("title") or "").lower()
+                or search_lower in (p.get("h1") or "").lower()
+            ]
+        total = len(pages)
+        slice_pages = pages[skip : skip + limit]
+    else:
+        # Unfiltered: use Redis-level LRANGE pagination (O(limit) not O(total))
+        slice_pages, total = get_pages_paginated(task_id, skip=skip, limit=limit)
 
     def to_row(i: int, p: dict) -> dict:
         return {
@@ -147,10 +160,38 @@ def get_site_overview(task_id: str):
     error_4xx_count = sum(1 for p in pages if p.get("status_code") and 400 <= p["status_code"] < 500)
     error_5xx_count = sum(1 for p in pages if p.get("status_code") and p["status_code"] >= 500)
 
+    indexable_count = 0
+    non_indexable_count = 0
+    external_count = 0
+    for p in pages:
+        if p.get("type") == "external":
+            external_count += 1
+        else:
+            # Mirror the Spider table filter: skip images, CSS, JS, fonts
+            ct = (p.get("content_type") or "").lower()
+            is_asset = (
+                ct.startswith("image/")
+                or "css" in ct
+                or "javascript" in ct
+                or "font" in ct
+                or "woff" in ct
+            )
+            if is_asset:
+                continue
+            if p.get("indexability") == "Indexable":
+                indexable_count += 1
+            else:
+                non_indexable_count += 1
+
     return {
         "site_id": task_id,
         "total_urls": total,
         "by_type": by_type,
+        "indexability_counts": {
+            "indexable": indexable_count,
+            "non_indexable": non_indexable_count,
+            "external": external_count,
+        },
         "status_counts": {
             "ok": ok_count,
             "redirect": redirect_count,
@@ -159,4 +200,5 @@ def get_site_overview(task_id: str):
         },
         "images_total": meta.get("images_total", 0),
         "images_missing_alt": meta.get("images_missing_alt", 0),
+        "images_optimized": meta.get("images_optimized", 0),
     }

@@ -24,7 +24,7 @@ import { SiteStructurePanel } from "./components/geo/SiteStructurePanel";
 import { HistoryTab } from "./components/history/HistoryTab";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
-type MainTab = "crawl" | "audit" | "geo" | "insights" | "history";
+type MainTab = "dashboard" | "crawl" | "audit" | "geo" | "insights" | "history";
 type TypeTab = "all" | "internal" | "external";
 
 // ── Small UI helpers ───────────────────────────────────────────────────────────
@@ -334,6 +334,8 @@ function DonutChart({ slices, size = 110 }: {
 }
 
 // ── Main Component ─────────────────────────────────────────────────────────────
+const PAGE_SIZE = 100;
+
 export default function Home() {
   const [url, setUrl] = useState("");
   const [siteId, setSiteId] = useState<string | null>(null);
@@ -342,8 +344,9 @@ export default function Home() {
   const [overview, setOverview] = useState<OverviewResponse | null>(null);
   const [selectedPage, setSelectedPage] = useState<PageRow | null>(null);
   const [typeTab, setTypeTab] = useState<TypeTab>("all");
-  const [mainTab, setMainTab] = useState<MainTab>("crawl");
+  const [mainTab, setMainTab] = useState<MainTab>("dashboard");
   const [search, setSearch] = useState("");
+  const [pageNum, setPageNum] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [detailSearch, setDetailSearch] = useState("");
@@ -403,16 +406,21 @@ export default function Home() {
   const refreshPages = useCallback(() => {
     if (!siteId) return;
     const typeParam = typeTab === "all" ? undefined : typeTab;
-    getPages(siteId, { type: typeParam, search: search || undefined, limit: 100000 })
+    getPages(siteId, {
+      type: typeParam,
+      search: search || undefined,
+      skip: pageNum * PAGE_SIZE,
+      limit: PAGE_SIZE,
+    })
       .then(setPagesData)
       .catch(() => setError("Failed to load pages"));
-  }, [siteId, typeTab, search]);
+  }, [siteId, typeTab, search, pageNum]);
 
   useEffect(() => {
     if (!siteId || !site) return;
     if (site.status !== "completed" && site.status !== "processing") return;
     refreshPages();
-  }, [siteId, site?.status, typeTab, search, refreshPages]);
+  }, [siteId, site?.status, typeTab, search, pageNum, refreshPages]);
 
   useEffect(() => {
     if (!siteId || !site) return;
@@ -430,7 +438,8 @@ export default function Home() {
     setSelectedPage(null);
     setAudit(null);
     setGeo(null);
-    setMainTab("crawl");
+    setPageNum(0);
+    setMainTab("dashboard");
     try {
       const result = await startAnalysis(url.trim());
       setSiteId(result.site_id);
@@ -463,7 +472,8 @@ export default function Home() {
     setUrl("");
     setSearch("");
     setDetailSearch("");
-    setMainTab("crawl");
+    setPageNum(0);
+    setMainTab("dashboard");
   };
 
   // ── Detail rows for bottom panel ──────────────────────────────────────────
@@ -495,184 +505,377 @@ export default function Home() {
   const geoScore = geo?.score?.overall_score;
   const geoGrade = geo?.score?.grade;
 
+  // ── Dashboard computed stats ──────────────────────────────────────────────
+  const typeSlices = overview
+    ? Object.entries(overview.by_type)
+        .map(([label, value]) => ({ label, value: value as unknown as number, color: TYPE_COLORS[label] ?? "#94a3b8" }))
+        .filter((s) => s.value > 0)
+    : [];
+  const totalTypeCount = typeSlices.reduce((s, d) => s + d.value, 0);
+
+  const indexabilityCounts = {
+    indexable:    overview?.indexability_counts?.indexable     ?? 0,
+    nonIndexable: overview?.indexability_counts?.non_indexable ?? 0,
+    external:     overview?.indexability_counts?.external      ?? 0,
+  };
+
   // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <div className="flex h-screen flex-col bg-[var(--background)] text-[var(--foreground)]">
+    <div className="flex h-screen overflow-hidden bg-[var(--background)] text-[var(--foreground)]">
 
-      {/* ── Top bar ─────────────────────────────────────────────────────── */}
-      <header className="flex shrink-0 items-center gap-4 border-b border-[var(--border)] bg-[var(--accent)] px-4 py-3 text-white">
-        <div className="flex items-center gap-2">
-          <span className="text-lg font-semibold tracking-tight">AI SEO TOOL</span>
-          {geo?.score && (
-            <span className="rounded-full bg-white/20 px-2 py-0.5 text-xs font-bold">
-              GEO {geoScore}
-            </span>
-          )}
+      {/* ── Left Sidebar ─────────────────────────────────────────────────── */}
+      <aside className="flex w-48 shrink-0 flex-col border-r border-[var(--border)] bg-[var(--surface)]">
+        <div className="flex items-center gap-2 border-b border-[var(--border)] px-4 py-3.5">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-[var(--accent)]">
+            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+          </svg>
+          <span className="text-sm font-bold tracking-tight text-[var(--accent)]">AI SEO TOOL</span>
         </div>
-        <div className="flex flex-1 items-center gap-2">
-          <input
-            type="url"
-            placeholder="https://example.com/"
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleStart()}
-            className="min-w-[320px] flex-1 rounded border border-white/30 bg-white/10 px-3 py-2 text-sm text-white placeholder:text-white/70 outline-none focus:border-white focus:ring-1 focus:ring-white"
-          />
-          <button
-            onClick={handleStart}
-            disabled={loading}
-            className="rounded bg-white px-4 py-2 text-sm font-medium text-[var(--accent)] hover:bg-white/90 disabled:opacity-50 transition-colors"
-          >
-            {loading ? "Starting…" : "Start"}
-          </button>
-          <button
-            onClick={handleClear}
-            className="rounded border border-white/50 px-4 py-2 text-sm text-white hover:bg-white/10 transition-colors"
-          >
-            Clear
-          </button>
-        </div>
+        <nav className="flex flex-col gap-0.5 p-2 pt-3">
+          <p className="mb-1 px-3 text-[10px] font-semibold uppercase tracking-widest text-[var(--muted)]">Main menu</p>
+          {(
+            [
+              { id: "dashboard", label: "Dashboard", icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg> },
+              { id: "crawl",     label: "Spider",    icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="4.22" y1="4.22" x2="7.05" y2="7.05"/><line x1="16.95" y1="16.95" x2="19.78" y2="19.78"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/><line x1="4.22" y1="19.78" x2="7.05" y2="16.95"/><line x1="16.95" y1="7.05" x2="19.78" y2="4.22"/></svg> },
+              { id: "audit",     label: "Technical Audit", icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg> },
+              { id: "geo",       label: "GEO Analysis", icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> },
+              { id: "insights",  label: "Insights",  icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg> },
+              { id: "history",   label: "History",   icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.95"/></svg> },
+            ] as { id: MainTab; label: string; icon: React.ReactNode }[]
+          ).map((item) => (
+            <button
+              key={item.id}
+              onClick={() => setMainTab(item.id)}
+              className={`flex items-center gap-2.5 rounded-md px-3 py-2 text-left text-sm transition-colors ${
+                mainTab === item.id
+                  ? "bg-[var(--accent)] font-medium text-white"
+                  : "text-[var(--muted)] hover:bg-[var(--surface-elevated)] hover:text-[var(--foreground)]"
+              }`}
+            >
+              <span className="shrink-0">{item.icon}</span>
+              <span className="truncate">{item.label}</span>
+            </button>
+          ))}
+        </nav>
+      </aside>
 
-        {/* Progress bar */}
-        {site && (site.status === "processing" || site.status === "completed") && (
-          <div className="flex items-center gap-2 min-w-[140px]">
-            <div className="w-24 h-5 rounded bg-white/20 overflow-hidden relative flex items-center justify-center">
-              {site.status === "completed" ? (
-                <div className="absolute inset-y-0 left-0 right-0 rounded bg-white" />
-              ) : (
-                <div className="absolute inset-y-0 left-0 w-full rounded bg-white/60 animate-pulse" />
-              )}
-              <span className="relative z-10 text-xs font-medium text-[var(--accent)]">
-                {site.status === "completed" ? "Done" : `${pagesData?.total ?? 0} URLs`}
-              </span>
-            </div>
+      {/* ── Main area ─────────────────────────────────────────────────────── */}
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+
+        {/* ── Top header ────────────────────────────────────────────────── */}
+        <header className="flex shrink-0 items-center gap-3 border-b border-[var(--border)] bg-[var(--surface)] px-4 py-2">
+          <div className="flex shrink-0 items-center gap-1.5">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-[var(--accent)]">
+              <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+              <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+            </svg>
+            <span className="text-sm font-semibold text-[var(--accent)]">AI SEO TOOL</span>
+          </div>
+          <div className="flex min-w-0 flex-1 items-center gap-2 rounded border border-[var(--border)] bg-[var(--surface-elevated)] px-3 py-1.5">
+            <span className="shrink-0 text-xs text-[var(--muted)]">URL:</span>
+            <input
+              type="url"
+              placeholder="https://example.com/"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleStart()}
+              className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-[var(--muted)]"
+            />
+            <button onClick={handleStart} className="shrink-0 text-[var(--muted)] transition-colors hover:text-[var(--foreground)]">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+              </svg>
+            </button>
+          </div>
+          <div className="flex shrink-0 items-center gap-1.5">
+            <button
+              onClick={handleStart}
+              disabled={loading}
+              className="rounded bg-[var(--accent)] px-4 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-[var(--accent-hover)] disabled:opacity-50"
+            >
+              {loading ? "Starting…" : "Start"}
+            </button>
+            <button className="flex items-center gap-1 rounded border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5 text-xs text-[var(--muted)] transition-colors hover:bg-[var(--surface-elevated)]">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 0-14.14 0"/><path d="M4.93 19.07a10 10 0 0 0 14.14 0"/>
+              </svg>
+              Config
+            </button>
+            <button onClick={handleClear} className="rounded border border-[var(--border)] px-2.5 py-1.5 text-xs text-[var(--muted)] transition-colors hover:opacity-80" style={{ backgroundColor: "#DCFCE7" }}>
+              Clear
+            </button>
+            {site?.status === "completed" && (
+              <button className="rounded border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5 text-xs text-[var(--muted)] transition-colors hover:bg-[var(--surface-elevated)]">
+                Done
+              </button>
+            )}
+          </div>
+        </header>
+
+        {/* Error bar */}
+        {error && (
+          <div className="shrink-0 border-b border-[var(--error)] bg-[var(--error)]/10 px-4 py-2 text-sm text-[var(--error)]">
+            {error}
           </div>
         )}
-        {site && (
-          <span className="text-xs opacity-90 shrink-0">
-            <span className="capitalize font-medium">{site.status}</span>
-          </span>
-        )}
-      </header>
 
-      {/* Error bar */}
-      {error && (
-        <div className="shrink-0 border-b border-[var(--error)] bg-[var(--error)]/10 px-4 py-2 text-sm text-[var(--error)]">
-          {error}
-        </div>
-      )}
+        {/* ── Tab content ───────────────────────────────────────────────── */}
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
 
-      {/* ── Main tab navigation ─────────────────────────────────────────── */}
-      {site && (
-        <nav className="flex shrink-0 items-center gap-1 border-b border-[var(--border)] bg-[var(--surface)] px-4">
-          {/* Crawl tab */}
-          <button
-            onClick={() => setMainTab("crawl")}
-            className={`flex items-center gap-1.5 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
-              mainTab === "crawl"
-                ? "border-[var(--accent)] text-[var(--accent)]"
-                : "border-transparent text-[var(--muted)] hover:text-[var(--foreground)]"
-            }`}
-          >
-            Crawl
-            {pagesData && (
-              <span className="rounded-full bg-[var(--surface-elevated)] border border-[var(--border)] px-1.5 py-0.5 text-[10px] font-medium">
-                {pagesData.total}
-              </span>
-            )}
-          </button>
+          {/* ── DASHBOARD TAB ── */}
+          {mainTab === "dashboard" && (
+            <div className="flex min-h-0 flex-1 flex-col overflow-auto">
+              {!site ? (
+                <div className="flex flex-1 items-center justify-center">
+                  <div className="space-y-3 text-center">
+                    <p className="text-2xl font-bold text-[var(--accent)]">AI SEO Tool</p>
+                    <p className="max-w-sm text-sm text-[var(--muted)]">
+                      Enter a URL above to crawl a website, run a technical audit, and get your AI Citation Score.
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-3 p-4">
 
-          {/* Technical Audit tab */}
-          <button
-            onClick={() => setMainTab("audit")}
-            className={`flex items-center gap-1.5 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
-              mainTab === "audit"
-                ? "border-[var(--accent)] text-[var(--accent)]"
-                : "border-transparent text-[var(--muted)] hover:text-[var(--foreground)]"
-            }`}
-          >
-            Technical Audit
-            {audit?.audit_status === "completed" && (
-              <span className="rounded-full bg-green-100 border border-green-200 px-1.5 py-0.5 text-[10px] font-medium text-green-700">
-                Done
-              </span>
-            )}
-            {(!audit || audit.audit_status === "running" || audit.audit_status === "pending") &&
-              site?.status === "completed" && (
-                <span className="h-2 w-2 animate-spin rounded-full border border-[var(--border)] border-t-[var(--accent)]" />
+                  {/* Row 1: 3 summary cards */}
+                  <div className="grid grid-cols-3 gap-3">
+
+                    {/* URLs Crawled */}
+                    <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4">
+                      <p className="mb-2 text-xs font-medium text-[var(--muted)]">URLs Crawled</p>
+                      <div className="flex items-end gap-2">
+                        <span className="text-2xl font-black tabular-nums">{(overview?.total_urls ?? 0).toLocaleString()}</span>
+                        <span className="mb-0.5 text-xs font-medium text-[var(--success)]">Total URLs</span>
+                      </div>
+                      <p className="mt-0.5 text-xs text-[var(--muted)]">{(pagesData?.total ?? 0).toLocaleString()} Crawled</p>
+                      <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-[var(--border)]">
+                        {site.status === "processing" ? (
+                          <div className="progress-indeterminate h-full w-1/3 rounded-full bg-[var(--accent)]" />
+                        ) : (
+                          <div className="h-full w-full rounded-full bg-[var(--accent)]" />
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Image SEO Issues */}
+                    <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4">
+                      <p className="mb-3 text-xs font-medium text-[var(--muted)]">Image SEO Issues</p>
+                      {overview ? (
+                        <div className="space-y-2.5">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xl font-black tabular-nums">{overview.images_total.toLocaleString()}</span>
+                            <span className="text-xs text-[var(--muted)]">Total image</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-base font-bold text-[var(--warning)]">{overview.images_missing_alt.toLocaleString()}</span>
+                            <span className="text-xs text-[var(--warning)]">Missing Alt Text</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-base font-bold text-[var(--success)]">
+                              {(overview.images_optimized ?? 0).toLocaleString()}
+                            </span>
+                            <span className="text-xs text-[var(--success)]" title="Has alt text + modern format (WebP/AVIF), lazy loading, or explicit dimensions">Optimized Images ⓘ</span>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex h-16 items-center justify-center text-xs text-[var(--muted)]">Loading…</div>
+                      )}
+                    </div>
+
+                    {/* SEO Score */}
+                    <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4">
+                      <p className="mb-2 text-xs font-medium text-[var(--muted)]">SEO Score</p>
+                      {geoScore != null ? (
+                        <>
+                          <div className="flex items-end gap-1">
+                            <span className="text-3xl font-black tabular-nums">{geoScore}</span>
+                            <span className="mb-1 text-sm text-[var(--muted)]">/100</span>
+                          </div>
+                          <p className={`text-sm font-medium ${
+                            geoScore >= 80 ? "text-[var(--success)]"
+                            : geoScore >= 60 ? "text-[var(--warning)]"
+                            : "text-red-500"
+                          }`}>
+                            Status: {geoScore >= 80 ? "Good" : geoScore >= 60 ? "Fair" : "Poor"}
+                          </p>
+                        </>
+                      ) : (
+                        <div className="flex flex-col gap-1">
+                          <div className="text-xl font-black text-[var(--muted)]">—/100</div>
+                          <div className="flex items-center gap-1.5 text-xs text-[var(--muted)]">
+                            {site.status === "completed" ? (
+                              <>
+                                <div className="h-2.5 w-2.5 animate-spin rounded-full border border-[var(--border)] border-t-[var(--accent)]" />
+                                Analyzing…
+                              </>
+                            ) : "Awaiting crawl"}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Row 2: Status code cards */}
+                  <div className="grid grid-cols-2 gap-3">
+
+                    {/* Status Codes donut */}
+                    <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4">
+                      <p className="mb-3 text-xs font-medium text-[var(--muted)]">Status Codes</p>
+                      {overview ? (() => {
+                        const sc = overview.status_counts;
+                        const ok    = sc?.ok        ?? 0;
+                        const r3xx  = sc?.redirect  ?? 0;
+                        const r4xx  = sc?.error_4xx ?? 0;
+                        const r5xx  = sc?.error_5xx ?? 0;
+                        const blocked = Math.max(0, overview.total_urls - ok - r3xx - r4xx - r5xx);
+                        const sliceDefs = [
+                          { label: "2xx Success",           value: ok,      color: "#10b981" },
+                          { label: "3xx Redirection",       value: r3xx,    color: "#f59e0b" },
+                          { label: "4xx Client Error",      value: r4xx,    color: "#f43f5e" },
+                          { label: "5xx Server Error",      value: r5xx,    color: "#dc2626" },
+                          { label: "Blocked by robots.txt", value: blocked, color: "#94a3b8" },
+                        ].filter((s) => s.value > 0);
+                        return (
+                          <div className="flex items-center gap-4">
+                            <div className="relative shrink-0">
+                              <DonutChart slices={sliceDefs} size={110} />
+                              <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                                <span className="text-base font-black tabular-nums">{overview.total_urls.toLocaleString()}</span>
+                              </div>
+                            </div>
+                            <div className="flex-1 space-y-1.5 text-xs">
+                              {sliceDefs.map((s) => (
+                                <div key={s.label} className="flex items-center justify-between">
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: s.color }} />
+                                    <span className="text-[var(--muted)]">{s.label}</span>
+                                  </div>
+                                  <span className="font-semibold" style={{ color: s.color }}>{s.value.toLocaleString()}</span>
+                                </div>
+                              ))}
+                            </div>
+                            {(r3xx > 0 || r4xx > 0) && (
+                              <div className="shrink-0 space-y-2 border-l border-[var(--border)] pl-3 text-xs">
+                                {r3xx > 0 && <div><p className="font-medium text-[var(--warning)]">3xx Redirection</p><p className="font-bold text-[var(--warning)]">{r3xx}</p></div>}
+                                {r4xx > 0 && <div><p className="font-medium text-red-500">4xx Client Error</p><p className="font-bold text-red-500">{r4xx}</p></div>}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })() : <div className="flex h-20 items-center justify-center text-xs text-[var(--muted)]">Loading…</div>}
+                    </div>
+
+                    {/* Indexability ring */}
+                    <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4">
+                      <p className="mb-3 text-xs font-medium text-[var(--muted)]">Indexability</p>
+                      {overview?.indexability_counts ? (() => {
+                        const idxSlices = [
+                          { label: "Indexable",     value: indexabilityCounts.indexable,    color: "#10b981" },
+                          { label: "Non-Indexable", value: indexabilityCounts.nonIndexable, color: "#f43f5e" },
+                          { label: "External",      value: indexabilityCounts.external,     color: "#f59e0b" },
+                        ].filter((s) => s.label === "External" || s.value > 0);
+                        const idxTotal = idxSlices.reduce((acc, s) => acc + s.value, 0);
+                        return (
+                          <div className="flex items-center gap-3">
+                            <DonutChart slices={idxSlices} size={110} />
+                            <div className="flex-1 space-y-1.5 text-xs">
+                              {idxSlices.map((s) => (
+                                <div key={s.label} className="flex items-center justify-between">
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: s.color }} />
+                                    <span className="text-[var(--muted)]">{s.label}</span>
+                                  </div>
+                                  <span className="font-semibold" style={{ color: s.color }}>
+                                    {idxTotal > 0 ? Math.round((s.value / idxTotal) * 100) : 0}% → {s.value.toLocaleString()}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })() : <div className="flex h-20 items-center justify-center text-xs text-[var(--muted)]">Loading…</div>}
+                    </div>
+                  </div>
+
+                  {/* Row 3: All URL table */}
+                  <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)]">
+                    <div className="flex items-center justify-between border-b border-[var(--border)] px-4 py-2.5">
+                      <p className="text-sm font-semibold">All URL</p>
+                      <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1 rounded border border-[var(--border)] bg-[var(--surface-elevated)] px-2 py-1 text-xs text-[var(--muted)]">
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M3 4h18a1 1 0 0 1 0 2H3a1 1 0 0 1 0-2zm3 7h12a1 1 0 0 1 0 2H6a1 1 0 0 1 0-2zm3 7h6a1 1 0 0 1 0 2H9a1 1 0 0 1 0-2z"/></svg>
+                          All <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                        </div>
+                        <div className="flex items-center gap-1 rounded border border-[var(--border)] bg-[var(--surface-elevated)] px-2 py-1 text-xs text-[var(--muted)]">
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                          Export <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                        </div>
+                        <div className="flex items-center gap-1.5 rounded border border-[var(--border)] bg-[var(--surface-elevated)] px-2 py-1">
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                          <input type="text" placeholder="Search URLs" value={search} onChange={(e) => setSearch(e.target.value)}
+                            className="w-32 bg-transparent text-xs outline-none placeholder:text-[var(--muted)]" />
+                        </div>
+                        <div className="flex items-center gap-1 rounded border border-[var(--border)] bg-[var(--surface-elevated)] px-2 py-1 text-xs text-[var(--muted)]">
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+                          Filter <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="overflow-auto" style={{ maxHeight: "300px" }}>
+                      <table className="w-full border-collapse text-xs" style={{ minWidth: "900px" }}>
+                        <thead className="sticky top-0 z-10 bg-[var(--surface-elevated)]">
+                          <tr>
+                            {["Address", "Type", "Content Type", "Status Code", "Status", "Indexability", "Title"].map((h) => (
+                              <th key={h} className="border-b border-[var(--border)] px-3 py-2 text-left font-medium text-[var(--muted)]">{h}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {site.status === "processing" && (!pagesData || pagesData.pages.length === 0) && (
+                            <tr><td colSpan={7} className="px-3 py-8 text-center">
+                              <div className="flex items-center justify-center gap-2 text-[var(--muted)]">
+                                <div className="h-4 w-4 animate-spin rounded-full border-2 border-[var(--border)] border-t-[var(--accent)]" />
+                                Discovering URLs…
+                              </div>
+                            </td></tr>
+                          )}
+                          {(pagesData?.pages ?? []).map((page, i) => (
+                            <tr key={`${i}-${page.address}`}
+                              onClick={() => { setSelectedPage(page); setMainTab("crawl"); }}
+                              className="cursor-pointer border-b border-[var(--border)]/50 transition-colors hover:bg-[var(--surface-elevated)]">
+                              <td className="max-w-[260px] truncate px-3 py-2 text-[var(--accent)]" title={page.address}>{page.address}</td>
+                              <td className="px-3 py-2 text-[var(--muted)]">{page.type ?? "—"}</td>
+                              <td className="px-3 py-2 text-[var(--muted)]">{page.content_type ? page.content_type.split(";")[0] : "—"}</td>
+                              <td className="px-3 py-2">
+                                {page.status_code != null ? (
+                                  <span className={`inline-block rounded px-2 py-0.5 text-[10px] font-semibold ${
+                                    page.status_code < 300 ? "bg-[var(--success)]/15 text-[var(--success)]"
+                                    : page.status_code < 400 ? "bg-[var(--warning)]/15 text-[var(--warning)]"
+                                    : "bg-red-500/15 text-red-400"
+                                  }`}>{page.status_code}</span>
+                                ) : "—"}
+                              </td>
+                              <td className="px-3 py-2 text-[var(--muted)]">{page.status ?? "—"}</td>
+                              <td className="px-3 py-2 text-[var(--muted)]">{page.indexability ?? "—"}</td>
+                              <td className="max-w-[200px] truncate px-3 py-2" title={page.title ?? ""}>{page.title ?? "—"}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                </div>
               )}
-          </button>
-
-          {/* GEO Analysis tab */}
-          <button
-            onClick={() => setMainTab("geo")}
-            className={`flex items-center gap-1.5 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
-              mainTab === "geo"
-                ? "border-[var(--accent)] text-[var(--accent)]"
-                : "border-transparent text-[var(--muted)] hover:text-[var(--foreground)]"
-            }`}
-          >
-            GEO Analysis
-            {geo?.geo_status === "completed" && geo.score && (
-              <span
-                className="rounded-full px-1.5 py-0.5 text-[10px] font-bold"
-                style={{
-                  backgroundColor:
-                    geo.score.overall_score >= 80 ? "#dcfce7"
-                    : geo.score.overall_score >= 60 ? "#fef9c3"
-                    : "#fee2e2",
-                  color:
-                    geo.score.overall_score >= 80 ? "#166534"
-                    : geo.score.overall_score >= 60 ? "#854d0e"
-                    : "#991b1b",
-                }}
-              >
-                {geo.score.overall_score}
-              </span>
-            )}
-            {geo?.geo_status === "running" && (
-              <span className="h-2 w-2 animate-spin rounded-full border border-[var(--border)] border-t-[var(--accent)]" />
-            )}
-            {(!geo || geo.geo_status === "pending") && site?.status === "completed" && (
-              <span className="h-2 w-2 animate-spin rounded-full border border-[var(--border)] border-t-[var(--accent)]" />
-            )}
-          </button>
-
-          {/* Insights tab */}
-          <button
-            onClick={() => setMainTab("insights")}
-            className={`flex items-center gap-1.5 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
-              mainTab === "insights"
-                ? "border-[var(--accent)] text-[var(--accent)]"
-                : "border-transparent text-[var(--muted)] hover:text-[var(--foreground)]"
-            }`}
-          >
-            Insights
-          </button>
-
-          {/* History tab */}
-          <button
-            onClick={() => setMainTab("history")}
-            className={`flex items-center gap-1.5 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
-              mainTab === "history"
-                ? "border-[var(--accent)] text-[var(--accent)]"
-                : "border-transparent text-[var(--muted)] hover:text-[var(--foreground)]"
-            }`}
-          >
-            History
-          </button>
-
-        </nav>
-      )}
-
-      {/* ── Tab content area ─────────────────────────────────────────────── */}
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            </div>
+          )}
 
         {/* ── CRAWL TAB ── */}
         {mainTab === "crawl" && (
           <div className="flex min-h-0 flex-1">
             {/* Main table */}
-            <div className="flex min-w-0 flex-1 flex-col border-r border-[var(--border)] bg-[var(--surface)]">
+            <div className="flex min-w-0 flex-1 flex-col bg-[var(--surface)]">
               {crawlActive && (
                 <>
                   <div className="flex shrink-0 items-center gap-2 border-b border-[var(--border)] bg-[var(--surface-elevated)] px-3 py-2">
@@ -681,7 +884,7 @@ export default function Home() {
                       {(["all", "internal", "external"] as const).map((tab) => (
                         <button
                           key={tab}
-                          onClick={() => setTypeTab(tab)}
+                          onClick={() => { setTypeTab(tab); setPageNum(0); }}
                           className={`rounded-md px-3 py-1 text-xs capitalize transition-colors ${
                             typeTab === tab
                               ? "bg-[var(--accent-light)] text-[var(--accent)] font-medium"
@@ -696,7 +899,7 @@ export default function Home() {
                       type="text"
                       placeholder="Search URLs…"
                       value={search}
-                      onChange={(e) => setSearch(e.target.value)}
+                      onChange={(e) => { setSearch(e.target.value); setPageNum(0); }}
                       className="flex-1 rounded border border-[var(--border)] bg-[var(--surface)] px-2 py-1.5 text-xs outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]"
                     />
                     <span className="shrink-0 text-xs text-[var(--muted)]">
@@ -704,6 +907,26 @@ export default function Home() {
                       {site?.status === "processing" && " (updating…)"}
                     </span>
                   </div>
+                  {/* Inventory banner — shown for large sites using Two-Phase strategy */}
+                  {site?.inventory_total && site.inventory_total >= 100 && (
+                    <div className="shrink-0 flex items-center gap-3 border-b border-[var(--border)] bg-[var(--accent-light)] px-3 py-1.5 text-[10px] text-[var(--accent)]">
+                      <span className="font-semibold">
+                        Sitemap: {site.inventory_total.toLocaleString()} URLs found
+                      </span>
+                      {site.inventory_sample_size && (
+                        <span>· Analyzing representative sample of {site.inventory_sample_size.toLocaleString()} pages</span>
+                      )}
+                      {site.inventory_sections && Object.keys(site.inventory_sections).length > 0 && (
+                        <span>
+                          ·{" "}
+                          {Object.entries(site.inventory_sections)
+                            .slice(0, 4)
+                            .map(([s, n]) => `/${s} (${n.toLocaleString()})`)
+                            .join(" · ")}
+                        </span>
+                      )}
+                    </div>
+                  )}
                   <div className="min-h-0 flex-1 overflow-auto">
                     <table className="w-full border-collapse text-sm" style={{ minWidth: "1600px" }}>
                       <thead className="sticky top-0 z-10 border-b border-[var(--border)] bg-[var(--surface-elevated)] shadow-[0_1px_0_0_var(--border)]">
@@ -789,6 +1012,29 @@ export default function Home() {
                       </tbody>
                     </table>
                   </div>
+                  {/* Pagination controls */}
+                  {(pagesData?.total ?? 0) > PAGE_SIZE && (
+                    <div className="flex shrink-0 items-center justify-between border-t border-[var(--border)] bg-[var(--surface-elevated)] px-3 py-2">
+                      <button
+                        onClick={() => setPageNum((p) => Math.max(0, p - 1))}
+                        disabled={pageNum === 0}
+                        className="rounded border border-[var(--border)] px-2.5 py-1 text-xs text-[var(--muted)] transition-colors hover:bg-[var(--surface)] disabled:opacity-40"
+                      >
+                        ← Prev
+                      </button>
+                      <span className="text-xs text-[var(--muted)]">
+                        Page {pageNum + 1} of {Math.ceil((pagesData?.total ?? 0) / PAGE_SIZE)}
+                        {" "}· {(pagesData?.total ?? 0).toLocaleString()} total
+                      </span>
+                      <button
+                        onClick={() => setPageNum((p) => p + 1)}
+                        disabled={(pageNum + 1) * PAGE_SIZE >= (pagesData?.total ?? 0)}
+                        className="rounded border border-[var(--border)] px-2.5 py-1 text-xs text-[var(--muted)] transition-colors hover:bg-[var(--surface)] disabled:opacity-40"
+                      >
+                        Next →
+                      </button>
+                    </div>
+                  )}
                 </>
               )}
               {site && !crawlActive && (
@@ -807,117 +1053,6 @@ export default function Home() {
                 </div>
               )}
             </div>
-
-            {/* Right sidebar: Overview */}
-            {crawlActive && overview && (
-              <aside className="flex w-100 shrink-0 flex-col border-l border-[var(--border)] bg-[var(--background)] overflow-auto">
-                <div className="p-3 space-y-3 text-xs">
-
-                  {/* Summary card */}
-                  <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3">
-                    <p className="mb-3 text-[14px] font-bold uppercase tracking-widest text-[var(--muted)]">Summary</p>
-
-                    {/* Donut chart + stats vertical */}
-                    {(() => {
-                      const sc = overview.status_counts;
-                      const ok      = sc?.ok        ?? 0;
-                      const r3xx    = sc?.redirect  ?? 0;
-                      const r4xx    = sc?.error_4xx ?? 0;
-                      const r5xx    = sc?.error_5xx ?? 0;
-                      const known   = ok + r3xx + r4xx + r5xx;
-                      const unknown = Math.max(0, overview.total_urls - known);
-
-                      const sliceDefs = [
-                        { label: "200 OK",       value: ok,      color: "#10b981", cls: "font-bold text-[var(--success)]" },
-                        { label: "3xx Redirect", value: r3xx,    color: "#f59e0b", cls: "font-bold text-[var(--warning)]" },
-                        { label: "4xx Error",    value: r4xx,    color: "#f43f5e", cls: "font-bold text-rose-500" },
-                        { label: "5xx Error",    value: r5xx,    color: "#dc2626", cls: "font-bold text-red-600" },
-                        { label: "Unknown",      value: unknown, color: "#94a3b8", cls: "font-bold text-[var(--muted)]" },
-                      ];
-
-                      const pieSlices = sliceDefs.filter(s => s.value > 0);
-
-                      return (
-                        <div className="flex flex-col items-center gap-3">
-                          {/* Donut with total in center */}
-                          <div className="relative">
-                            <DonutChart slices={pieSlices} size={140} />
-                            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                              <span className="text-xl font-black tabular-nums text-[var(--foreground)]">{overview.total_urls}</span>
-                              <span className="text-[10px] text-[var(--muted)]">Total URLs</span>
-                            </div>
-                          </div>
-
-                          {/* Stats list */}
-                          <div className="w-full space-y-1.5">
-                            {sliceDefs.map(r => (
-                              <div key={r.label} className="flex items-center justify-between">
-                                <div className="flex items-center gap-2">
-                                  <span className="inline-block h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: r.color }} />
-                                  <span className="text-[var(--muted)]">{r.label}</span>
-                                </div>
-                                <span className={r.cls}>{r.value}</span>
-                              </div>
-                            ))}
-                            {overview.images_total > 0 && (
-                              <>
-                                <div className="my-1 border-t border-[var(--border)]" />
-                                <div className="flex items-center justify-between">
-                                  <div className="flex items-center gap-2">
-                                    <span className="text-[var(--muted)]">Images</span>
-                                  </div>
-                                  <span className="font-bold text-sky-500">{overview.images_total}</span>
-                                </div>
-                                <div className="flex items-center justify-between">
-                                  <div className="flex items-center gap-2">
-                                    <span className="text-[var(--muted)]">Missing Alt</span>
-                                  </div>
-                                  <span className={`font-bold ${overview.images_missing_alt > 0 ? "text-[var(--warning)]" : "text-[var(--success)]"}`}>
-                                    {overview.images_missing_alt}
-                                  </span>
-                                </div>
-                              </>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })()}
-                  </div>
-                  {/* AI Crawler Access card */}
-                  {site?.ai_crawler_access && Object.keys(site.ai_crawler_access).length > 0 && (
-                    <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3">
-                      <p className="mb-3 text-[14px] font-bold uppercase tracking-widest text-[var(--muted)]">AI Crawler Access</p>
-                      <div className="space-y-2.5">
-                        {Object.entries(site.ai_crawler_access).map(([bot, allowed]) => (
-                          <div key={bot} className="flex justify-between">
-                            <span className="text-[var(--foreground)]">{bot}</span>
-                            <span className={`font-bold ${allowed ? "text-[var(--success)]" : "text-red-500"}`}>
-                              {allowed ? "Allowed" : "Blocked"}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Robots.txt disallowed paths card */}
-                  {site?.disallowed_paths && site.disallowed_paths.length > 0 && (
-                    <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3">
-                      <p className="mb-3 text-[10px] font-bold uppercase tracking-widest text-[var(--muted)]">Robots.txt Blocked</p>
-                      <div className="space-y-1.5">
-                        {site.disallowed_paths.slice(0, 8).map((p, i) => (
-                          <p key={i} className="truncate font-mono text-[var(--warning)]" title={p}>{p}</p>
-                        ))}
-                        {site.disallowed_paths.length > 8 && (
-                          <p className="text-[var(--muted)]">+{site.disallowed_paths.length - 8} more</p>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                </div>
-              </aside>
-            )}
           </div>
         )}
 
@@ -1005,7 +1140,8 @@ export default function Home() {
             )}
           </div>
         )}
-      </div>
+
+        </div>
 
       {/* ── URL detail panel (bottom, crawl tab only) ─────────────────── */}
       {mainTab === "crawl" && crawlActive && (
@@ -1082,6 +1218,7 @@ export default function Home() {
           )}
         </div>
       </footer>
+      </div>
     </div>
   );
 }
