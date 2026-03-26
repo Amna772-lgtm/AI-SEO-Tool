@@ -199,7 +199,7 @@ export function ChecklistPanel({ geo, siteId }: Props) {
           {filter === "todo" ? "All items resolved — great job!" : "No items in this view."}
         </p>
       ) : (
-        <div className="space-y-1.5">
+        <div className="overflow-y-auto space-y-1.5" style={{ maxHeight: 500 }}>
           {visibleItems.map((item) => {
             const done = isComplete(item);
             const cfg = CATEGORY_CONFIG[item.category];
