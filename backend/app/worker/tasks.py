@@ -1,5 +1,6 @@
 import traceback
 import threading
+import uuid
 
 from app.worker.celery_app import celery
 from app.analyzers.crawler import crawl_site, crawl_sampled
@@ -9,7 +10,7 @@ from app.store.crawl_store import (
     set_meta, append_page, flush_pages_buffer, get_meta, get_all_pages,
     update_pages_alt_text, get_geo, set_inventory,
 )
-from app.store.history_store import save_analysis
+from app.store.history_store import save_analysis, get_due_schedules, mark_schedule_ran
 from app.worker.geo_pipeline import run_geo_pipeline
 
 
@@ -175,3 +176,46 @@ def process_site(url: str, task_id: str, robots_allowed: bool = True, ai_crawler
         meta["status"] = "failed"
         set_meta(task_id, meta)
         print(traceback.format_exc())
+
+
+@celery.task(name="app.worker.tasks.check_due_schedules")
+def check_due_schedules():
+    """
+    Celery Beat fires this every 60 seconds.
+    For each due + enabled schedule, dispatch process_site.
+    mark_schedule_ran() is called BEFORE dispatch so a crash mid-dispatch
+    does not cause the same schedule to fire again on the next Beat tick.
+    """
+    from app.analyzers.robots import check_robots
+
+    due = get_due_schedules()
+    for schedule in due:
+        try:
+            mark_schedule_ran(schedule["id"])
+
+            robots = check_robots(schedule["url"])
+            if not robots["crawl_allowed"]:
+                print(f"[schedules] Skipping {schedule['url']} — robots disallowed")
+                continue
+
+            task_id = str(uuid.uuid4())
+            set_meta(task_id, {
+                "id": task_id,
+                "url": schedule["url"],
+                "status": "queued",
+                "robots_allowed": True,
+                "ai_crawler_access": robots.get("ai_crawler_access"),
+                "disallowed_paths": robots.get("disallowed_paths", []),
+                "triggered_by_schedule": schedule["id"],
+            })
+            process_site.delay(
+                schedule["url"],
+                task_id,
+                robots_allowed=True,
+                ai_crawler_access=robots.get("ai_crawler_access"),
+            )
+            print(f"[schedules] Dispatched {schedule['url']} → task {task_id}")
+
+        except Exception:
+            print(f"[schedules] Error processing schedule {schedule['id']}:\n"
+                  + traceback.format_exc())

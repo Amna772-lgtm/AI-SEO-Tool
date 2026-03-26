@@ -1,5 +1,5 @@
 """
-History Store — SQLite persistence for completed GEO analyses.
+History Store — SQLite persistence for completed GEO analyses and schedules.
 
 Uses WAL journal mode for safe concurrent access between the FastAPI
 backend process (reads/deletes) and the Celery worker process (writes).
@@ -7,11 +7,13 @@ A module-level threading.Lock guards within-process concurrent writes.
 """
 from __future__ import annotations
 
+import calendar
 import json
 import os
 import sqlite3
 import threading
-from datetime import datetime, timezone
+import uuid
+from datetime import datetime, timedelta, timezone
 from typing import Any
 from urllib.parse import urlparse
 
@@ -49,6 +51,22 @@ def init_db() -> None:
                 );
                 CREATE INDEX IF NOT EXISTS idx_domain      ON analyses(domain);
                 CREATE INDEX IF NOT EXISTS idx_analyzed_at ON analyses(analyzed_at);
+
+                CREATE TABLE IF NOT EXISTS schedules (
+                    id           TEXT PRIMARY KEY,
+                    url          TEXT NOT NULL,
+                    domain       TEXT NOT NULL,
+                    frequency    TEXT NOT NULL CHECK(frequency IN ('daily','weekly','monthly')),
+                    hour         INTEGER NOT NULL CHECK(hour BETWEEN 0 AND 23),
+                    day_of_week  INTEGER CHECK(day_of_week BETWEEN 0 AND 6),
+                    day_of_month INTEGER CHECK(day_of_month BETWEEN 1 AND 31),
+                    enabled      INTEGER NOT NULL DEFAULT 1,
+                    created_at   TEXT NOT NULL,
+                    last_run_at  TEXT,
+                    next_run_at  TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_schedules_next_run ON schedules(next_run_at);
+                CREATE INDEX IF NOT EXISTS idx_schedules_domain   ON schedules(domain);
             """)
             conn.commit()
         finally:
@@ -221,3 +239,233 @@ def count_analyses(domain: str | None = None) -> int:
         return conn.execute("SELECT COUNT(*) FROM analyses").fetchone()[0]
     finally:
         conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Schedule helpers
+# ---------------------------------------------------------------------------
+
+def _compute_next_run(
+    frequency: str,
+    hour: int,
+    day_of_week: int | None,
+    day_of_month: int | None,
+    after: datetime | None = None,
+) -> str:
+    """
+    Return the next ISO-8601 UTC datetime at which a schedule should fire.
+
+    Always strictly after `after` (defaults to utcnow()), with a minimum
+    1-minute forward offset to prevent same-minute re-fires.
+    """
+    now = after or datetime.now(timezone.utc)
+    base = now + timedelta(minutes=1)
+
+    if frequency == "daily":
+        candidate = base.replace(hour=hour, minute=0, second=0, microsecond=0)
+        if candidate <= base:
+            candidate += timedelta(days=1)
+        return candidate.isoformat()
+
+    if frequency == "weekly":
+        candidate = base.replace(hour=hour, minute=0, second=0, microsecond=0)
+        days_ahead = (day_of_week - candidate.weekday()) % 7  # type: ignore[operator]
+        candidate += timedelta(days=days_ahead)
+        if candidate <= base:
+            candidate += timedelta(weeks=1)
+        return candidate.isoformat()
+
+    if frequency == "monthly":
+        year, month = base.year, base.month
+        for _ in range(13):
+            max_day = calendar.monthrange(year, month)[1]
+            actual_dom = min(day_of_month, max_day)  # type: ignore[type-var]
+            candidate = datetime(year, month, actual_dom, hour, 0, 0, tzinfo=timezone.utc)
+            if candidate > base:
+                return candidate.isoformat()
+            month += 1
+            if month > 12:
+                month = 1
+                year += 1
+        raise ValueError("Could not compute next_run_at for monthly schedule")
+
+    raise ValueError(f"Unknown frequency: {frequency!r}")
+
+
+def _row_to_schedule(row: sqlite3.Row) -> dict[str, Any]:
+    d = dict(row)
+    d["enabled"] = bool(d["enabled"])
+    return d
+
+
+# ---------------------------------------------------------------------------
+# Schedule CRUD
+# ---------------------------------------------------------------------------
+
+def create_schedule(
+    url: str,
+    frequency: str,
+    hour: int,
+    day_of_week: int | None,
+    day_of_month: int | None,
+) -> dict[str, Any]:
+    """Insert a new schedule and return it as a dict."""
+    schedule_id = str(uuid.uuid4())
+    now = datetime.now(timezone.utc).isoformat()
+    next_run = _compute_next_run(frequency, hour, day_of_week, day_of_month)
+    domain = _extract_domain(url)
+    with _lock:
+        conn = _connect()
+        try:
+            conn.execute(
+                """
+                INSERT INTO schedules
+                    (id, url, domain, frequency, hour, day_of_week, day_of_month,
+                     enabled, created_at, next_run_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+                """,
+                (schedule_id, url, domain, frequency, hour,
+                 day_of_week, day_of_month, now, next_run),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+    return get_schedule(schedule_id)  # type: ignore[return-value]
+
+
+def get_schedule(schedule_id: str) -> dict[str, Any] | None:
+    """Return a single schedule row or None."""
+    conn = _connect()
+    try:
+        row = conn.execute(
+            "SELECT * FROM schedules WHERE id = ?", (schedule_id,)
+        ).fetchone()
+        return _row_to_schedule(row) if row else None
+    finally:
+        conn.close()
+
+
+def list_schedules(domain: str | None = None) -> list[dict[str, Any]]:
+    """Return all schedules ordered by next_run_at ASC, optionally filtered by domain."""
+    conn = _connect()
+    try:
+        if domain:
+            norm = _extract_domain(domain)
+            rows = conn.execute(
+                "SELECT * FROM schedules WHERE domain = ? ORDER BY next_run_at ASC",
+                (norm,),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM schedules ORDER BY next_run_at ASC"
+            ).fetchall()
+        return [_row_to_schedule(r) for r in rows]
+    finally:
+        conn.close()
+
+
+def update_schedule(
+    schedule_id: str,
+    *,
+    frequency: str | None = None,
+    hour: int | None = None,
+    day_of_week: int | None = None,
+    day_of_month: int | None = None,
+    enabled: bool | None = None,
+) -> dict[str, Any] | None:
+    """
+    Update mutable fields.  Recomputes next_run_at whenever any scheduling
+    field changes.  Returns updated row or None if not found.
+    """
+    current = get_schedule(schedule_id)
+    if not current:
+        return None
+
+    new_freq = frequency if frequency is not None else current["frequency"]
+    new_hour = hour if hour is not None else current["hour"]
+    new_dow = day_of_week if day_of_week is not None else current["day_of_week"]
+    new_dom = day_of_month if day_of_month is not None else current["day_of_month"]
+    new_enabled = enabled if enabled is not None else current["enabled"]
+
+    scheduling_changed = (
+        new_freq != current["frequency"]
+        or new_hour != current["hour"]
+        or new_dow != current["day_of_week"]
+        or new_dom != current["day_of_month"]
+    )
+    new_next_run = (
+        _compute_next_run(new_freq, new_hour, new_dow, new_dom)
+        if scheduling_changed
+        else current["next_run_at"]
+    )
+
+    with _lock:
+        conn = _connect()
+        try:
+            conn.execute(
+                """
+                UPDATE schedules
+                SET frequency=?, hour=?, day_of_week=?, day_of_month=?,
+                    enabled=?, next_run_at=?
+                WHERE id=?
+                """,
+                (new_freq, new_hour, new_dow, new_dom,
+                 int(new_enabled), new_next_run, schedule_id),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+    return get_schedule(schedule_id)
+
+
+def delete_schedule(schedule_id: str) -> bool:
+    """Delete a schedule by id. Returns True if deleted."""
+    with _lock:
+        conn = _connect()
+        try:
+            cursor = conn.execute(
+                "DELETE FROM schedules WHERE id = ?", (schedule_id,)
+            )
+            conn.commit()
+            return cursor.rowcount > 0
+        finally:
+            conn.close()
+
+
+def get_due_schedules(as_of: datetime | None = None) -> list[dict[str, Any]]:
+    """Return enabled schedules whose next_run_at <= as_of (default: utcnow())."""
+    cutoff = (as_of or datetime.now(timezone.utc)).isoformat()
+    conn = _connect()
+    try:
+        rows = conn.execute(
+            "SELECT * FROM schedules WHERE enabled=1 AND next_run_at <= ?",
+            (cutoff,),
+        ).fetchall()
+        return [_row_to_schedule(r) for r in rows]
+    finally:
+        conn.close()
+
+
+def mark_schedule_ran(schedule_id: str) -> None:
+    """Set last_run_at = now and advance next_run_at. Called before dispatching a task."""
+    current = get_schedule(schedule_id)
+    if not current:
+        return
+    now = datetime.now(timezone.utc)
+    next_run = _compute_next_run(
+        current["frequency"],
+        current["hour"],
+        current["day_of_week"],
+        current["day_of_month"],
+        after=now,
+    )
+    with _lock:
+        conn = _connect()
+        try:
+            conn.execute(
+                "UPDATE schedules SET last_run_at=?, next_run_at=? WHERE id=?",
+                (now.isoformat(), next_run, schedule_id),
+            )
+            conn.commit()
+        finally:
+            conn.close()

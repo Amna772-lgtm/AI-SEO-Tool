@@ -459,3 +459,90 @@ export async function deleteHistoryRecord(id: string): Promise<void> {
   const res = await fetch(`${API_BASE}/history/${id}`, { method: "DELETE" });
   if (!res.ok && res.status !== 204) throw new Error("Failed to delete history record");
 }
+
+// ── Schedule Types ─────────────────────────────────────────────────────────
+
+export type ScheduleFrequency = "daily" | "weekly" | "monthly";
+
+export interface Schedule {
+  id: string;
+  url: string;
+  domain: string;
+  frequency: ScheduleFrequency;
+  hour: number;
+  day_of_week: number | null;
+  day_of_month: number | null;
+  enabled: boolean;
+  created_at: string;
+  last_run_at: string | null;
+  next_run_at: string;
+}
+
+export interface SchedulesResponse {
+  schedules: Schedule[];
+}
+
+export interface CreateSchedulePayload {
+  url: string;
+  frequency: ScheduleFrequency;
+  hour: number;
+  day_of_week?: number;
+  day_of_month?: number;
+}
+
+export interface UpdateSchedulePayload {
+  frequency?: ScheduleFrequency;
+  hour?: number;
+  day_of_week?: number | null;
+  day_of_month?: number | null;
+  enabled?: boolean;
+}
+
+export interface TriggerResponse {
+  status: "queued" | "skipped";
+  site_id: string | null;
+  reason?: string;
+}
+
+// ── Schedule API Functions ─────────────────────────────────────────────────
+
+export async function listSchedules(domain?: string): Promise<SchedulesResponse> {
+  const params = domain ? `?domain=${encodeURIComponent(domain)}` : "";
+  const res = await fetch(`${API_BASE}/schedules/${params}`);
+  if (!res.ok) throw new Error("Failed to load schedules");
+  return res.json();
+}
+
+export async function createSchedule(payload: CreateSchedulePayload): Promise<Schedule> {
+  const res = await fetch(`${API_BASE}/schedules/`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail ?? "Failed to create schedule");
+  }
+  return res.json();
+}
+
+export async function updateSchedule(id: string, payload: UpdateSchedulePayload): Promise<Schedule> {
+  const res = await fetch(`${API_BASE}/schedules/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error("Failed to update schedule");
+  return res.json();
+}
+
+export async function deleteSchedule(id: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/schedules/${id}`, { method: "DELETE" });
+  if (!res.ok && res.status !== 204) throw new Error("Failed to delete schedule");
+}
+
+export async function triggerSchedule(id: string): Promise<TriggerResponse> {
+  const res = await fetch(`${API_BASE}/schedules/${id}/trigger`, { method: "POST" });
+  if (!res.ok) throw new Error("Failed to trigger schedule");
+  return res.json();
+}
