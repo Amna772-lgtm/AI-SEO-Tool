@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   startAnalysis,
   getSite,
@@ -320,7 +320,7 @@ function DonutChart({ slices, size = 110 }: {
       {slices.map((s, i) => {
         const fraction = s.value / total;
         const dash = fraction * C;
-        const offset = C * (1 - cum);
+        const offset = -(cum * C);
         cum += fraction;
         return (
           <circle key={i} cx={cx} cy={cy} r={r} fill="none"
@@ -332,6 +332,24 @@ function DonutChart({ slices, size = 110 }: {
       })}
     </svg>
   );
+}
+
+// ── CSV Export Helper ──────────────────────────────────────────────────────────
+function downloadCSV(rows: PageRow[], filename: string) {
+  const headers = ["Address","Type","Content-Type","Status Code","Status","Indexability","Title","H1","Meta Description","Canonical","Depth","Response Time","Redirect URL","Readability"];
+  const csv = [
+    headers.join(","),
+    ...rows.map(r =>
+      [r.address, r.type, r.content_type, r.status_code, r.status, r.indexability, r.title, r.h1, r.meta_descp, r.canonical, r.crawl_depth, r.response_time, r.redirect_url, r.readability]
+        .map(v => `"${String(v ?? "").replace(/"/g, '""')}"`)
+        .join(",")
+    ),
+  ].join("\n");
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(a.href);
 }
 
 // ── Main Component ─────────────────────────────────────────────────────────────
@@ -353,6 +371,14 @@ export default function Home() {
   const [detailSearch, setDetailSearch] = useState("");
   const [audit, setAudit] = useState<AuditResponse | null>(null);
   const [geo, setGeo] = useState<GeoResponse | null>(null);
+  const [openDropdown, setOpenDropdown] = useState<"export" | "filter" | null>(null);
+  const [colFilters, setColFilters] = useState<{
+    statusGroup: string[];
+    indexability: string[];
+    hasCanonical: boolean | null;
+  }>({ statusGroup: [], indexability: [], hasCanonical: null });
+  const [exportingAll, setExportingAll] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   // ── Crawl status polling ─────────────────────────────────────────────────
   const pollSite = useCallback(async (id: string) => {
@@ -402,6 +428,18 @@ export default function Home() {
     const t = setInterval(fetchGeo, 4000);
     return () => clearInterval(t);
   }, [siteId, site?.status, geo?.geo_status]);
+
+  // ── Close dropdown on outside click ───────────────────────────────────────
+  useEffect(() => {
+    if (!openDropdown) return;
+    const handler = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setOpenDropdown(null);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [openDropdown]);
 
   // ── Pages / overview refresh ──────────────────────────────────────────────
   const refreshPages = useCallback(() => {
@@ -475,6 +513,44 @@ export default function Home() {
     setDetailSearch("");
     setPageNum(0);
     setMainTab("dashboard");
+  };
+
+  // ── Filter helpers ────────────────────────────────────────────────────────
+  function matchesStatusGroup(code: number | null | undefined, group: string): boolean {
+    if (code == null) return false;
+    if (group === "2xx") return code >= 200 && code < 300;
+    if (group === "3xx") return code >= 300 && code < 400;
+    if (group === "4xx") return code >= 400 && code < 500;
+    if (group === "5xx") return code >= 500;
+    return false;
+  }
+
+  const activeFilterCount = [
+    colFilters.statusGroup.length > 0,
+    colFilters.indexability.length > 0,
+    colFilters.hasCanonical !== null,
+  ].filter(Boolean).length;
+
+  const filteredDashboardPages = (pagesData?.pages ?? []).filter(page => {
+    if (colFilters.statusGroup.length > 0 && !colFilters.statusGroup.some(g => matchesStatusGroup(page.status_code, g))) return false;
+    if (colFilters.indexability.length > 0 && !colFilters.indexability.includes(page.indexability ?? "")) return false;
+    if (colFilters.hasCanonical !== null) {
+      const hasCanon = !!page.canonical;
+      if (colFilters.hasCanonical !== hasCanon) return false;
+    }
+    return true;
+  });
+
+  const handleExportAll = async () => {
+    if (!siteId) return;
+    setExportingAll(true);
+    try {
+      const allData = await getPages(siteId, { skip: 0, limit: 100000 });
+      downloadCSV(allData.pages, "crawl-all-export.csv");
+    } catch { /* silent */ } finally {
+      setExportingAll(false);
+      setOpenDropdown(null);
+    }
   };
 
   // ── Detail rows for bottom panel ──────────────────────────────────────────
@@ -804,23 +880,138 @@ export default function Home() {
                   <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)]">
                     <div className="flex items-center justify-between border-b border-[var(--border)] px-4 py-2.5">
                       <p className="text-sm font-semibold">All URL</p>
-                      <div className="flex items-center gap-2">
-                        <div className="flex items-center gap-1 rounded border border-[var(--border)] bg-[var(--surface-elevated)] px-2 py-1 text-xs text-[var(--muted)]">
-                          <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M3 4h18a1 1 0 0 1 0 2H3a1 1 0 0 1 0-2zm3 7h12a1 1 0 0 1 0 2H6a1 1 0 0 1 0-2zm3 7h6a1 1 0 0 1 0 2H9a1 1 0 0 1 0-2z"/></svg>
-                          All <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
-                        </div>
-                        <div className="flex items-center gap-1 rounded border border-[var(--border)] bg-[var(--surface-elevated)] px-2 py-1 text-xs text-[var(--muted)]">
-                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                          Export <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
-                        </div>
+                      <div className="flex items-center gap-2" ref={dropdownRef}>
                         <div className="flex items-center gap-1.5 rounded border border-[var(--border)] bg-[var(--surface-elevated)] px-2 py-1">
                           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
                           <input type="text" placeholder="Search URLs" value={search} onChange={(e) => setSearch(e.target.value)}
                             className="w-32 bg-transparent text-xs outline-none placeholder:text-[var(--muted)]" />
                         </div>
-                        <div className="flex items-center gap-1 rounded border border-[var(--border)] bg-[var(--surface-elevated)] px-2 py-1 text-xs text-[var(--muted)]">
-                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
-                          Filter <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                        {/* Export button */}
+                        <div className="relative">
+                          <button
+                            onClick={() => setOpenDropdown(openDropdown === "export" ? null : "export")}
+                            className="flex items-center gap-1 rounded border border-[var(--border)] bg-[var(--surface-elevated)] px-2 py-1 text-xs text-[var(--muted)] transition-colors hover:text-[var(--foreground)]"
+                          >
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                            Export <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                          </button>
+                          {openDropdown === "export" && (
+                            <div className="absolute right-0 top-full z-50 mt-1 overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface)] shadow-lg" style={{ minWidth: 190 }}>
+                              <button
+                                onClick={() => { downloadCSV(filteredDashboardPages, "crawl-export.csv"); setOpenDropdown(null); }}
+                                className="w-full px-3 py-2 text-left text-xs text-[var(--foreground)] transition-colors hover:bg-[var(--surface-elevated)]"
+                              >
+                                Export current page
+                              </button>
+                              <button
+                                onClick={handleExportAll}
+                                disabled={exportingAll}
+                                className="w-full px-3 py-2 text-left text-xs text-[var(--foreground)] transition-colors hover:bg-[var(--surface-elevated)] disabled:opacity-50"
+                              >
+                                {exportingAll ? "Exporting…" : "Export all pages"}
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                        {/* Filter button */}
+                        <div className="relative">
+                          <button
+                            onClick={() => setOpenDropdown(openDropdown === "filter" ? null : "filter")}
+                            className="flex items-center gap-1 rounded border border-[var(--border)] bg-[var(--surface-elevated)] px-2 py-1 text-xs text-[var(--muted)] transition-colors hover:text-[var(--foreground)]"
+                          >
+                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+                            Filter
+                            {activeFilterCount > 0 && (
+                              <span className="ml-0.5 rounded-full bg-[var(--accent)] px-1.5 py-0.5 text-[9px] font-bold text-white">
+                                {activeFilterCount}
+                              </span>
+                            )}
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                          </button>
+                          {openDropdown === "filter" && (
+                            <div className="absolute right-0 top-full z-50 mt-1 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3 shadow-lg" style={{ minWidth: 220 }}>
+                              <div className="mb-2 flex items-center justify-between">
+                                <span className="text-[10px] font-semibold uppercase tracking-wide text-[var(--muted)]">Filters</span>
+                                {activeFilterCount > 0 && (
+                                  <button
+                                    onClick={() => setColFilters({ statusGroup: [], indexability: [], hasCanonical: null })}
+                                    className="text-[10px] text-[var(--accent)] hover:underline"
+                                  >
+                                    Clear all
+                                  </button>
+                                )}
+                              </div>
+                              {/* Status Code */}
+                              <div className="mb-3">
+                                <p className="mb-1.5 text-[10px] font-medium text-[var(--foreground)]">Status Code</p>
+                                <div className="flex flex-wrap gap-1">
+                                  {["2xx", "3xx", "4xx", "5xx"].map(g => (
+                                    <button
+                                      key={g}
+                                      onClick={() => setColFilters(f => ({
+                                        ...f,
+                                        statusGroup: f.statusGroup.includes(g)
+                                          ? f.statusGroup.filter(x => x !== g)
+                                          : [...f.statusGroup, g],
+                                      }))}
+                                      className="rounded px-2 py-0.5 text-[10px] font-medium border transition-colors"
+                                      style={colFilters.statusGroup.includes(g)
+                                        ? { background: "var(--accent-light)", color: "var(--accent)", borderColor: "var(--accent)" }
+                                        : { background: "transparent", color: "var(--muted)", borderColor: "var(--border)" }}
+                                    >
+                                      {g}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                              {/* Indexability */}
+                              <div className="mb-3">
+                                <p className="mb-1.5 text-[10px] font-medium text-[var(--foreground)]">Indexability</p>
+                                <div className="flex flex-col gap-1">
+                                  {["Indexable", "Non-Indexable", "Redirected"].map(v => (
+                                    <button
+                                      key={v}
+                                      onClick={() => setColFilters(f => ({
+                                        ...f,
+                                        indexability: f.indexability.includes(v)
+                                          ? f.indexability.filter(x => x !== v)
+                                          : [...f.indexability, v],
+                                      }))}
+                                      className="flex items-center gap-2 rounded px-2 py-1 text-left text-[10px] transition-colors hover:bg-[var(--surface-elevated)]"
+                                      style={{ color: colFilters.indexability.includes(v) ? "var(--accent)" : "var(--foreground)" }}
+                                    >
+                                      <span className="flex h-3 w-3 items-center justify-center rounded border" style={{ borderColor: colFilters.indexability.includes(v) ? "var(--accent)" : "var(--border)", background: colFilters.indexability.includes(v) ? "var(--accent)" : "transparent" }}>
+                                        {colFilters.indexability.includes(v) && <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3"><polyline points="20 6 9 17 4 12"/></svg>}
+                                      </span>
+                                      {v}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                              {/* Has Canonical */}
+                              <div>
+                                <p className="mb-1.5 text-[10px] font-medium text-[var(--foreground)]">Has Canonical</p>
+                                <div className="flex gap-1">
+                                  {([null, true, false] as const).map((val) => {
+                                    const label = val === null ? "Any" : val ? "Yes" : "No";
+                                    const active = colFilters.hasCanonical === val;
+                                    return (
+                                      <button
+                                        key={label}
+                                        onClick={() => setColFilters(f => ({ ...f, hasCanonical: val }))}
+                                        className="rounded px-2 py-0.5 text-[10px] font-medium border transition-colors"
+                                        style={active
+                                          ? { background: "var(--accent-light)", color: "var(--accent)", borderColor: "var(--accent)" }
+                                          : { background: "transparent", color: "var(--muted)", borderColor: "var(--border)" }}
+                                      >
+                                        {label}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -842,7 +1033,7 @@ export default function Home() {
                               </div>
                             </td></tr>
                           )}
-                          {(pagesData?.pages ?? []).map((page, i) => (
+                          {filteredDashboardPages.map((page, i) => (
                             <tr key={`${i}-${page.address}`}
                               onClick={() => { setSelectedPage(page); setMainTab("crawl"); }}
                               className="cursor-pointer border-b border-[var(--border)]/50 transition-colors hover:bg-[var(--surface-elevated)]">
