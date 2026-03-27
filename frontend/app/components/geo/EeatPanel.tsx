@@ -40,6 +40,16 @@ function CheckRow({ ok, label }: { ok: boolean; label: string }) {
   );
 }
 
+const CADENCE_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
+  daily:     { label: "Daily",     color: "#16a34a", bg: "#f0fdf4" },
+  weekly:    { label: "Weekly",    color: "#0891b2", bg: "#ecfeff" },
+  monthly:   { label: "Monthly",  color: "#ca8a04", bg: "#fefce8" },
+  quarterly: { label: "Quarterly",color: "#ea580c", bg: "#fff7ed" },
+  irregular: { label: "Irregular",color: "#6b7280", bg: "#f3f4f6" },
+  none:      { label: "None",     color: "#dc2626", bg: "#fef2f2" },
+};
+
+
 export function EeatPanel({ eeat }: Props) {
   const color = scoreColor(eeat.eeat_score);
   const bg    = scoreBg(eeat.eeat_score);
@@ -159,34 +169,123 @@ export function EeatPanel({ eeat }: Props) {
         </div>
       </div>
 
-      {/* ── Missing signals ──────────────────────────────────────────────── */}
-      {eeat.missing_signals.length > 0 && (
-        <div>
-          <p className="mb-2.5 flex items-center gap-1.5 text-xs font-semibold" style={{ color: "var(--foreground)" }}>
-            <span style={{ color: "#dc2626" }}>⚠</span> Missing signals
-            <span
-              className="ml-1 rounded-full px-1.5 py-0.5 text-[10px] font-bold"
-              style={{ background: "#fee2e2", color: "#dc2626" }}
-            >
-              {eeat.missing_signals.length}
-            </span>
-          </p>
-          <div className="overflow-hidden rounded-xl" style={{ borderTop: "1px solid #fecaca", borderRight: "1px solid #fecaca", borderBottom: "1px solid #fecaca", borderLeft: "3px solid #dc2626" }}>
-            {eeat.missing_signals.map((s, i) => (
-              <div
-                key={i}
-                className="flex items-center gap-2.5 px-4 py-2.5 text-[11px]"
-                style={{
-                  background: i % 2 === 0 ? "#fff7f7" : "#fef2f2",
-                  borderBottom: i < eeat.missing_signals.length - 1 ? "1px solid #fecaca" : "none",
-                  color: "#991b1b",
-                }}
-              >
-                <span className="flex-shrink-0 font-bold" style={{ color: "#dc2626" }}>·</span>
-                {s}
+      {/* ── Content Freshness + Missing Signals ─────────────────────────── */}
+      {(eeat.freshness || eeat.missing_signals.length > 0) && (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+
+          {/* Content Freshness card */}
+          {eeat.freshness && (() => {
+            const f = eeat.freshness!;
+            const fscore = f.freshness_score;
+            const fcolor = fscore >= 65 ? "#16a34a" : fscore >= 35 ? "#ca8a04" : "#dc2626";
+            const cadenceCfg = CADENCE_CONFIG[f.blog_cadence] ?? CADENCE_CONFIG["none"];
+            const buckets = [
+              { label: "< 30 days",  count: f.pages_30d,   color: "#16a34a", bg: "#dcfce7" },
+              { label: "< 90 days",  count: f.pages_90d,   color: "#0891b2", bg: "#cffafe" },
+              { label: "< 180 days", count: f.pages_180d,  color: "#ca8a04", bg: "#fef9c3" },
+              { label: "> 180 days", count: f.pages_older, color: "#6b7280", bg: "#f3f4f6" },
+            ];
+            return (
+              <div className="overflow-hidden rounded-xl" style={{ border: "1px solid var(--border)" }}>
+                {/* Header */}
+                <div
+                  className="flex items-center justify-between px-3 py-2"
+                  style={{ background: "var(--surface-elevated)", borderBottom: "1px solid var(--border)" }}
+                >
+                  <div>
+                    <p className="text-xs font-semibold" style={{ color: "var(--foreground)" }}>Content Freshness</p>
+                    <p className="text-[10px]" style={{ color: "var(--muted)" }}>
+                      Last update: {f.last_update_label} · {f.pages_with_dates} of {f.pages_total} pages dated
+                    </p>
+                  </div>
+                  <span
+                    className="rounded-full px-2 py-0.5 text-[10px] font-bold tabular-nums"
+                    style={fscore >= 65
+                      ? { background: "#d1fae5", color: "#166534" }
+                      : fscore >= 35
+                        ? { background: "#fef9c3", color: "#92400e" }
+                        : { background: "#fee2e2", color: "#991b1b" }}
+                  >
+                    {fscore} / 100
+                  </span>
+                </div>
+
+                {/* Score bar */}
+                <div className="px-3 pt-3 pb-1">
+                  <div className="h-2 w-full overflow-hidden rounded-full" style={{ background: `${fcolor}20` }}>
+                    <div
+                      className="h-full rounded-full transition-all duration-700"
+                      style={{ width: `${fscore}%`, background: fcolor }}
+                    />
+                  </div>
+                </div>
+
+                {/* Page-date buckets */}
+                {f.pages_with_dates > 0 && (
+                  <div className="grid grid-cols-4 gap-2 px-3 py-2">
+                    {buckets.map(({ label, count, color, bg }) => (
+                      <div key={label} className="rounded-lg px-2 py-2 text-center" style={{ background: bg }}>
+                        <p className="text-lg font-black tabular-nums leading-none" style={{ color }}>{count}</p>
+                        <p className="mt-0.5 text-[9px] font-medium leading-tight" style={{ color }}>{label}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Blog cadence row */}
+                <div
+                  className="flex items-center gap-2 px-3 py-2"
+                  style={{ borderTop: "1px solid var(--border)" }}
+                >
+                  <p className="text-[10px]" style={{ color: "var(--muted)" }}>Blog / news cadence:</p>
+                  <span
+                    className="rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                    style={{ background: cadenceCfg.bg, color: cadenceCfg.color }}
+                  >
+                    {cadenceCfg.label}
+                  </span>
+                  {f.blog_post_count > 0 && (
+                    <span className="text-[10px]" style={{ color: "var(--muted)" }}>
+                      ({f.blog_post_count} posts found)
+                    </span>
+                  )}
+                </div>
               </div>
-            ))}
-          </div>
+            );
+          })()}
+
+          {/* Missing Signals card */}
+          {eeat.missing_signals.length > 0 && (
+            <div className="overflow-hidden rounded-xl" style={{ border: "1px solid var(--border)" }}>
+              {/* Header */}
+              <div
+                className="flex items-center justify-between px-3 py-2"
+                style={{ background: "var(--surface-elevated)", borderBottom: "1px solid var(--border)" }}
+              >
+                <p className="text-xs font-semibold" style={{ color: "var(--foreground)" }}>Missing signals</p>
+                <span
+                  className="rounded-full px-2 py-0.5 text-[10px] font-bold"
+                  style={{ background: "#fee2e2", color: "#dc2626" }}
+                >
+                  {eeat.missing_signals.length}
+                </span>
+              </div>
+              {eeat.missing_signals.map((s, i) => (
+                <div
+                  key={i}
+                  className="flex items-center gap-2.5 px-3 py-2 text-[11px]"
+                  style={{
+                    borderBottom: i < eeat.missing_signals.length - 1 ? "1px solid var(--border)" : "none",
+                    color: "#991b1b",
+                  }}
+                >
+                  <span className="flex-shrink-0 font-bold" style={{ color: "#dc2626" }}>·</span>
+                  {s}
+                </div>
+              ))}
+            </div>
+          )}
+
         </div>
       )}
     </div>

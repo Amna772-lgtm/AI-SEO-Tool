@@ -18,6 +18,7 @@ from app.analyzers.geo_content import analyze_content
 from app.analyzers.geo_eeat import analyze_eeat
 from app.analyzers.geo_nlp import analyze_nlp
 from app.analyzers.geo_probe import analyze_probe
+from app.analyzers.geo_entity import analyze_entity
 from app.analyzers.geo_page_scores import score_pages
 from app.analyzers.geo_score import compute_score
 from app.analyzers.geo_suggestions import generate_suggestions
@@ -167,7 +168,7 @@ def run_geo_pipeline(
             return analyze_content(html_pages)
 
         def _run_eeat():
-            return analyze_eeat(all_page_urls, homepage_html, about_html)
+            return analyze_eeat(all_page_urls, homepage_html, about_html, pages)
 
         def _run_page_scores():
             return score_pages(html_pages)
@@ -201,17 +202,22 @@ def run_geo_pipeline(
         set_geo(task_id, "eeat",        eeat_result)
         set_geo(task_id, "page_scores", page_scores_result)
 
-        # --- Step 4: Wave 2 — NLP + Probe in parallel; Suggestions starts as soon as NLP is done ---
-        # Layout: [nlp] ──► compute_score ──► [suggestions] ─┐
-        #         [probe  ─────────────────────────────────────┤
-        #                                                      └► persist all
-        nlp_result      = None
-        probe_result    = None
+        # --- Step 4: Wave 2 — NLP + Probe + Entity in parallel; Suggestions after NLP ---
+        # Layout: [nlp]    ──► preliminary_score ──► [suggestions] ─┐
+        #         [probe]   ──────────────────────────────────────────┤
+        #         [entity]  ──────────────────────────────────────────┤
+        #                                                             └► final_score ──► persist
+        nlp_result         = None
+        probe_result       = None
+        entity_result      = None
         suggestions_result = None
 
-        with ThreadPoolExecutor(max_workers=3) as executor:
+        with ThreadPoolExecutor(max_workers=4) as executor:
             nlp_future = executor.submit(analyze_nlp, html_pages, url)
             prb_future = executor.submit(analyze_probe, url, None, content_result, site_type)
+            ent_future = executor.submit(
+                analyze_entity, url, schema_result, homepage_html, html_pages
+            )
 
             # Wait for NLP first — it unblocks score + suggestions
             try:
@@ -220,8 +226,8 @@ def run_geo_pipeline(
                 nlp_result = {"ai_snippet_readiness": "Unknown", "source": "error"}
                 print(f"GEO NLP agent failed: {traceback.format_exc()}")
 
-            # Compute final score as soon as NLP is available
-            final_score = compute_score(
+            # Preliminary score (without probe/entity) — used for suggestions context
+            preliminary_score = compute_score(
                 schema=schema_result,
                 eeat=eeat_result,
                 content=content_result,
@@ -230,14 +236,21 @@ def run_geo_pipeline(
                 site_type=site_type,
             )
 
-            # Launch suggestions immediately — runs in parallel with remaining probe time
+            # Launch suggestions immediately — runs in parallel with probe/entity
             sug_future = executor.submit(
                 generate_suggestions,
-                final_score, schema_result, eeat_result,
+                preliminary_score, schema_result, eeat_result,
                 content_result, nlp_result, audit_result, site_type,
             )
 
-            # Collect probe and suggestions results
+            # Collect entity result (fast — Wikipedia call ~1-3s)
+            try:
+                entity_result = ent_future.result(timeout=30)
+            except Exception:
+                entity_result = {"entity_score": 0, "establishment_label": "Unknown", "source": "error"}
+                print(f"GEO entity agent failed: {traceback.format_exc()}")
+
+            # Collect probe result
             try:
                 probe_result = prb_future.result(timeout=120)
             except Exception:
@@ -250,6 +263,18 @@ def run_geo_pipeline(
                 }
                 print(f"GEO probe agent failed: {traceback.format_exc()}")
 
+            # Final score — now includes entity + probe
+            final_score = compute_score(
+                schema=schema_result,
+                eeat=eeat_result,
+                content=content_result,
+                nlp=nlp_result,
+                audit=audit_result,
+                probe=probe_result,
+                entity=entity_result,
+                site_type=site_type,
+            )
+
             try:
                 suggestions_result = sug_future.result(timeout=60)
             except Exception:
@@ -260,6 +285,7 @@ def run_geo_pipeline(
         set_geo(task_id, "nlp",         nlp_result)
         set_geo(task_id, "suggestions", suggestions_result)
         set_geo(task_id, "probe",       probe_result)
+        set_geo(task_id, "entity",      entity_result)
         set_geo(task_id, "score",       final_score)
 
     except Exception:

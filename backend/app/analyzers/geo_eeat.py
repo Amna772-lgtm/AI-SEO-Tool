@@ -6,6 +6,7 @@ Pure heuristic: URL pattern matching + HTML text analysis.
 from __future__ import annotations
 
 import re
+from datetime import datetime, timezone, timedelta
 from bs4 import BeautifulSoup
 
 # URL path patterns that indicate trust/authority pages
@@ -59,6 +60,173 @@ _CITATION_PATTERNS = [
     r"pubmed",
     r"ncbi\.nlm",
 ]
+
+
+# ── Content Freshness ─────────────────────────────────────────────────────
+
+_BLOG_URL_RE = re.compile(
+    r"/(blog|news|article|articles|post|posts|insight|insights|press|update|updates)/",
+    re.IGNORECASE,
+)
+
+_DATE_FORMATS = [
+    "%Y-%m-%d",
+    "%Y-%m-%dT%H:%M:%S",
+    "%Y-%m-%dT%H:%M:%SZ",
+    "%a, %d %b %Y %H:%M:%S GMT",
+    "%a, %d %b %Y %H:%M:%S %Z",
+    "%d %b %Y",
+    "%B %d, %Y",
+    "%b %d, %Y",
+]
+
+
+def _parse_date(s: str | None) -> datetime | None:
+    """Parse a date string to datetime(UTC). Returns None on failure."""
+    if not s:
+        return None
+    s = s.strip()
+    if not s or s in ("-", "—", "N/A", "unknown"):
+        return None
+    for fmt in _DATE_FORMATS:
+        try:
+            return datetime.strptime(s[:26], fmt).replace(tzinfo=timezone.utc)
+        except (ValueError, TypeError):
+            continue
+    try:
+        return datetime.fromisoformat(s.replace("Z", "+00:00")).astimezone(timezone.utc).replace(tzinfo=timezone.utc)
+    except (ValueError, TypeError):
+        return None
+
+
+def _analyze_freshness(pages: list[dict]) -> dict:
+    """
+    Analyse content freshness across crawled internal HTML pages.
+
+    Returns per-bucket page counts (30d/90d/180d/older), blog cadence,
+    and a 0-100 freshness_score.
+    """
+    now = datetime.now(tz=timezone.utc)
+    cutoff_30  = now - timedelta(days=30)
+    cutoff_90  = now - timedelta(days=90)
+    cutoff_180 = now - timedelta(days=180)
+
+    html_pages = [
+        p for p in pages
+        if p.get("type") == "internal"
+        and "text/html" in (p.get("content_type") or "").lower()
+    ]
+    pages_total = len(html_pages)
+
+    pages_30d = pages_90d = pages_180d = pages_older = 0
+    pages_with_dates = 0
+    latest_date: datetime | None = None
+    blog_dates: list[datetime] = []
+
+    for page in html_pages:
+        addr = page.get("address", "")
+        dt = _parse_date(page.get("last_modified"))
+        if dt is None:
+            continue
+        pages_with_dates += 1
+        if latest_date is None or dt > latest_date:
+            latest_date = dt
+        if dt >= cutoff_30:
+            pages_30d += 1
+        elif dt >= cutoff_90:
+            pages_90d += 1
+        elif dt >= cutoff_180:
+            pages_180d += 1
+        else:
+            pages_older += 1
+        if _BLOG_URL_RE.search(addr):
+            blog_dates.append(dt)
+
+    # Blog section detection (URL-pattern-based)
+    all_urls = " ".join(p.get("address", "") for p in pages)
+    has_blog_section = bool(_BLOG_URL_RE.search(all_urls))
+    blog_post_count = len([p for p in pages if _BLOG_URL_RE.search(p.get("address", "") or "")])
+
+    # Cadence from sorted publish dates
+    blog_cadence = "none"
+    if len(blog_dates) >= 2:
+        blog_dates_sorted = sorted(blog_dates, reverse=True)
+        gaps = [
+            (blog_dates_sorted[i] - blog_dates_sorted[i + 1]).days
+            for i in range(len(blog_dates_sorted) - 1)
+            if (blog_dates_sorted[i] - blog_dates_sorted[i + 1]).days > 0
+        ]
+        if gaps:
+            median_gap = sorted(gaps)[len(gaps) // 2]
+            if median_gap <= 3:
+                blog_cadence = "daily"
+            elif median_gap <= 10:
+                blog_cadence = "weekly"
+            elif median_gap <= 45:
+                blog_cadence = "monthly"
+            elif median_gap <= 100:
+                blog_cadence = "quarterly"
+            else:
+                blog_cadence = "irregular"
+        else:
+            blog_cadence = "irregular"
+    elif has_blog_section or blog_post_count > 0:
+        blog_cadence = "irregular"
+
+    # Last update label
+    if latest_date is None:
+        last_update_label = "Unknown"
+    elif latest_date >= cutoff_30:
+        last_update_label = "< 30 days"
+    elif latest_date >= cutoff_90:
+        last_update_label = "< 90 days"
+    elif latest_date >= cutoff_180:
+        last_update_label = "< 180 days"
+    else:
+        last_update_label = "> 180 days ago"
+
+    # ── Freshness score 0-100 ────────────────────────────────────────────
+    score = 0
+
+    # 1. Recency of most recent update (30 pts)
+    if pages_30d > 0:
+        score += 30
+    elif pages_90d > 0:
+        score += 20
+    elif pages_180d > 0:
+        score += 10
+    elif pages_older > 0:
+        score += 3
+
+    # 2. Volume of recent updates relative to dated pages (25 pts)
+    if pages_with_dates > 0:
+        recent_ratio = (pages_30d + pages_90d) / pages_with_dates
+        score += min(int(recent_ratio * 25), 25)
+
+    # 3. Blog / posting cadence (30 pts)
+    cadence_pts = {
+        "daily": 30, "weekly": 25, "monthly": 15,
+        "quarterly": 8, "irregular": 5, "none": 0,
+    }
+    score += cadence_pts.get(blog_cadence, 0)
+
+    # 4. Date coverage — % of HTML pages with any date (15 pts)
+    if pages_total > 0:
+        score += min(int((pages_with_dates / pages_total) * 15), 15)
+
+    return {
+        "freshness_score":  min(score, 100),
+        "pages_total":      pages_total,
+        "pages_with_dates": pages_with_dates,
+        "pages_30d":        pages_30d,
+        "pages_90d":        pages_90d,
+        "pages_180d":       pages_180d,
+        "pages_older":      pages_older,
+        "has_blog_section": has_blog_section,
+        "blog_post_count":  blog_post_count,
+        "blog_cadence":     blog_cadence,
+        "last_update_label": last_update_label,
+    }
 
 
 def _check_url_patterns(page_urls: list[str]) -> dict[str, bool]:
@@ -127,7 +295,7 @@ def _check_html_signals(homepage_html: str, about_html: str = "") -> dict:
     }
 
 
-def _compute_eeat_score(url_signals: dict[str, bool], html_signals: dict) -> tuple[int, list[str], list[str]]:
+def _compute_eeat_score(url_signals: dict[str, bool], html_signals: dict, freshness_score: int = 0) -> tuple[int, list[str], list[str]]:
     """
     Compute E-E-A-T score 0-100 and return present/missing signals.
 
@@ -174,10 +342,15 @@ def _compute_eeat_score(url_signals: dict[str, bool], html_signals: dict) -> tup
     else:
         missing.append("No research citations found")
 
-    # Content freshness (10 pts)
-    if html_signals["content_freshness"]:
-        score += 10
-        present.append("Content dates / freshness signals found")
+    # Content freshness (10 pts) — uses granular freshness_score when available
+    freshness_pts = int(freshness_score / 100 * 10) if freshness_score > 0 else (
+        10 if html_signals["content_freshness"] else 0
+    )
+    score += freshness_pts
+    if freshness_pts >= 7:
+        present.append("Content freshness: active / recently updated")
+    elif freshness_pts >= 3:
+        present.append("Content freshness: partially dated")
     else:
         missing.append("No content freshness dates found")
 
@@ -196,6 +369,7 @@ def analyze_eeat(
     page_urls: list[str],
     homepage_html: str = "",
     about_html: str = "",
+    pages: list[dict] | None = None,
 ) -> dict:
     """
     Analyze E-E-A-T signals for a site.
@@ -204,12 +378,16 @@ def analyze_eeat(
         page_urls: All crawled URLs
         homepage_html: Raw HTML of homepage
         about_html: Raw HTML of about/team page (if found)
+        pages: Full page-row dicts from Redis (for freshness analysis)
 
     Returns structured E-E-A-T analysis dict.
     """
     url_signals = _check_url_patterns(page_urls)
     html_signals = _check_html_signals(homepage_html, about_html)
-    score, present_signals, missing_signals = _compute_eeat_score(url_signals, html_signals)
+    freshness = _analyze_freshness(pages or [])
+    score, present_signals, missing_signals = _compute_eeat_score(
+        url_signals, html_signals, freshness["freshness_score"]
+    )
 
     return {
         "eeat_score": score,
@@ -225,4 +403,5 @@ def analyze_eeat(
         "expertise_signals": html_signals["expertise_signals"],
         "trust_signals": present_signals,
         "missing_signals": missing_signals,
+        "freshness": freshness,
     }

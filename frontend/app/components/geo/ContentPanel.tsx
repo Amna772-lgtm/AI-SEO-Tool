@@ -1,6 +1,52 @@
 "use client";
 
-import type { ContentResult } from "../../lib/api";
+import type { ContentResult, FactualDensity } from "../../lib/api";
+
+function FactualDensityCard({ fd }: { fd: FactualDensity }) {
+  const color = fd.score >= 60 ? "#16a34a" : fd.score >= 30 ? "#ca8a04" : "#dc2626";
+  const bg    = fd.score >= 60 ? "#f0fdf4" : fd.score >= 30 ? "#fefce8" : "#fef2f2";
+  const label = fd.score >= 60 ? "High — AI-citable" : fd.score >= 30 ? "Medium" : "Low — needs more facts";
+
+  const signals = [
+    { label: "Statistics / numbers", val: fd.stats_count },
+    { label: "Source citations",     val: fd.citations_count },
+    { label: "Expert mentions",      val: fd.expert_mentions },
+    { label: "Year references",      val: fd.year_references },
+    { label: "Quoted statements",    val: fd.quotes_count },
+  ];
+
+  return (
+    <div
+      className="rounded-xl p-4"
+      style={{ background: bg, borderTop: `1px solid ${color}30`, borderRight: `1px solid ${color}30`, borderBottom: `1px solid ${color}30`, borderLeft: `4px solid ${color}` }}
+    >
+      <div className="mb-3 flex items-center justify-between">
+        <div>
+          <p className="text-xs font-semibold" style={{ color: "var(--foreground)" }}>Factual density</p>
+          <p className="text-[10px]" style={{ color: "var(--muted)" }}>
+            Stats, citations, expert mentions &amp; quotes per 1000 words — key signals for AI citation
+          </p>
+        </div>
+        <div className="text-right">
+          <span className="text-xl font-black tabular-nums" style={{ color }}>{fd.score}</span>
+          <p className="text-[10px] font-semibold" style={{ color }}>{label}</p>
+          <p className="text-[10px] tabular-nums" style={{ color: "var(--muted)" }}>{fd.per_1000_words} / 1k words</p>
+        </div>
+      </div>
+      <div className="mb-3 h-2 w-full overflow-hidden rounded-full" style={{ background: `${color}20` }}>
+        <div className="h-full rounded-full transition-all duration-700" style={{ width: `${fd.score}%`, background: color }} />
+      </div>
+      <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
+        {signals.map(({ label: sl, val }) => (
+          <div key={sl} className="rounded-lg px-2 py-1.5 text-center" style={{ background: "var(--surface)" }}>
+            <p className="text-sm font-bold tabular-nums" style={{ color: val > 0 ? color : "var(--muted)" }}>{val}</p>
+            <p className="text-[9px] leading-tight" style={{ color: "var(--muted)" }}>{sl}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 const READING_LEVEL_CONFIG: Record<string, { bg: string; border: string; color: string; label: string }> = {
   "Elementary":    { bg: "#f0fdf4", border: "#86efac", color: "#15803d", label: "Great for AI" },
@@ -141,6 +187,9 @@ export function ContentPanel({ content }: Props) {
           </div>
         </div>
       </div>
+
+      {/* ── Factual Density ──────────────────────────────────────────────── */}
+      {content.factual_density && <FactualDensityCard fd={content.factual_density} />}
 
       {/* ── FAQ Q&A pairs ────────────────────────────────────────────────── */}
       {hasFaqPairs && (

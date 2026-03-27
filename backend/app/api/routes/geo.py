@@ -48,6 +48,7 @@ def get_geo_all(task_id: str):
         "score":       get_geo(task_id, "score"),
         "suggestions": get_geo(task_id, "suggestions"),
         "probe":       get_geo(task_id, "probe"),
+        "entity":      get_geo(task_id, "entity"),
         "page_scores": get_geo(task_id, "page_scores"),
     }
 
@@ -121,6 +122,15 @@ def get_geo_probe(task_id: str):
     data = get_geo(task_id, "probe")
     if not data:
         raise HTTPException(status_code=404, detail="Probe results not yet available")
+    return {"site_id": task_id, **data}
+
+
+@router.get("/{task_id}/geo/entity")
+def get_geo_entity(task_id: str):
+    _require_meta(task_id)
+    data = get_geo(task_id, "entity")
+    if not data:
+        raise HTTPException(status_code=404, detail="Entity analysis not yet available")
     return {"site_id": task_id, **data}
 
 

@@ -12,6 +12,8 @@ import { ContentPanel } from "./ContentPanel";
 import { NlpPanel } from "./NlpPanel";
 import { ProbePanel } from "./ProbePanel";
 import { PageScoresPanel } from "./PageScoresPanel";
+import { EngineScores } from "./EngineScores";
+import { EntityPanel } from "./EntityPanel";
 
 const SITE_TYPE_ICONS: Record<string, string> = {
   ecommerce:      "🛒",
@@ -39,7 +41,7 @@ function SiteTypeBadge({ siteType }: { siteType: SiteTypeResult }) {
   );
 }
 
-type DetailTab = "schema" | "content" | "eeat" | "nlp" | "visibility" | "pages";
+type DetailTab = "schema" | "content" | "eeat" | "nlp" | "visibility" | "entity" | "pages";
 
 const DETAIL_TABS: { key: DetailTab; label: string }[] = [
   { key: "schema",     label: "Schema" },
@@ -47,6 +49,7 @@ const DETAIL_TABS: { key: DetailTab; label: string }[] = [
   { key: "eeat",       label: "E-E-A-T" },
   { key: "nlp",        label: "NLP" },
   { key: "visibility", label: "Visibility" },
+  { key: "entity",     label: "Entity" },
   { key: "pages",      label: "Pages" },
 ];
 
@@ -149,6 +152,9 @@ export function GeoTab({ geo, siteId, siteUrl, pages }: Props) {
         </div>
       </div>
 
+      {/* ── Row 1b: Per-engine scores ─────────────────────────────────────── */}
+      {score && <EngineScores score={score} />}
+
       {/* ── Row 2: Detail tabs (Schema / Content / E-E-A-T / NLP) ────────── */}
       <div className="rounded-xl border border-[var(--border)] bg-white shadow-sm">
         {/* Tab bar */}
@@ -192,6 +198,9 @@ export function GeoTab({ geo, siteId, siteUrl, pages }: Props) {
           )}
           {detailTab === "visibility" && (
             geo.probe ? <ProbePanel probe={geo.probe} /> : <LoadingCard label="AI visibility probe" />
+          )}
+          {detailTab === "entity" && (
+            geo.entity ? <EntityPanel entity={geo.entity} /> : <LoadingCard label="entity analysis" />
           )}
           {detailTab === "pages" && (
             geo.page_scores ? <PageScoresPanel pageScores={geo.page_scores} /> : <LoadingCard label="per-page scoring" />

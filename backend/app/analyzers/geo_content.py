@@ -21,6 +21,27 @@ _QUESTION_RE = re.compile(
 # Second-person pronouns (conversational indicators)
 _SECOND_PERSON_RE = re.compile(r"\b(you|your|you're|you'll|you've|yourself)\b", re.IGNORECASE)
 
+# ── Factual density patterns ──────────────────────────────────────────────────
+# Statistics: numbers with %, currency, large units
+_STAT_RE = re.compile(
+    r"\b\d+\.?\d*\s*(?:%|percent|million|billion|trillion|thousand|\$|usd|eur|gbp|mph|kg|lb|km|ms)\b",
+    re.IGNORECASE,
+)
+# Source/citation phrases
+_CITATION_RE = re.compile(
+    r"\b(?:according to|per\b|cited by|study by|report by|survey by|research shows?|data shows?|found that|published in|source:)\b",
+    re.IGNORECASE,
+)
+# Expert/authority credentials
+_EXPERT_RE = re.compile(
+    r"\b(?:Dr\.|Prof\.|PhD|M\.D\.|CEO|founder|director|researcher|scientist|professor|expert|author)\b",
+    re.IGNORECASE,
+)
+# Specific year references
+_YEAR_RE = re.compile(r"\b(?:19|20)\d{2}\b")
+# Quoted phrases (short quotes indicating cited statements)
+_QUOTE_RE = re.compile(r'"[^"]{15,200}"')
+
 
 def _clean_text(html: str) -> str:
     """Extract clean body text from HTML, stripping nav/footer/scripts."""
@@ -151,6 +172,39 @@ def _detect_faq(html: str) -> tuple[bool, list[str], list[dict]]:
 
 
 
+def _factual_density_score(text: str) -> dict:
+    """
+    Count factual signals in a text block and return a 0-100 score.
+    Signals: statistics, source citations, expert credentials, year refs, quotes.
+    """
+    words = len(re.findall(r"\b\w+\b", text))
+    if words == 0:
+        return {"score": 0, "per_1000_words": 0.0,
+                "stats_count": 0, "citations_count": 0,
+                "expert_mentions": 0, "year_references": 0, "quotes_count": 0}
+
+    stats    = len(_STAT_RE.findall(text))
+    cites    = len(_CITATION_RE.findall(text))
+    experts  = len(_EXPERT_RE.findall(text))
+    years    = len(_YEAR_RE.findall(text))
+    quotes   = len(_QUOTE_RE.findall(text))
+
+    total_signals = stats + cites + experts + years + quotes
+    per_1000 = round(total_signals / words * 1000, 2)
+    # 8+ signals per 1000 words → score 100; linear below that
+    score = int(min(per_1000 / 8.0 * 100, 100))
+
+    return {
+        "score": score,
+        "per_1000_words": per_1000,
+        "stats_count": stats,
+        "citations_count": cites,
+        "expert_mentions": experts,
+        "year_references": years,
+        "quotes_count": quotes,
+    }
+
+
 def _count_lists(html: str) -> int:
     """Count <ul> and <ol> list blocks."""
     try:
@@ -205,6 +259,12 @@ def analyze_content(pages_html: list[tuple[str, str]]) -> dict:
     conv_scores: list[float] = []
     thin_pages = 0
     pages_analyzed = 0
+    fd_scores: list[int] = []
+    fd_stats_total = 0
+    fd_citations_total = 0
+    fd_experts_total = 0
+    fd_years_total = 0
+    fd_quotes_total = 0
 
     for _url, html in pages_html:
         if not html:
@@ -237,6 +297,18 @@ def analyze_content(pages_html: list[tuple[str, str]]) -> dict:
             all_faq_questions.extend(faq_qs)
             all_qa_pairs.extend(qa_pairs)
 
+        if wc >= 50:
+            fd = _factual_density_score(text)
+            fd_scores.append(fd["score"])
+            fd_stats_total     += fd["stats_count"]
+            fd_citations_total += fd["citations_count"]
+            fd_experts_total   += fd["expert_mentions"]
+            fd_years_total     += fd["year_references"]
+            fd_quotes_total    += fd["quotes_count"]
+
+    _fd_empty = {"score": 0, "per_1000_words": 0.0, "stats_count": 0,
+                 "citations_count": 0, "expert_mentions": 0, "year_references": 0, "quotes_count": 0}
+
     if not word_counts:
         return {
             "avg_word_count": 0,
@@ -251,6 +323,7 @@ def analyze_content(pages_html: list[tuple[str, str]]) -> dict:
             "thin_content_pages": 0,
             "pages_analyzed": 0,
             "avg_lists_per_page": 0.0,
+            "factual_density": _fd_empty,
         }
 
     word_counts.sort()
@@ -270,6 +343,11 @@ def analyze_content(pages_html: list[tuple[str, str]]) -> dict:
             seen_qs.add(pair["question"])
             unique_qa_pairs.append(pair)
 
+    avg_fd_score = int(round(sum(fd_scores) / len(fd_scores))) if fd_scores else 0
+    total_fd_signals = fd_stats_total + fd_citations_total + fd_experts_total + fd_years_total + fd_quotes_total
+    total_words_analyzed = sum(word_counts)
+    avg_fd_per_1000 = round(total_fd_signals / total_words_analyzed * 1000, 2) if total_words_analyzed > 0 else 0.0
+
     return {
         "avg_word_count": avg_wc,
         "median_word_count": median_wc,
@@ -287,4 +365,13 @@ def analyze_content(pages_html: list[tuple[str, str]]) -> dict:
         "thin_content_pages": thin_pages,
         "pages_analyzed": pages_analyzed,
         "avg_lists_per_page": avg_lists,
+        "factual_density": {
+            "score": avg_fd_score,
+            "per_1000_words": avg_fd_per_1000,
+            "stats_count": fd_stats_total,
+            "citations_count": fd_citations_total,
+            "expert_mentions": fd_experts_total,
+            "year_references": fd_years_total,
+            "quotes_count": fd_quotes_total,
+        },
     }

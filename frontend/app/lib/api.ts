@@ -216,6 +216,16 @@ export interface FaqPair {
   answer: string;
 }
 
+export interface FactualDensity {
+  score: number;
+  per_1000_words: number;
+  stats_count: number;
+  citations_count: number;
+  expert_mentions: number;
+  year_references: number;
+  quotes_count: number;
+}
+
 export interface ContentResult {
   avg_word_count: number;
   median_word_count: number;
@@ -229,6 +239,7 @@ export interface ContentResult {
   thin_content_pages: number;
   pages_analyzed: number;
   avg_lists_per_page: number;
+  factual_density?: FactualDensity;
 }
 
 export interface QueryPatterns {
@@ -237,6 +248,15 @@ export interface QueryPatterns {
   why: boolean;
   best: boolean;
   comparison: boolean;
+}
+
+export interface AnswerQuality {
+  score: number;               // 0-100
+  bluf_ratio: number;          // 0-1, answers that begin with the direct answer
+  avg_answer_length: number;   // words; ideal 40-120
+  self_contained_ratio: number; // 0-1, answers understandable without context
+  confident_ratio: number;     // 0-1, declarative vs hedged language
+  quality_label: "Excellent" | "Good" | "Fair" | "Poor";
 }
 
 export interface NlpResult {
@@ -250,8 +270,23 @@ export interface NlpResult {
   synonym_richness?: "High" | "Medium" | "Low";
   query_patterns?: QueryPatterns;
   reasoning: string;
+  answer_quality?: AnswerQuality;
   source?: string;
   error?: string;
+}
+
+export interface ContentFreshness {
+  freshness_score: number;
+  pages_total: number;
+  pages_with_dates: number;
+  pages_30d: number;
+  pages_90d: number;
+  pages_180d: number;
+  pages_older: number;
+  has_blog_section: boolean;
+  blog_post_count: number;
+  blog_cadence: "none" | "irregular" | "quarterly" | "monthly" | "weekly" | "daily";
+  last_update_label: string;
 }
 
 export interface EeatResult {
@@ -268,12 +303,20 @@ export interface EeatResult {
   expertise_signals: string[];
   trust_signals: string[];
   missing_signals: string[];
+  freshness?: ContentFreshness;
 }
 
 export interface ScoreBreakdownItem {
   weight: number;
   raw: number;
   weighted: number;
+}
+
+export interface EngineScore {
+  label: string;
+  focus: string;
+  score: number;
+  grade: string;
 }
 
 export interface ScoreResult {
@@ -287,7 +330,9 @@ export interface ScoreResult {
     technical: ScoreBreakdownItem;
     nlp: ScoreBreakdownItem;
     speed: ScoreBreakdownItem;
+    probe?: ScoreBreakdownItem;
   };
+  engine_scores?: Record<string, EngineScore>;
 }
 
 export interface Suggestion {
@@ -371,6 +416,30 @@ export interface PageScoreResult {
   };
 }
 
+export interface EntityScoreBreakdownItem {
+  pts: number;
+  max: number;
+}
+
+export interface EntityResult {
+  entity_score: number;
+  establishment_label: "Established" | "Emerging" | "Unknown";
+  brand_name: string;
+  wikipedia_found: boolean;
+  wikipedia_url: string | null;
+  wikipedia_pts: number;
+  same_as_links: string[];
+  same_as_platforms: Record<string, number>;
+  same_as_pts: number;
+  org_schema_present: boolean;
+  org_fields_present: string[];
+  org_fields_missing: string[];
+  org_pts: number;
+  authority_links: string[];
+  authority_pts: number;
+  score_breakdown: Record<string, EntityScoreBreakdownItem>;
+}
+
 export interface GeoResponse {
   site_id: string;
   geo_status: GeoStatus;
@@ -382,6 +451,7 @@ export interface GeoResponse {
   score: ScoreResult | null;
   suggestions: SuggestionsResult | null;
   probe: ProbeResult | null;
+  entity: EntityResult | null;
   page_scores: PageScoreResult[] | null;
 }
 

@@ -9,6 +9,8 @@ const CATEGORY_LABELS: Record<string, string> = {
   technical:       "Technical",
   nlp:             "NLP Intent",
   speed:           "Speed & Access",
+  probe:           "AI Probe",
+  entity:          "Entity",
 };
 
 const CATEGORY_ICONS: Record<string, string> = {
@@ -18,6 +20,8 @@ const CATEGORY_ICONS: Record<string, string> = {
   technical:       "⚙",
   nlp:             "🧠",
   speed:           "⚡",
+  probe:           "◎",
+  entity:          "⬡",
 };
 
 function scoreColor(raw: number): string {

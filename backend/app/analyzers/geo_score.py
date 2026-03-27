@@ -2,23 +2,64 @@
 Agent 6 — AI Citation Readiness Scoring Engine
 Aggregates all agent results into a weighted 0-100 score.
 
-Weights (from PDF):
-  Structured Data   25%
-  E-E-A-T           25%
-  Conversational    15%
-  Technical Crawl   15%
-  NLP Intent        10%
-  Speed & Access    10%
+Unified weights (AI-citation-optimised):
+  NLP Intent        25%  — snippet readiness, question density, direct answers
+  Structured Data   25%  — JSON-LD/schema coverage
+  E-E-A-T           20%  — trust, authority, expertise signals
+  Conversational    20%  — content depth, FAQ, heading structure
+  Technical Crawl    5%  — HTTPS, sitemap, broken links, canonicals
+  Speed & Access     5%  — AI crawler access; PageSpeed is marginal for AI citation
+
+Per-engine weights reflect each model's known citation priorities.
 """
 from __future__ import annotations
 
 WEIGHTS = {
-    "structured_data": 25,
-    "eeat":            25,
+    "nlp":             20,
+    "structured_data": 20,
+    "eeat":            15,
     "conversational":  15,
-    "technical":       15,
-    "nlp":             10,
-    "speed":           10,
+    "entity":          12,  # Entity establishment (Wikipedia, sameAs, org schema)
+    "probe":            8,  # AI engine actual mention rate
+    "technical":        5,
+    "speed":            5,
+}
+
+# Per-engine weight profiles — each sums to 100
+ENGINE_WEIGHTS: dict[str, dict[str, int]] = {
+    "perplexity": {
+        # Freshness, explicit citations, factual claims, entity recognition
+        "eeat": 25, "nlp": 22, "conversational": 18,
+        "structured_data": 13, "entity": 14, "technical": 5, "speed": 3,
+    },
+    "chatgpt": {
+        # Authority, E-E-A-T heavy, entity recognition, comprehensive coverage
+        "eeat": 28, "structured_data": 22, "conversational": 17,
+        "entity": 18, "nlp": 10, "technical": 4, "speed": 1,
+    },
+    "gemini": {
+        # Google SEO signals — schema, technical quality, Knowledge Graph
+        "structured_data": 27, "technical": 22, "eeat": 18,
+        "entity": 15, "speed": 12, "nlp": 5, "conversational": 1,
+    },
+    "claude": {
+        # Well-reasoned, nuanced content, clear structure, logical flow
+        "conversational": 30, "nlp": 30, "eeat": 14,
+        "structured_data": 9, "entity": 12, "technical": 3, "speed": 2,
+    },
+    "grok": {
+        # Recency, trending topics, real-time relevance, known entities
+        "eeat": 34, "nlp": 22, "conversational": 18,
+        "entity": 12, "technical": 8, "structured_data": 4, "speed": 2,
+    },
+}
+
+ENGINE_META: dict[str, dict[str, str]] = {
+    "perplexity": {"label": "Perplexity", "focus": "Freshness · Citations · Factual depth"},
+    "chatgpt":    {"label": "ChatGPT",    "focus": "Authority · E-E-A-T · Comprehensive coverage"},
+    "gemini":     {"label": "Gemini",     "focus": "Schema · Google signals · Technical quality"},
+    "claude":     {"label": "Claude",     "focus": "Structure · Reasoning · Nuanced content"},
+    "grok":       {"label": "Grok",       "focus": "Recency · Trending topics · News relevance"},
 }
 
 GRADE_THRESHOLDS = [
@@ -74,13 +115,18 @@ def _conversational_raw(content: dict | None) -> float:
         return 0.0
     score = 0.0
 
-    # Conversational tone (40 pts)
-    tone = content.get("conversational_tone_score", 0.0)
-    score += tone * 40
+    # Factual density (30 pts) — stats, citations, expert mentions, year refs, quotes
+    fd = content.get("factual_density") or {}
+    fd_score = fd.get("score", 0)
+    score += (fd_score / 100.0) * 30
 
-    # FAQ presence (25 pts)
+    # Conversational tone (25 pts)
+    tone = content.get("conversational_tone_score", 0.0)
+    score += tone * 25
+
+    # FAQ presence (20 pts)
     if content.get("pages_with_faq", 0) > 0:
-        score += 25
+        score += 20
 
     # Heading structure (20 pts)
     hs = content.get("heading_structure", {})
@@ -90,9 +136,9 @@ def _conversational_raw(content: dict | None) -> float:
     if hs.get("pages_with_h3", 0) / pages > 0.3:
         score += 10
 
-    # List usage (15 pts)
+    # List usage (5 pts)
     avg_lists = content.get("avg_lists_per_page", 0.0)
-    score += min(avg_lists * 5, 15)
+    score += min(avg_lists * 2.5, 5)
 
     return min(score, 100.0)
 
@@ -139,21 +185,27 @@ def _nlp_raw(nlp: dict | None) -> float:
         return 0.0
     score = 0.0
 
+    # AI Snippet Readiness — holistic Claude assessment (40 pts)
     readiness = nlp.get("ai_snippet_readiness", "Low")
     if readiness == "High":
-        score += 60
+        score += 40
     elif readiness == "Medium":
-        score += 35
+        score += 25
     else:
-        score += 10
+        score += 8
 
-    # Question density (20 pts)
+    # Answer block quality — BLUF, length, self-containment, confident language (35 pts)
+    aq = nlp.get("answer_quality") or {}
+    aq_score = aq.get("score", 0)
+    score += (aq_score / 100.0) * 35
+
+    # Question density — questions per 100 words (15 pts)
     qd = nlp.get("question_density", 0.0)
-    score += min(qd * 20, 20)
+    score += min(qd * 10, 15)
 
-    # Answer blocks (20 pts)
+    # Answer block count — raw count signal (10 pts)
     ab = nlp.get("answer_blocks_detected", 0)
-    score += min(ab * 4, 20)
+    score += min(ab * 2, 10)
 
     return min(score, 100.0)
 
@@ -182,12 +234,55 @@ def _speed_raw(audit: dict | None) -> float:
     return round(sum(scores) / len(scores), 1)
 
 
+def _entity_raw(entity: dict | None) -> float:
+    """Entity establishment score is already 0-100."""
+    if not entity:
+        return 0.0
+    return float(entity.get("entity_score", 0))
+
+
+def _probe_raw(probe: dict | None) -> float:
+    """
+    Convert AI Visibility Probe results to a 0-100 score.
+    overall_mention_rate is already 0-100 (average % across engines) — do NOT multiply.
+    Returns 50 (neutral) when probe has not been run or errored, so missing probe
+    data neither rewards nor penalises the site.
+    """
+    if not probe or probe.get("source") == "error":
+        return 50.0
+    mention_rate = probe.get("overall_mention_rate")
+    if mention_rate is None:
+        return 50.0
+    return min(round(float(mention_rate), 1), 100.0)
+
+
+def _compute_engine_scores(raw_scores: dict[str, float]) -> dict[str, dict]:
+    """
+    Compute per-AI-engine citation scores using engine-specific weight profiles.
+    raw_scores: {category: 0-100 float} — the same raw category scores used for the
+    unified score, re-weighted per engine's known citation priorities.
+    """
+    result = {}
+    for engine, weights in ENGINE_WEIGHTS.items():
+        total = sum((raw_scores.get(cat, 0.0) / 100.0) * w for cat, w in weights.items())
+        score = min(int(round(total)), 100)
+        result[engine] = {
+            "label": ENGINE_META[engine]["label"],
+            "focus": ENGINE_META[engine]["focus"],
+            "score": score,
+            "grade": _grade(score),
+        }
+    return result
+
+
 def compute_score(
     schema: dict | None,
     eeat: dict | None,
     content: dict | None,
     nlp: dict | None,
     audit: dict | None,
+    probe: dict | None = None,
+    entity: dict | None = None,
     site_type: str = "informational",
 ) -> dict:
     """
@@ -197,7 +292,8 @@ def compute_score(
         {
             "overall_score": int (0-100),
             "grade": str ("A"-"F"),
-            "breakdown": {category: {weight, raw, weighted}}
+            "breakdown": {category: {weight, raw, weighted}},
+            "engine_scores": {engine: {label, focus, score, grade}}
         }
     """
     raw_scores = {
@@ -207,6 +303,8 @@ def compute_score(
         "technical":       _technical_raw(audit),
         "nlp":             _nlp_raw(nlp),
         "speed":           _speed_raw(audit),
+        "probe":           _probe_raw(probe),
+        "entity":          _entity_raw(entity),
     }
 
     breakdown = {}
@@ -222,11 +320,12 @@ def compute_score(
         }
         total_weighted += weighted
 
-    overall = int(round(total_weighted))
+    overall = min(int(round(total_weighted)), 100)
 
     return {
         "overall_score": overall,
         "grade": _grade(overall),
         "breakdown": breakdown,
         "site_type_modifier": site_type,
+        "engine_scores": _compute_engine_scores(raw_scores),
     }

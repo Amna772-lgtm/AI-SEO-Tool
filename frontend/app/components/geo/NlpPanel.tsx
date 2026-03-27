@@ -1,6 +1,6 @@
 "use client";
 
-import type { NlpResult } from "../../lib/api";
+import type { NlpResult, AnswerQuality } from "../../lib/api";
 
 const READINESS_CONFIG = {
   High:    { color: "#16a34a", bg: "#f0fdf4", border: "#86efac", label: "High",    desc: "Well-structured for AI extraction" },
@@ -28,6 +28,99 @@ const INTENT_LABELS: Record<string, string> = {
   transactional: "Transactional",
   navigational:  "Navigational",
 };
+
+const QUALITY_CONFIG: Record<string, { color: string; bg: string; border: string }> = {
+  Excellent: { color: "#16a34a", bg: "#f0fdf4", border: "#86efac" },
+  Good:      { color: "#0891b2", bg: "#ecfeff", border: "#a5f3fc" },
+  Fair:      { color: "#ca8a04", bg: "#fefce8", border: "#fde047" },
+  Poor:      { color: "#dc2626", bg: "#fef2f2", border: "#fecaca" },
+};
+
+function pct(ratio: number) { return `${Math.round(ratio * 100)}%`; }
+
+function AnswerQualityCard({ aq }: { aq: AnswerQuality }) {
+  const cfg = QUALITY_CONFIG[aq.quality_label] ?? QUALITY_CONFIG["Poor"];
+  const lengthOk = aq.avg_answer_length >= 40 && aq.avg_answer_length <= 120;
+  const lengthColor = lengthOk ? "#16a34a" : aq.avg_answer_length === 0 ? "#6b7280" : "#ca8a04";
+
+  const metrics = [
+    {
+      label: "BLUF format",
+      val: pct(aq.bluf_ratio),
+      desc: "Answer in first sentence",
+      color: aq.bluf_ratio >= 0.6 ? "#16a34a" : aq.bluf_ratio >= 0.3 ? "#ca8a04" : "#dc2626",
+    },
+    {
+      label: "Avg length",
+      val: aq.avg_answer_length > 0 ? `${aq.avg_answer_length}w` : "—",
+      desc: "Ideal: 40-120 words",
+      color: lengthColor,
+    },
+    {
+      label: "Self-contained",
+      val: pct(aq.self_contained_ratio),
+      desc: "Understandable standalone",
+      color: aq.self_contained_ratio >= 0.6 ? "#16a34a" : aq.self_contained_ratio >= 0.3 ? "#ca8a04" : "#dc2626",
+    },
+    {
+      label: "Confident tone",
+      val: pct(aq.confident_ratio),
+      desc: "Declarative vs hedged",
+      color: aq.confident_ratio >= 0.7 ? "#16a34a" : aq.confident_ratio >= 0.4 ? "#ca8a04" : "#dc2626",
+    },
+  ];
+
+  return (
+    <div
+      className="rounded-xl p-4"
+      style={{
+        background: cfg.bg,
+        borderTop: `1px solid ${cfg.border}`,
+        borderRight: `1px solid ${cfg.border}`,
+        borderBottom: `1px solid ${cfg.border}`,
+        borderLeft: `4px solid ${cfg.color}`,
+      }}
+    >
+      <div className="mb-3 flex items-center justify-between">
+        <div>
+          <p className="text-xs font-semibold" style={{ color: "var(--foreground)" }}>
+            Answer block quality
+          </p>
+          <p className="text-[10px]" style={{ color: "var(--muted)" }}>
+            BLUF · length · self-containment · confidence — signals AI models use when picking citation snippets
+          </p>
+        </div>
+        <div className="text-right">
+          <span className="text-xl font-black tabular-nums" style={{ color: cfg.color }}>{aq.score}</span>
+          <p className="text-[10px] font-semibold" style={{ color: cfg.color }}>{aq.quality_label}</p>
+        </div>
+      </div>
+
+      {/* Score bar */}
+      <div className="mb-3 h-2 w-full overflow-hidden rounded-full" style={{ background: `${cfg.color}20` }}>
+        <div
+          className="h-full rounded-full transition-all duration-700"
+          style={{ width: `${aq.score}%`, background: cfg.color }}
+        />
+      </div>
+
+      {/* Signal breakdown */}
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {metrics.map(({ label, val, desc, color }) => (
+          <div
+            key={label}
+            className="rounded-lg px-3 py-2"
+            style={{ background: "var(--surface)" }}
+          >
+            <p className="text-sm font-bold tabular-nums" style={{ color }}>{val}</p>
+            <p className="text-[10px] font-medium leading-tight" style={{ color: "var(--foreground)" }}>{label}</p>
+            <p className="text-[9px] leading-tight" style={{ color: "var(--muted)" }}>{desc}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 interface Props {
   nlp: NlpResult;
@@ -128,6 +221,9 @@ export function NlpPanel({ nlp }: Props) {
           <p className="mt-0.5 text-[10px] font-medium" style={{ color: "var(--muted)" }}>Synonym richness</p>
         </div>
       </div>
+
+      {/* ── Answer block quality ─────────────────────────────────────────── */}
+      {nlp.answer_quality && <AnswerQualityCard aq={nlp.answer_quality} />}
 
       {/* ── Key topics ───────────────────────────────────────────────────── */}
       {(nlp.key_topics ?? []).length > 0 && (
