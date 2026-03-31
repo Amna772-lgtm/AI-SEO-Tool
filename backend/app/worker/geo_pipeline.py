@@ -241,21 +241,15 @@ def run_geo_pipeline(
                 nlp_result = {"ai_snippet_readiness": "Unknown", "source": "error"}
                 print(f"GEO NLP agent failed: {traceback.format_exc()}")
 
-            # Preliminary score (without probe/entity) — used for suggestions context
-            preliminary_score = compute_score(
+            # Launch suggestions immediately — runs in parallel with probe/entity
+            sug_future = executor.submit(
+                generate_suggestions,
                 schema=schema_result,
                 eeat=eeat_result,
                 content=content_result,
                 nlp=nlp_result,
                 audit=audit_result,
                 site_type=site_type,
-            )
-
-            # Launch suggestions immediately — runs in parallel with probe/entity
-            sug_future = executor.submit(
-                generate_suggestions,
-                preliminary_score, schema_result, eeat_result,
-                content_result, nlp_result, audit_result, site_type,
             )
 
             # Collect entity result (fast — Wikipedia call ~1-3s)

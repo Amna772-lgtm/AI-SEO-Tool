@@ -40,7 +40,6 @@ Rules:
 
 
 def _build_context(
-    score_data: dict,
     schema: dict | None,
     eeat: dict | None,
     content: dict | None,
@@ -49,14 +48,18 @@ def _build_context(
     site_type: str,
 ) -> str:
     """Build a concise summary of analysis results for Claude."""
+    eeat_score = (eeat or {}).get("eeat_score", 0)
+    schema_coverage = (schema or {}).get("coverage_percent", 0)
+    avg_words = (content or {}).get("avg_word_count", 0)
+    snippet_readiness = (nlp or {}).get("ai_snippet_readiness", "Unknown")
     lines = [
         f"Site Type: {site_type}",
-        f"Overall AI Citation Score: {score_data.get('overall_score', 0)}/100 (Grade: {score_data.get('grade', 'F')})",
+        f"E-E-A-T Score: {eeat_score}/100",
+        f"Schema coverage: {schema_coverage}%",
+        f"Avg word count: {avg_words}",
+        f"NLP snippet readiness: {snippet_readiness}",
         "",
-        "Score Breakdown:",
     ]
-    for cat, data in score_data.get("breakdown", {}).items():
-        lines.append(f"  {cat}: {data['raw']}/100 (weighted {data['weighted']}/{data['weight']})")
 
     if schema:
         lines.extend([
@@ -221,12 +224,11 @@ def _rule_based_suggestions(
 
 
 def generate_suggestions(
-    score_data: dict,
-    schema: dict | None,
-    eeat: dict | None,
-    content: dict | None,
-    nlp: dict | None,
-    audit: dict | None,
+    schema: dict | None = None,
+    eeat: dict | None = None,
+    content: dict | None = None,
+    nlp: dict | None = None,
+    audit: dict | None = None,
     site_type: str = "informational",
 ) -> dict:
     """
@@ -241,7 +243,7 @@ def generate_suggestions(
     try:
         import anthropic
 
-        context = _build_context(score_data, schema, eeat, content, nlp, audit, site_type)
+        context = _build_context(schema, eeat, content, nlp, audit, site_type)
 
         client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
         message = client.messages.create(

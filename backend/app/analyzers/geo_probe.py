@@ -59,7 +59,7 @@ ENGINE_ORDER = ["claude", "chatgpt", "gemini", "grok", "perplexity"]
 
 # ── Question generation ──────────────────────────────────────────────────────
 _QUESTION_GEN_SYSTEM = """You are an expert at generating natural search queries that users ask AI assistants.
-Given a website's details, generate exactly 5 specific, realistic questions where this website itself
+Given a website's details, generate exactly 3 specific, realistic questions where this website itself
 would be a direct, natural recommendation in the answer.
 
 Critical requirements:
@@ -76,7 +76,7 @@ Example: for a specialty coffee e-commerce site, good questions are:
   "What are the best online stores for premium coffee beans?"
   "Which websites sell artisan coffee and tea blends?"
 
-Return a JSON array of exactly 5 question strings.
+Return a JSON array of exactly 3 question strings.
 Return ONLY a valid JSON array. No markdown, no explanation."""
 
 _FALLBACK_QUESTIONS: dict[str, list[str]] = {
@@ -168,7 +168,7 @@ def _generate_questions(
     if faq_qs:
         prompt_parts.append(f"FAQ questions found on the site: {'; '.join(faq_qs[:3])}")
     prompt_parts.append(
-        f"\nGenerate 5 questions a user would ask an AI assistant where {domain} "
+        f"\nGenerate 3 questions a user would ask an AI assistant where {domain} "
         f"({site_name}) would be a direct, natural recommendation as the answer. "
         "Questions should be about finding or discovering a site like this — not about "
         "general information this site happens to cover."
@@ -179,7 +179,7 @@ def _generate_questions(
         client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
         msg = client.messages.create(
             model=ANTHROPIC_MODEL,
-            max_tokens=512,
+            max_tokens=300,
             system=_QUESTION_GEN_SYSTEM,
             messages=[{"role": "user", "content": "\n".join(prompt_parts)}],
         )
@@ -188,11 +188,11 @@ def _generate_questions(
         if match:
             parsed = json.loads(match.group(0))
             if isinstance(parsed, list) and parsed:
-                return [str(q) for q in parsed[:5]]
+                return [str(q) for q in parsed[:3]]
     except Exception:
         pass
 
-    return _FALLBACK_QUESTIONS.get(site_type, _FALLBACK_QUESTIONS["informational"])
+    return _FALLBACK_QUESTIONS.get(site_type, _FALLBACK_QUESTIONS["informational"])[:3]
 
 
 # ── Per-engine probe ─────────────────────────────────────────────────────────
