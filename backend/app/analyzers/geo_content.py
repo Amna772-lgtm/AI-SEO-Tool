@@ -9,6 +9,8 @@ from __future__ import annotations
 import re
 from bs4 import BeautifulSoup, Tag
 
+from app.analyzers.geo_features import _flesch_kincaid_grade
+
 # Tags to strip before text extraction (navigation, scripts, etc.)
 _STRIP_TAGS = {"script", "style", "nav", "header", "footer", "aside", "noscript", "iframe"}
 
@@ -60,43 +62,6 @@ def _word_count(text: str) -> int:
     return len(re.findall(r"\b\w+\b", text))
 
 
-def _flesch_kincaid_grade(text: str) -> float:
-    """
-    Flesch-Kincaid Grade Level formula.
-    FK Grade = 0.39 * (words/sentences) + 11.8 * (syllables/words) - 15.59
-    """
-    words = re.findall(r"\b\w+\b", text)
-    sentences = re.split(r"[.!?]+", text)
-    sentences = [s for s in sentences if s.strip()]
-
-    if not words or not sentences:
-        return 8.0
-
-    num_words = len(words)
-    num_sentences = len(sentences)
-    num_syllables = sum(_count_syllables(w) for w in words)
-
-    grade = (0.39 * (num_words / num_sentences)) + (11.8 * (num_syllables / num_words)) - 15.59
-    return round(max(0.0, min(grade, 20.0)), 1)
-
-
-def _count_syllables(word: str) -> int:
-    """Approximate syllable count for a word."""
-    word = word.lower().strip(".,!?;:")
-    if not word:
-        return 1
-    vowels = "aeiouy"
-    count = 0
-    prev_vowel = False
-    for ch in word:
-        is_vowel = ch in vowels
-        if is_vowel and not prev_vowel:
-            count += 1
-        prev_vowel = is_vowel
-    if word.endswith("e"):
-        count = max(1, count - 1)
-    return max(1, count)
-
 
 def _grade_to_label(grade: float) -> str:
     if grade <= 6:
@@ -108,30 +73,20 @@ def _grade_to_label(grade: float) -> str:
     return "College"
 
 
-def _extract_headings(html: str) -> dict:
+def _extract_headings(soup: BeautifulSoup) -> dict:
     """Count H1/H2/H3 headings and extract text samples."""
-    try:
-        soup = BeautifulSoup(html, "lxml")
-    except Exception:
-        soup = BeautifulSoup(html, "html.parser")
-
     h1 = [t.get_text(strip=True) for t in soup.find_all("h1")]
     h2 = [t.get_text(strip=True) for t in soup.find_all("h2")]
     h3 = [t.get_text(strip=True) for t in soup.find_all("h3")]
     return {"h1": h1, "h2": h2, "h3": h3}
 
 
-def _detect_faq(html: str) -> tuple[bool, list[str], list[dict]]:
+def _detect_faq(text: str, soup: BeautifulSoup) -> tuple[bool, list[str], list[dict]]:
     """
     Detect FAQ-style question-answer blocks.
     Returns (has_faq, question_list, qa_pairs).
     qa_pairs: list of {"question": str, "answer": str} dicts.
     """
-    try:
-        soup = BeautifulSoup(html, "lxml")
-    except Exception:
-        soup = BeautifulSoup(html, "html.parser")
-
     questions: list[str] = []
     qa_pairs: list[dict] = []
 
@@ -205,12 +160,8 @@ def _factual_density_score(text: str) -> dict:
     }
 
 
-def _count_lists(html: str) -> int:
+def _count_lists(soup: BeautifulSoup) -> int:
     """Count <ul> and <ol> list blocks."""
-    try:
-        soup = BeautifulSoup(html, "lxml")
-    except Exception:
-        soup = BeautifulSoup(html, "html.parser")
     return len(soup.find_all(["ul", "ol"]))
 
 
@@ -238,12 +189,12 @@ def _conversational_score(text: str) -> float:
     return round(sp_score + q_score, 2)
 
 
-def analyze_content(pages_html: list[tuple[str, str]]) -> dict:
+def analyze_content(page_features: list[dict]) -> dict:
     """
     Analyze content structure and readability across a sample of HTML pages.
 
     Args:
-        pages_html: List of (url, html_content) tuples (HTML pages only)
+        page_features: List of feature dicts from geo_features.extract_page_features()
 
     Returns structured content analysis dict.
     """
@@ -266,12 +217,13 @@ def analyze_content(pages_html: list[tuple[str, str]]) -> dict:
     fd_years_total = 0
     fd_quotes_total = 0
 
-    for _url, html in pages_html:
-        if not html:
+    for feat in page_features:
+        text = feat["body_text"]
+        soup = feat["soup"]
+        if not text:
             continue
         pages_analyzed += 1
 
-        text = _clean_text(html)
         wc = _word_count(text)
         word_counts.append(wc)
 
@@ -282,16 +234,16 @@ def analyze_content(pages_html: list[tuple[str, str]]) -> dict:
             fk_grades.append(_flesch_kincaid_grade(text))
             conv_scores.append(_conversational_score(text))
 
-        headings = _extract_headings(html)
+        headings = _extract_headings(soup)
         if headings["h2"]:
             pages_with_h2 += 1
         if headings["h3"]:
             pages_with_h3 += 1
         total_headings += len(headings["h2"]) + len(headings["h3"])
 
-        total_lists += _count_lists(html)
+        total_lists += _count_lists(soup)
 
-        has_faq, faq_qs, qa_pairs = _detect_faq(html)
+        has_faq, faq_qs, qa_pairs = _detect_faq(text, soup)
         if has_faq:
             pages_with_faq += 1
             all_faq_questions.extend(faq_qs)

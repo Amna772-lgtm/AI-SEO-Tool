@@ -18,6 +18,8 @@ import json
 import re
 from bs4 import BeautifulSoup
 
+from app.analyzers.geo_features import _flesch_kincaid_grade as _compute_fk_grade
+
 # ── Grade thresholds ──────────────────────────────────────────────────────────
 
 _GRADE_THRESHOLDS = [(90, "A"), (80, "B"), (65, "C"), (50, "D"), (0, "F")]
@@ -102,53 +104,14 @@ def _grade(score: int) -> str:
     return "F"
 
 
-def _count_syllables(word: str) -> int:
-    """Approximate syllable count — copied from geo_content.py."""
-    word = word.lower().strip(".,!?;:")
-    if not word:
-        return 1
-    vowels = "aeiouy"
-    count, prev_vowel = 0, False
-    for ch in word:
-        is_vowel = ch in vowels
-        if is_vowel and not prev_vowel:
-            count += 1
-        prev_vowel = is_vowel
-    if word.endswith("e"):
-        count = max(1, count - 1)
-    return max(1, count)
-
-
-def _compute_fk_grade(text: str) -> float:
-    """Flesch-Kincaid Grade Level — copied from geo_content.py."""
-    words = re.findall(r"\b\w+\b", text)
-    sentences = [s for s in re.split(r"[.!?]+", text) if s.strip()]
-    if not words or not sentences:
-        return 8.0
-    grade = (
-        0.39 * (len(words) / len(sentences))
-        + 11.8 * (sum(_count_syllables(w) for w in words) / len(words))
-        - 15.59
-    )
-    return round(max(0.0, min(grade, 20.0)), 1)
-
-
 # ── Feature extraction ────────────────────────────────────────────────────────
 
 
-def _extract_page_features(html: str) -> dict:
-    """Parse HTML and extract all signals needed for per-page scoring."""
-    try:
-        soup = BeautifulSoup(html, "lxml")
-    except Exception:
-        soup = BeautifulSoup(html, "html.parser")
-
-    # Remove noise tags
-    for tag in soup.find_all(["script", "style", "nav", "header", "footer", "aside"]):
-        tag.decompose()
-
-    body_text = soup.get_text(separator=" ", strip=True)
-    html_str = str(soup)  # used for author pattern matching (class names, itemprop)
+def _extract_page_features_from_feat(feat: dict) -> dict:
+    """Extract all scoring signals from a pre-parsed feature dict (from geo_features)."""
+    soup = feat["soup"]
+    body_text = feat["body_text"]
+    html_str = feat["html_str"]  # used for author pattern matching (class names, itemprop)
 
     # ── Basic signals ─────────────────────────────────────────────────────────
 
@@ -175,33 +138,28 @@ def _extract_page_features(html: str) -> dict:
 
     # ── Schema signals ────────────────────────────────────────────────────────
 
-    ld_scripts = soup.find_all("script", attrs={"type": "application/ld+json"})
-    has_json_ld = bool(ld_scripts)
+    # Use pre-extracted JSON-LD from feat (extracted before tag stripping in geo_features)
+    json_ld_blocks = feat["raw_json_ld"]
+    has_json_ld = bool(json_ld_blocks)
     schema_types: list[str] = []
     schema_completeness_score = 0.0
 
-    if ld_scripts:
+    if json_ld_blocks:
         completeness_ratios: list[float] = []
-        for script in ld_scripts:
-            try:
-                data = json.loads(script.string or "")
-                items = data if isinstance(data, list) else [data]
-                for item in items:
-                    if not isinstance(item, dict):
-                        continue
-                    t = item.get("@type")
-                    if not t:
-                        continue
-                    type_str = t if isinstance(t, str) else str(t)
-                    schema_types.append(type_str)
-                    required = _SCHEMA_REQUIRED_FIELDS.get(type_str, [])
-                    if required:
-                        present = sum(1 for f in required if f in item)
-                        completeness_ratios.append(present / len(required))
-                    else:
-                        completeness_ratios.append(1.0)
-            except Exception:
-                pass
+        for item in json_ld_blocks:
+            if not isinstance(item, dict):
+                continue
+            t = item.get("@type")
+            if not t:
+                continue
+            type_str = t if isinstance(t, str) else str(t)
+            schema_types.append(type_str)
+            required = _SCHEMA_REQUIRED_FIELDS.get(type_str, [])
+            if required:
+                present = sum(1 for f in required if f in item)
+                completeness_ratios.append(present / len(required))
+            else:
+                completeness_ratios.append(1.0)
         if completeness_ratios:
             schema_completeness_score = sum(completeness_ratios) / len(completeness_ratios)
 
@@ -224,7 +182,7 @@ def _extract_page_features(html: str) -> dict:
 
     # ── Content quality signals ───────────────────────────────────────────────
 
-    fk_grade = _compute_fk_grade(body_text) if word_count >= 50 else 8.0
+    fk_grade = feat["fk_grade"] if word_count >= 50 else 8.0
 
     # ── NLP / Semantic signals ────────────────────────────────────────────────
 
@@ -597,23 +555,24 @@ def _build_issues(
 # ── Main entry point ──────────────────────────────────────────────────────────
 
 
-def score_pages(fetched_pages: list[tuple[str, str]]) -> list[dict]:
+def score_pages(page_features: list[dict]) -> list[dict]:
     """
     Score each fetched page and return results sorted by score ascending (worst first).
 
     Args:
-        fetched_pages: List of (url, html) tuples.
+        page_features: List of feature dicts from geo_features.extract_page_features().
 
     Returns:
         List of per-page score dicts.
     """
     results = []
 
-    for url, html in fetched_pages:
-        if not html:
+    for feat in page_features:
+        url = feat["url"]
+        if not feat["body_text"] and not feat["raw_json_ld"]:
             continue
         try:
-            f = _extract_page_features(html)
+            f = _extract_page_features_from_feat(feat)
 
             structured_data_raw = _score_structured_data(f)
             eeat_raw             = _score_eeat(f)

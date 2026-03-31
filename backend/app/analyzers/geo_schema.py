@@ -188,19 +188,19 @@ def _check_semantic_match(schema_obj: dict, type_name: str, soup: BeautifulSoup)
     return issues
 
 
-def analyze_schemas(pages_html: list[tuple[str, str]], site_type: str = "informational") -> dict:
+def analyze_schemas(page_features: list[dict], site_type: str = "informational") -> dict:
     """
     Analyze structured data across a sample of pages.
 
     Args:
-        pages_html: List of (url, html_content) tuples
+        page_features: List of feature dicts from geo_features.extract_page_features()
         site_type: Detected site type for recommendation context
 
     Returns structured analysis dict.
     """
     all_schema_types: list[str] = []
     pages_with_schema = 0
-    pages_analyzed = len(pages_html)
+    pages_analyzed = len(page_features)
     has_json_ld = False
     has_microdata = False
     has_rdfa = False
@@ -208,18 +208,16 @@ def analyze_schemas(pages_html: list[tuple[str, str]], site_type: str = "informa
     completeness_issues: list[dict] = []
     semantic_issues: list[dict] = []
 
-    for url, html in pages_html:
-        if not html:
+    for feat in page_features:
+        url = feat["url"]
+        soup = feat["soup"]
+        if not feat["body_text"] and not feat["raw_json_ld"]:
             continue
-        try:
-            soup = BeautifulSoup(html, "lxml")
-        except Exception:
-            soup = BeautifulSoup(html, "html.parser")
 
         page_has_schema = False
 
-        # JSON-LD
-        json_ld_blocks = _extract_json_ld(soup)
+        # Use pre-extracted JSON-LD (extracted before strip in geo_features)
+        json_ld_blocks = feat["raw_json_ld"]
         if json_ld_blocks:
             has_json_ld = True
             page_has_schema = True

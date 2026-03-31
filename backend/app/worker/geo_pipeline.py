@@ -23,6 +23,7 @@ from app.analyzers.geo_page_scores import score_pages
 from app.analyzers.geo_score import compute_score
 from app.analyzers.geo_suggestions import generate_suggestions
 from app.store.crawl_store import set_geo, get_pages_html
+from app.analyzers.geo_features import extract_page_features
 
 # Max pages to fetch for deep analysis (keeps analysis time bounded)
 _MAX_PAGES_TO_FETCH = 15
@@ -159,6 +160,9 @@ def run_geo_pipeline(
         all_page_urls = [p.get("address", "") for p in pages if p.get("address")]
         html_pages = [(u, h) for u, h in fetched if h]
 
+        # Build shared feature dicts — one BeautifulSoup parse per page
+        page_features = [extract_page_features(u, h) for u, h in html_pages]
+
         # --- Step 2: Site type detection first (pure heuristic, <50ms) ---
         # Run before wave 1 so analyze_schemas gets site_type immediately,
         # avoiding a second full schema pass.
@@ -173,16 +177,16 @@ def run_geo_pipeline(
         # --- Step 3: Wave 1 — Heuristic agents in parallel (4 workers) ---
         # schema now receives site_type directly — no second schema run needed.
         def _run_schema():
-            return analyze_schemas(html_pages, site_type=site_type)
+            return analyze_schemas(page_features, site_type=site_type)
 
         def _run_content():
-            return analyze_content(html_pages)
+            return analyze_content(page_features)
 
         def _run_eeat():
             return analyze_eeat(all_page_urls, homepage_html, about_html, pages)
 
         def _run_page_scores():
-            return score_pages(html_pages)
+            return score_pages(page_features)
 
         heuristic_tasks = {
             "schema":      _run_schema,
