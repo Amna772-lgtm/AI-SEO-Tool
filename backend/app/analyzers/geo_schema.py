@@ -43,24 +43,6 @@ _RECOMMENDED_BY_SITE_TYPE: dict[str, list[str]] = {
 }
 
 
-def _extract_json_ld(soup: BeautifulSoup) -> list[dict]:
-    """Extract all JSON-LD blocks from a page."""
-    results = []
-    for tag in soup.find_all("script", type="application/ld+json"):
-        try:
-            text = tag.get_text(strip=True)
-            if not text:
-                continue
-            data = json.loads(text)
-            if isinstance(data, list):
-                results.extend(data)
-            else:
-                results.append(data)
-        except (json.JSONDecodeError, Exception):
-            continue
-    return results
-
-
 def _extract_microdata_types(soup: BeautifulSoup) -> list[str]:
     """Extract schema types from Microdata (itemtype attributes)."""
     types = []

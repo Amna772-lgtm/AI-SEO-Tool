@@ -45,19 +45,6 @@ _YEAR_RE = re.compile(r"\b(?:19|20)\d{2}\b")
 _QUOTE_RE = re.compile(r'"[^"]{15,200}"')
 
 
-def _clean_text(html: str) -> str:
-    """Extract clean body text from HTML, stripping nav/footer/scripts."""
-    try:
-        soup = BeautifulSoup(html, "lxml")
-    except Exception:
-        soup = BeautifulSoup(html, "html.parser")
-
-    for tag in soup.find_all(_STRIP_TAGS):
-        tag.decompose()
-
-    return soup.get_text(separator=" ", strip=True)
-
-
 def _word_count(text: str) -> int:
     return len(re.findall(r"\b\w+\b", text))
 

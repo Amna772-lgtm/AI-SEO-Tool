@@ -16,8 +16,6 @@ from __future__ import annotations
 
 import json
 import re
-from bs4 import BeautifulSoup
-
 from app.analyzers.geo_features import _flesch_kincaid_grade as _compute_fk_grade
 
 # ── Grade thresholds ──────────────────────────────────────────────────────────
