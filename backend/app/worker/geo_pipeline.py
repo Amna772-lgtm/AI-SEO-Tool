@@ -22,7 +22,7 @@ from app.analyzers.geo_entity import analyze_entity
 from app.analyzers.geo_page_scores import score_pages
 from app.analyzers.geo_score import compute_score
 from app.analyzers.geo_suggestions import generate_suggestions
-from app.store.crawl_store import set_geo
+from app.store.crawl_store import set_geo, get_pages_html
 
 # Max pages to fetch for deep analysis (keeps analysis time bounded)
 _MAX_PAGES_TO_FETCH = 15
@@ -130,18 +130,29 @@ def run_geo_pipeline(
     Called by the Celery task after the main crawl + audit complete.
     """
     try:
-        # --- Step 1: Select and fetch pages using a shared httpx client ---
+        # --- Step 1: Select pages and retrieve cached HTML from Redis ---
         page_limit = _geo_page_limit(inventory_total)
         urls_to_fetch = _select_pages_to_fetch(url, pages, max_count=page_limit)
-        fetched: list[tuple[str, str]] = []
 
-        with httpx.Client(timeout=_FETCH_TIMEOUT, follow_redirects=True) as http_client:
-            with ThreadPoolExecutor(max_workers=8) as executor:
-                futures = {executor.submit(_fetch_html, u, http_client): u for u in urls_to_fetch}
-                for future in as_completed(futures):
-                    page_url, html = future.result()
-                    if html:
-                        fetched.append((page_url, html))
+        # Primary: read HTML from Redis cache (stored during crawl)
+        html_map = get_pages_html(task_id, urls_to_fetch)
+
+        # Fallback: HTTP fetch for any URL with empty cache (e.g. pre-deploy tasks)
+        fetched: list[tuple[str, str]] = []
+        cache_misses = [u for u in urls_to_fetch if not html_map.get(u)]
+        if cache_misses:
+            with httpx.Client(timeout=_FETCH_TIMEOUT, follow_redirects=True) as http_client:
+                with ThreadPoolExecutor(max_workers=8) as executor:
+                    futures = {executor.submit(_fetch_html, u, http_client): u for u in cache_misses}
+                    for future in as_completed(futures):
+                        page_url, html = future.result()
+                        if html:
+                            html_map[page_url] = html
+
+        for u in urls_to_fetch:
+            html = html_map.get(u, "")
+            if html:
+                fetched.append((u, html))
 
         homepage_html = next((html for u, html in fetched if u.rstrip("/") == url.rstrip("/")), "")
         about_html = _find_about_html(fetched)
@@ -203,10 +214,10 @@ def run_geo_pipeline(
         set_geo(task_id, "page_scores", page_scores_result)
 
         # --- Step 4: Wave 2 — NLP + Probe + Entity in parallel; Suggestions after NLP ---
-        # Layout: [nlp]    ──► preliminary_score ──► [suggestions] ─┐
-        #         [probe]   ──────────────────────────────────────────┤
-        #         [entity]  ──────────────────────────────────────────┤
-        #                                                             └► final_score ──► persist
+        # Layout: [nlp]   ──► [suggestions] ─┐
+        #         [probe]  ──────────────────┤
+        #         [entity] ──────────────────┤
+        #                                    └► final_score ──► persist
         nlp_result         = None
         probe_result       = None
         entity_result      = None

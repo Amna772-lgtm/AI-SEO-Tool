@@ -67,6 +67,7 @@ def _flush_pages_buffer(task_id: str) -> None:
 
 def append_page(task_id: str, page_data: dict[str, Any]) -> None:
     page_data = dict(page_data)
+    page_data.pop("_html", None)  # strip HTML before Redis serialisation — stored separately
     page_data.setdefault("type", "internal")
     serialized = json.dumps(page_data, default=str)
     _pages_buffer.setdefault(task_id, [])
@@ -181,3 +182,33 @@ def get_geo(task_id: str, agent: str) -> dict[str, Any] | None:
     r = get_redis()
     raw = r.get(_geo_key(task_id, agent))
     return json.loads(raw) if raw else None
+
+
+# ── HTML cache (for GEO pipeline — avoids re-fetch) ──────────────────────────
+# Key: crawl:html:{task_id}  (Redis hash: {url -> html_string})
+# Same 2-hour TTL as crawl data.
+
+def _html_key(task_id: str) -> str:
+    return f"crawl:html:{task_id}"
+
+
+def store_page_html(task_id: str, url: str, html: str) -> None:
+    """Store raw HTML for a single URL under crawl:html:{task_id} hash."""
+    r = get_redis()
+    r.hset(_html_key(task_id), url, html)
+    r.expire(_html_key(task_id), CRAWL_TTL_SECONDS)
+
+
+def get_pages_html(task_id: str, urls: list[str]) -> dict[str, str]:
+    """
+    Bulk-fetch HTML for a list of URLs from Redis.
+    Returns {url: html}. Missing URLs map to empty string.
+    Uses pipeline for a single round-trip.
+    """
+    r = get_redis()
+    key = _html_key(task_id)
+    pipe = r.pipeline()
+    for url in urls:
+        pipe.hget(key, url)
+    values = pipe.execute()
+    return {u: (v or "") for u, v in zip(urls, values)}

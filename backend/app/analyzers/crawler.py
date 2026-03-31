@@ -304,6 +304,7 @@ def build_page_data(
             if html_meta.get("language") and not out["language"]:
                 out["language"] = html_meta["language"]
             out["readability"] = _compute_readability(response.text)
+            out["_html"] = response.text  # temporary; stripped by crawl_store.append_page
         else:
             out["readability"] = "N/A"
     return out

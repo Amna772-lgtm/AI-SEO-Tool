@@ -8,7 +8,7 @@ from app.analyzers.audit import run_url_checks, run_page_checks
 from app.analyzers.page_inventory import build_inventory, smart_sample
 from app.store.crawl_store import (
     set_meta, append_page, flush_pages_buffer, get_meta, get_all_pages,
-    update_pages_alt_text, get_geo, set_inventory,
+    update_pages_alt_text, get_geo, set_inventory, store_page_html,
 )
 from app.store.history_store import save_analysis, get_due_schedules, mark_schedule_ran
 from app.worker.geo_pipeline import run_geo_pipeline
@@ -71,6 +71,10 @@ def process_site(url: str, task_id: str, robots_allowed: bool = True, ai_crawler
         img_alt_map: dict = {}
 
         def on_page_crawled(page_data: dict) -> None:
+            # Store raw HTML in a separate Redis hash for GEO pipeline use
+            html = page_data.get("_html", "")
+            if html and "html" in (page_data.get("content_type") or "").lower():
+                store_page_html(task_id, page_data.get("address", ""), html)
             append_page(task_id, page_data)
 
         # ── Phase 2: Crawl — adaptive strategy ───────────────────────────────
