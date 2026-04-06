@@ -1,5 +1,28 @@
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
+/**
+ * Centralized fetch wrapper:
+ *  - always sends credentials so the HTTP-only auth cookie is included
+ *  - on 401, dispatches a global "auth:expired" event so SessionExpiredModal can react
+ *
+ * Existing call sites can either migrate to apiFetch() OR add `credentials: "include"`
+ * directly. Both are equivalent — the helper just centralizes the 401 dispatch.
+ */
+export async function apiFetch(input: string, init: RequestInit = {}): Promise<Response> {
+  const res = await fetch(input, {
+    ...init,
+    credentials: "include",
+  });
+  if (res.status === 401 && typeof window !== "undefined") {
+    // Don't dispatch for /auth/me — that's the AuthProvider's "am I logged in?" probe
+    // and it expects a 401 when the user is not authenticated.
+    if (!input.includes("/auth/me")) {
+      window.dispatchEvent(new Event("auth:expired"));
+    }
+  }
+  return res;
+}
+
 export type SiteStatus = "pending" | "queued" | "processing" | "completed" | "failed";
 
 export interface Site {
@@ -78,7 +101,7 @@ export interface OverviewResponse {
 }
 
 export async function startAnalysis(url: string): Promise<{ site_id: string; status: string; message: string; robots_allowed: boolean }> {
-  const res = await fetch(`${API_BASE}/analyze/`, {
+  const res = await apiFetch(`${API_BASE}/analyze/`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ url }),
@@ -91,7 +114,7 @@ export async function startAnalysis(url: string): Promise<{ site_id: string; sta
 }
 
 export async function getSite(taskId: string): Promise<Site> {
-  const res = await fetch(`${API_BASE}/sites/${taskId}`);
+  const res = await apiFetch(`${API_BASE}/sites/${taskId}`);
   if (!res.ok) throw new Error("Crawl not found");
   return res.json();
 }
@@ -107,13 +130,13 @@ export async function getPages(
   if (opts?.limit != null) params.set("limit", String(opts.limit));
   const q = params.toString();
   const url = `${API_BASE}/sites/${taskId}/pages${q ? `?${q}` : ""}`;
-  const res = await fetch(url);
+  const res = await apiFetch(url);
   if (!res.ok) throw new Error("Failed to load pages");
   return res.json();
 }
 
 export async function getOverview(taskId: string): Promise<OverviewResponse> {
-  const res = await fetch(`${API_BASE}/sites/${taskId}/overview`);
+  const res = await apiFetch(`${API_BASE}/sites/${taskId}/overview`);
   if (!res.ok) throw new Error("Failed to load overview");
   return res.json();
 }
@@ -162,7 +185,7 @@ export interface AuditResponse {
 }
 
 export async function getAudit(taskId: string): Promise<AuditResponse> {
-  const res = await fetch(`${API_BASE}/sites/${taskId}/audit`);
+  const res = await apiFetch(`${API_BASE}/sites/${taskId}/audit`);
   if (!res.ok) throw new Error("Failed to load audit");
   return res.json();
 }
@@ -456,7 +479,7 @@ export interface GeoResponse {
 }
 
 export async function getGeo(taskId: string): Promise<GeoResponse> {
-  const res = await fetch(`${API_BASE}/sites/${taskId}/geo`);
+  const res = await apiFetch(`${API_BASE}/sites/${taskId}/geo`);
   if (!res.ok) throw new Error("Failed to load GEO analysis");
   return res.json();
 }
@@ -514,19 +537,19 @@ export async function getHistory(opts?: {
   if (opts?.limit != null) params.set("limit", String(opts.limit));
   if (opts?.offset != null) params.set("offset", String(opts.offset));
   const q = params.toString();
-  const res = await fetch(`${API_BASE}/history/${q ? `?${q}` : ""}`);
+  const res = await apiFetch(`${API_BASE}/history/${q ? `?${q}` : ""}`);
   if (!res.ok) throw new Error("Failed to load history");
   return res.json();
 }
 
 export async function getHistoryRecord(id: string): Promise<HistoryRecord> {
-  const res = await fetch(`${API_BASE}/history/${id}`);
+  const res = await apiFetch(`${API_BASE}/history/${id}`);
   if (!res.ok) throw new Error("History record not found");
   return res.json();
 }
 
 export async function deleteHistoryRecord(id: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/history/${id}`, { method: "DELETE" });
+  const res = await apiFetch(`${API_BASE}/history/${id}`, { method: "DELETE" });
   if (!res.ok && res.status !== 204) throw new Error("Failed to delete history record");
 }
 
@@ -578,13 +601,13 @@ export interface TriggerResponse {
 
 export async function listSchedules(domain?: string): Promise<SchedulesResponse> {
   const params = domain ? `?domain=${encodeURIComponent(domain)}` : "";
-  const res = await fetch(`${API_BASE}/schedules/${params}`);
+  const res = await apiFetch(`${API_BASE}/schedules/${params}`);
   if (!res.ok) throw new Error("Failed to load schedules");
   return res.json();
 }
 
 export async function createSchedule(payload: CreateSchedulePayload): Promise<Schedule> {
-  const res = await fetch(`${API_BASE}/schedules/`, {
+  const res = await apiFetch(`${API_BASE}/schedules/`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -597,7 +620,7 @@ export async function createSchedule(payload: CreateSchedulePayload): Promise<Sc
 }
 
 export async function updateSchedule(id: string, payload: UpdateSchedulePayload): Promise<Schedule> {
-  const res = await fetch(`${API_BASE}/schedules/${id}`, {
+  const res = await apiFetch(`${API_BASE}/schedules/${id}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -607,12 +630,57 @@ export async function updateSchedule(id: string, payload: UpdateSchedulePayload)
 }
 
 export async function deleteSchedule(id: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/schedules/${id}`, { method: "DELETE" });
+  const res = await apiFetch(`${API_BASE}/schedules/${id}`, { method: "DELETE" });
   if (!res.ok && res.status !== 204) throw new Error("Failed to delete schedule");
 }
 
 export async function triggerSchedule(id: string): Promise<TriggerResponse> {
-  const res = await fetch(`${API_BASE}/schedules/${id}/trigger`, { method: "POST" });
+  const res = await apiFetch(`${API_BASE}/schedules/${id}/trigger`, { method: "POST" });
   if (!res.ok) throw new Error("Failed to trigger schedule");
+  return res.json();
+}
+
+// ── Auth ─────────────────────────────────────────────────────────────────────
+
+export interface AuthUser {
+  id: string;
+  email: string;
+  name: string;
+}
+
+export async function signIn(email: string, password: string): Promise<AuthUser> {
+  const res = await apiFetch(`${API_BASE}/auth/signin`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail ?? "Incorrect email or password. Please try again.");
+  }
+  return res.json();
+}
+
+export async function signUp(email: string, name: string, password: string): Promise<AuthUser> {
+  const res = await apiFetch(`${API_BASE}/auth/signup`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, name, password }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail ?? "Something went wrong. Please try again.");
+  }
+  return res.json();
+}
+
+export async function signOut(): Promise<void> {
+  await apiFetch(`${API_BASE}/auth/logout`, { method: "POST" });
+}
+
+export async function fetchCurrentUser(): Promise<AuthUser | null> {
+  const res = await apiFetch(`${API_BASE}/auth/me`);
+  if (res.status === 401) return null;
+  if (!res.ok) return null;
   return res.json();
 }
