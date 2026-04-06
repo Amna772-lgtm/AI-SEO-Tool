@@ -4,3 +4,13 @@
 /frontend/.next
 AI SEO Tool.pdf
 CLAUDE.md
+.claude/
+.planning/
+/backend/app/__pycache__
+/backend/app/analyzers/__pycache__
+/backend/app/api/routes/__pycache__
+/backend/app/schemas/__pycache__
+/backend/app/store/__pycache__
+/backend/app/utils/__pycache__
+/backend/app/worker/__pycache__
+/backend/celerybeat-schedule

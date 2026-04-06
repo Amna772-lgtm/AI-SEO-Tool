@@ -579,14 +579,6 @@ export default function Home() {
     : [];
 
   const crawlActive = site?.status === "completed" || site?.status === "processing";
-  const isAnalyzing = loading || (!!site && (
-    site.status === "queued" ||
-    site.status === "processing" ||
-    (site.status === "completed" && (
-      site.audit_status === "pending" || site.audit_status === "running" ||
-      site.geo_status === "pending" || site.geo_status === "running"
-    ))
-  ));
   const geoScore = geo?.score?.overall_score;
   const geoGrade = geo?.score?.grade;
 
@@ -665,10 +657,10 @@ export default function Home() {
               placeholder="https://example.com/"
               value={url}
               onChange={(e) => setUrl(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && !isAnalyzing && handleStart()}
+              onKeyDown={(e) => e.key === "Enter" && handleStart()}
               className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-[var(--muted)]"
             />
-            <button onClick={handleStart} disabled={isAnalyzing} className="shrink-0 text-[var(--muted)] transition-colors hover:text-[var(--foreground)] disabled:opacity-40 disabled:cursor-not-allowed">
+            <button onClick={handleStart} className="shrink-0 text-[var(--muted)] transition-colors hover:text-[var(--foreground)]">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
               </svg>
@@ -677,10 +669,10 @@ export default function Home() {
           <div className="flex shrink-0 items-center gap-1.5">
             <button
               onClick={handleStart}
-              disabled={isAnalyzing}
-              className="rounded bg-[var(--accent)] px-4 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-[var(--accent-hover)] disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={loading}
+              className="rounded bg-[var(--accent)] px-4 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-[var(--accent-hover)] disabled:opacity-50"
             >
-              Start
+              {loading ? "Starting..." : "Start"}
             </button>
             <button className="flex items-center gap-1 rounded border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5 text-xs text-[var(--muted)] transition-colors hover:bg-[var(--surface-elevated)]">
               <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
