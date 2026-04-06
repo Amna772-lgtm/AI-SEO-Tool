@@ -1,11 +1,6 @@
-.env
 /frontend/node_modules
-/backend/requirements.txt
 /frontend/.next
 AI SEO Tool.pdf
-CLAUDE.md
-.claude/
-.planning/
 /backend/app/__pycache__
 /backend/app/analyzers/__pycache__
 /backend/app/api/routes/__pycache__
