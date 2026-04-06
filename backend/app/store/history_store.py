@@ -30,6 +30,14 @@ def _connect() -> sqlite3.Connection:
     return conn
 
 
+def _add_column_if_missing(conn: sqlite3.Connection, table: str, column: str, col_type: str) -> None:
+    """Idempotent ALTER TABLE ADD COLUMN. SQLite has no IF NOT EXISTS for this."""
+    existing = {row[1] for row in conn.execute(f"PRAGMA table_info({table})")}
+    if column not in existing:
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {col_type}")
+        conn.commit()
+
+
 def init_db() -> None:
     """Create tables and indexes if they don't exist. Called at module import."""
     with _lock:
@@ -78,6 +86,14 @@ def init_db() -> None:
                 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email);
             """)
             conn.commit()
+            # Per-user isolation columns. Pre-existing rows will have NULL user_id (orphaned).
+            # Use plain TEXT (no REFERENCES clause) to avoid SQLite ADD COLUMN FK restriction.
+            _add_column_if_missing(conn, "analyses", "user_id", "TEXT")
+            _add_column_if_missing(conn, "schedules", "user_id", "TEXT")
+            # Indexes for user_id lookups (must run after column exists)
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_analyses_user_id  ON analyses(user_id)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_schedules_user_id ON schedules(user_id)")
+            conn.commit()
         finally:
             conn.close()
 
@@ -108,6 +124,7 @@ def save_analysis(
     pages_count: int,
     geo_data: dict[str, Any],
     audit_result: dict[str, Any] | None,
+    user_id: str | None = None,
 ) -> None:
     """
     Persist a completed GEO analysis to SQLite.
@@ -135,8 +152,8 @@ def save_analysis(
                 """
                 INSERT OR REPLACE INTO analyses
                     (id, url, domain, analyzed_at, overall_score, grade,
-                     site_type, pages_count, geo_data, audit_summary, score_breakdown)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     site_type, pages_count, geo_data, audit_summary, score_breakdown, user_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     task_id,
@@ -150,6 +167,7 @@ def save_analysis(
                     json.dumps(geo_data, default=str),
                     audit_summary,
                     json.dumps(score_obj.get("breakdown", {}), default=str),
+                    user_id,
                 ),
             )
             conn.commit()
@@ -158,12 +176,13 @@ def save_analysis(
 
 
 def list_analyses(
+    user_id: str,
     domain: str | None = None,
     limit: int = 50,
     offset: int = 0,
 ) -> list[dict[str, Any]]:
     """
-    Return analyses ordered by analyzed_at DESC.
+    Return analyses ordered by analyzed_at DESC, scoped to the given user_id.
     Excludes the large geo_data blob — use get_analysis() for full data.
     """
     conn = _connect()
@@ -176,13 +195,13 @@ def list_analyses(
         if domain:
             norm = _extract_domain(domain)
             rows = conn.execute(
-                f"{select} WHERE domain = ? ORDER BY analyzed_at DESC LIMIT ? OFFSET ?",
-                (norm, limit, offset),
+                f"{select} WHERE user_id = ? AND domain = ? ORDER BY analyzed_at DESC LIMIT ? OFFSET ?",
+                (user_id, norm, limit, offset),
             ).fetchall()
         else:
             rows = conn.execute(
-                f"{select} ORDER BY analyzed_at DESC LIMIT ? OFFSET ?",
-                (limit, offset),
+                f"{select} WHERE user_id = ? ORDER BY analyzed_at DESC LIMIT ? OFFSET ?",
+                (user_id, limit, offset),
             ).fetchall()
 
         results = []
@@ -201,12 +220,12 @@ def list_analyses(
         conn.close()
 
 
-def get_analysis(analysis_id: str) -> dict[str, Any] | None:
-    """Return a single analysis record including the full geo_data blob."""
+def get_analysis(analysis_id: str, user_id: str) -> dict[str, Any] | None:
+    """Return a single analysis record including the full geo_data blob, scoped to user_id."""
     conn = _connect()
     try:
         row = conn.execute(
-            "SELECT * FROM analyses WHERE id = ?", (analysis_id,)
+            "SELECT * FROM analyses WHERE id = ? AND user_id = ?", (analysis_id, user_id)
         ).fetchone()
         if not row:
             return None
@@ -222,13 +241,13 @@ def get_analysis(analysis_id: str) -> dict[str, Any] | None:
         conn.close()
 
 
-def delete_analysis(analysis_id: str) -> bool:
-    """Delete a record. Returns True if deleted, False if not found."""
+def delete_analysis(analysis_id: str, user_id: str) -> bool:
+    """Delete a record owned by user_id. Returns True if deleted, False if not found or not owned."""
     with _lock:
         conn = _connect()
         try:
             cursor = conn.execute(
-                "DELETE FROM analyses WHERE id = ?", (analysis_id,)
+                "DELETE FROM analyses WHERE id = ? AND user_id = ?", (analysis_id, user_id)
             )
             conn.commit()
             return cursor.rowcount > 0
@@ -236,16 +255,18 @@ def delete_analysis(analysis_id: str) -> bool:
             conn.close()
 
 
-def count_analyses(domain: str | None = None) -> int:
-    """Return total count of analyses, optionally filtered by domain."""
+def count_analyses(user_id: str, domain: str | None = None) -> int:
+    """Return total count of analyses for user_id, optionally filtered by domain."""
     conn = _connect()
     try:
         if domain:
             norm = _extract_domain(domain)
             return conn.execute(
-                "SELECT COUNT(*) FROM analyses WHERE domain = ?", (norm,)
+                "SELECT COUNT(*) FROM analyses WHERE user_id = ? AND domain = ?", (user_id, norm)
             ).fetchone()[0]
-        return conn.execute("SELECT COUNT(*) FROM analyses").fetchone()[0]
+        return conn.execute(
+            "SELECT COUNT(*) FROM analyses WHERE user_id = ?", (user_id,)
+        ).fetchone()[0]
     finally:
         conn.close()
 
@@ -317,6 +338,7 @@ def create_schedule(
     hour: int,
     day_of_week: int | None,
     day_of_month: int | None,
+    user_id: str,
 ) -> dict[str, Any]:
     """Insert a new schedule and return it as a dict."""
     schedule_id = str(uuid.uuid4())
@@ -330,43 +352,44 @@ def create_schedule(
                 """
                 INSERT INTO schedules
                     (id, url, domain, frequency, hour, day_of_week, day_of_month,
-                     enabled, created_at, next_run_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+                     enabled, created_at, next_run_at, user_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)
                 """,
                 (schedule_id, url, domain, frequency, hour,
-                 day_of_week, day_of_month, now, next_run),
+                 day_of_week, day_of_month, now, next_run, user_id),
             )
             conn.commit()
         finally:
             conn.close()
-    return get_schedule(schedule_id)  # type: ignore[return-value]
+    return get_schedule(schedule_id, user_id=user_id)  # type: ignore[return-value]
 
 
-def get_schedule(schedule_id: str) -> dict[str, Any] | None:
-    """Return a single schedule row or None."""
+def get_schedule(schedule_id: str, user_id: str) -> dict[str, Any] | None:
+    """Return a single schedule row owned by user_id, or None."""
     conn = _connect()
     try:
         row = conn.execute(
-            "SELECT * FROM schedules WHERE id = ?", (schedule_id,)
+            "SELECT * FROM schedules WHERE id = ? AND user_id = ?", (schedule_id, user_id)
         ).fetchone()
         return _row_to_schedule(row) if row else None
     finally:
         conn.close()
 
 
-def list_schedules(domain: str | None = None) -> list[dict[str, Any]]:
-    """Return all schedules ordered by next_run_at ASC, optionally filtered by domain."""
+def list_schedules(user_id: str, domain: str | None = None) -> list[dict[str, Any]]:
+    """Return schedules for user_id ordered by next_run_at ASC, optionally filtered by domain."""
     conn = _connect()
     try:
         if domain:
             norm = _extract_domain(domain)
             rows = conn.execute(
-                "SELECT * FROM schedules WHERE domain = ? ORDER BY next_run_at ASC",
-                (norm,),
+                "SELECT * FROM schedules WHERE user_id = ? AND domain = ? ORDER BY next_run_at ASC",
+                (user_id, norm),
             ).fetchall()
         else:
             rows = conn.execute(
-                "SELECT * FROM schedules ORDER BY next_run_at ASC"
+                "SELECT * FROM schedules WHERE user_id = ? ORDER BY next_run_at ASC",
+                (user_id,),
             ).fetchall()
         return [_row_to_schedule(r) for r in rows]
     finally:
@@ -375,6 +398,7 @@ def list_schedules(domain: str | None = None) -> list[dict[str, Any]]:
 
 def update_schedule(
     schedule_id: str,
+    user_id: str,
     *,
     frequency: str | None = None,
     hour: int | None = None,
@@ -383,10 +407,11 @@ def update_schedule(
     enabled: bool | None = None,
 ) -> dict[str, Any] | None:
     """
-    Update mutable fields.  Recomputes next_run_at whenever any scheduling
-    field changes.  Returns updated row or None if not found.
+    Update mutable fields for a schedule owned by user_id.  Recomputes next_run_at
+    whenever any scheduling field changes.  Returns updated row or None if not found
+    or not owned by user_id.
     """
-    current = get_schedule(schedule_id)
+    current = get_schedule(schedule_id, user_id=user_id)
     if not current:
         return None
 
@@ -416,29 +441,41 @@ def update_schedule(
                 UPDATE schedules
                 SET frequency=?, hour=?, day_of_week=?, day_of_month=?,
                     enabled=?, next_run_at=?
-                WHERE id=?
+                WHERE id=? AND user_id=?
                 """,
                 (new_freq, new_hour, new_dow, new_dom,
-                 int(new_enabled), new_next_run, schedule_id),
+                 int(new_enabled), new_next_run, schedule_id, user_id),
             )
             conn.commit()
         finally:
             conn.close()
-    return get_schedule(schedule_id)
+    return get_schedule(schedule_id, user_id=user_id)
 
 
-def delete_schedule(schedule_id: str) -> bool:
-    """Delete a schedule by id. Returns True if deleted."""
+def delete_schedule(schedule_id: str, user_id: str) -> bool:
+    """Delete a schedule owned by user_id. Returns True if deleted."""
     with _lock:
         conn = _connect()
         try:
             cursor = conn.execute(
-                "DELETE FROM schedules WHERE id = ?", (schedule_id,)
+                "DELETE FROM schedules WHERE id = ? AND user_id = ?", (schedule_id, user_id)
             )
             conn.commit()
             return cursor.rowcount > 0
         finally:
             conn.close()
+
+
+def _get_schedule_internal(schedule_id: str) -> dict[str, Any] | None:
+    """Return a schedule row by id regardless of user ownership. Internal use only (Beat, mark_schedule_ran)."""
+    conn = _connect()
+    try:
+        row = conn.execute(
+            "SELECT * FROM schedules WHERE id = ?", (schedule_id,)
+        ).fetchone()
+        return _row_to_schedule(row) if row else None
+    finally:
+        conn.close()
 
 
 def get_due_schedules(as_of: datetime | None = None) -> list[dict[str, Any]]:
@@ -457,7 +494,7 @@ def get_due_schedules(as_of: datetime | None = None) -> list[dict[str, Any]]:
 
 def mark_schedule_ran(schedule_id: str) -> None:
     """Set last_run_at = now and advance next_run_at. Called before dispatching a task."""
-    current = get_schedule(schedule_id)
+    current = _get_schedule_internal(schedule_id)
     if not current:
         return
     now = datetime.now(timezone.utc)
