@@ -4,12 +4,12 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 04
 status: completed
-last_updated: "2026-04-06T18:23:46.463Z"
+last_updated: "2026-04-06T18:38:05.198Z"
 progress:
   total_phases: 4
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 4
-  completed_plans: 3
+  completed_plans: 4
 ---
 
 # Project State
@@ -53,6 +53,7 @@ Status: Phase 01 COMPLETE — All 3 plans executed
 - [Phase 04]: Return 404 not 403 on cross-user resource access to prevent existence leakage
 - [Phase 04]: Celery worker not modified — save_analysis produces NULL user_id rows (orphaned, invisible to users). Deferred to plan 03
 - [Phase 04]: _get_schedule_internal helper added so mark_schedule_ran bypasses user scoping for Beat compatibility
+- [Phase 04]: SessionExpiredModal falls back to /login redirect when no user in context to prevent broken state
 
 ## Codebase Map
 
