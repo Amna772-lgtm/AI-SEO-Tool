@@ -125,7 +125,7 @@
 
 Plans:
 - [x] 04-01-PLAN.md — Backend auth foundation: users table, /auth router (signup/signin/logout/me), get_current_user dependency, pytest scaffolding
-- [ ] 04-02-PLAN.md — Protect existing routes with auth dependency + per-user data isolation (user_id columns + scoped queries) + cross-user isolation tests
+- [x] 04-02-PLAN.md — Protect existing routes with auth dependency + per-user data isolation (user_id columns + scoped queries) + cross-user isolation tests
 - [ ] 04-03-PLAN.md — Frontend foundation: api.ts credentials + 401 dispatch, AuthContext, proxy.ts route guard, /login and /signup pages
 - [ ] 04-04-PLAN.md — Wire AuthProvider into layout, SessionExpiredModal, sidebar user info + Sign-out button (manual UAT)
 

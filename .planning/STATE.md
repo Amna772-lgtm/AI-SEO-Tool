@@ -4,12 +4,12 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 04
 status: completed
-last_updated: "2026-04-06T18:12:31Z"
+last_updated: "2026-04-06T18:23:46.463Z"
 progress:
   total_phases: 4
   completed_phases: 0
   total_plans: 4
-  completed_plans: 1
+  completed_plans: 2
 ---
 
 # Project State
@@ -50,6 +50,9 @@ Status: Phase 01 COMPLETE — All 3 plans executed
 - _compute_fk_grade alias used in geo_page_scores.py import to minimize call-site changes (PIPE-03)
 - generate_suggestions() uses keyword-only args to prevent positional shift bugs (PIPE-04)
 - Probe reduced 5→3 questions: 16 total API calls vs 26 (38.5% reduction) (PIPE-05)
+- [Phase 04]: Return 404 not 403 on cross-user resource access to prevent existence leakage
+- [Phase 04]: Celery worker not modified — save_analysis produces NULL user_id rows (orphaned, invisible to users). Deferred to plan 03
+- [Phase 04]: _get_schedule_internal helper added so mark_schedule_ran bypasses user scoping for Beat compatibility
 
 ## Codebase Map
 
