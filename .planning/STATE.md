@@ -9,7 +9,7 @@ progress:
   total_phases: 4
   completed_phases: 0
   total_plans: 4
-  completed_plans: 2
+  completed_plans: 3
 ---
 
 # Project State
@@ -77,6 +77,13 @@ See: .planning/codebase/ (generated 2026-03-30)
 - /health endpoint public; existing routes NOT yet protected (that is plan 02) (AUTH-D08)
 - Email stored and compared lowercase for case-insensitive uniqueness
 
+### Phase 04 Decisions (Plan 03)
+
+- proxy.ts used instead of middleware.ts — Next.js 16.1.6 uses proxy.ts per RESEARCH §Pattern 4
+- /auth/me 401 does NOT dispatch auth:expired to prevent infinite loop on AuthProvider mount
+- AuthProvider exported but NOT wrapped in layout.tsx yet — plan 04 does that
+
 ### Phase 04 Progress
 
 - Plan 01 COMPLETE: /auth router (signup, signin, logout, me), users table, get_current_user dependency, 8/8 pytest GREEN
+- Plan 03 COMPLETE: frontend auth foundation — apiFetch helper, AuthContext/useAuth, proxy.ts route guard, /login and /signup pages
