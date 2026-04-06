@@ -1,8 +1,19 @@
-from fastapi import APIRouter, HTTPException, Query
+from typing import Any
 
+from fastapi import APIRouter, Depends, HTTPException, Query
+
+from app.dependencies.auth import get_current_user
 from app.store.crawl_store import get_meta, get_all_pages, get_pages_paginated
 
 router = APIRouter()
+
+
+def _get_meta_for_user(task_id: str, user_id: str) -> dict:
+    meta = get_meta(task_id)
+    if not meta or meta.get("user_id") != user_id:
+        # Return 404 (not 403) so we don't leak existence to other users
+        raise HTTPException(status_code=404, detail="Crawl not found")
+    return meta
 
 
 def _content_type_label(ct: str) -> str:
@@ -29,10 +40,8 @@ def _content_type_label(ct: str) -> str:
 
 
 @router.get("/{task_id}")
-def get_site(task_id: str):
-    meta = get_meta(task_id)
-    if not meta:
-        raise HTTPException(status_code=404, detail="Crawl not found")
+def get_site(task_id: str, current_user: dict[str, Any] = Depends(get_current_user)):
+    meta = _get_meta_for_user(task_id, current_user["id"])
     return {
         "id": meta.get("id", task_id),
         "url": meta.get("url"),
@@ -57,10 +66,9 @@ def list_pages(
     search: str | None = Query(None),
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=100000),
+    current_user: dict[str, Any] = Depends(get_current_user),
 ):
-    meta = get_meta(task_id)
-    if not meta:
-        raise HTTPException(status_code=404, detail="Crawl not found")
+    meta = _get_meta_for_user(task_id, current_user["id"])
 
     if type_filter or search:
         # Filtered/search queries: load all, then slice (necessary for correctness)
@@ -116,10 +124,8 @@ def list_pages(
 
 
 @router.get("/{task_id}/audit")
-def get_site_audit(task_id: str):
-    meta = get_meta(task_id)
-    if not meta:
-        raise HTTPException(status_code=404, detail="Crawl not found")
+def get_site_audit(task_id: str, current_user: dict[str, Any] = Depends(get_current_user)):
+    meta = _get_meta_for_user(task_id, current_user["id"])
     return {
         "site_id": task_id,
         "audit_status": meta.get("audit_status", "pending"),
@@ -128,10 +134,8 @@ def get_site_audit(task_id: str):
 
 
 @router.get("/{task_id}/overview")
-def get_site_overview(task_id: str):
-    meta = get_meta(task_id)
-    if not meta:
-        raise HTTPException(status_code=404, detail="Crawl not found")
+def get_site_overview(task_id: str, current_user: dict[str, Any] = Depends(get_current_user)):
+    meta = _get_meta_for_user(task_id, current_user["id"])
 
     pages = get_all_pages(task_id)
     total = len(pages)

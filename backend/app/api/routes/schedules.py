@@ -1,9 +1,10 @@
 import uuid
-from typing import Literal
+from typing import Any, Literal
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field, model_validator
 
+from app.dependencies.auth import get_current_user
 from app.store.history_store import (
     create_schedule,
     delete_schedule,
@@ -45,39 +46,53 @@ class UpdateScheduleRequest(BaseModel):
 
 
 @router.post("/", status_code=201)
-def create(body: CreateScheduleRequest):
+def create(
+    body: CreateScheduleRequest,
+    current_user: dict[str, Any] = Depends(get_current_user),
+):
     try:
         normalized_url = validate_and_normalize_url(body.url)
     except URLValidationError as e:
         raise HTTPException(status_code=422, detail=str(e))
 
-    schedule = create_schedule(
+    return create_schedule(
         normalized_url,
         body.frequency,
         body.hour,
         body.day_of_week,
         body.day_of_month,
+        user_id=current_user["id"],
     )
-    return schedule
 
 
 @router.get("/")
-def list_all(domain: str | None = Query(None)):
-    return {"schedules": list_schedules(domain=domain)}
+def list_all(
+    domain: str | None = Query(None),
+    current_user: dict[str, Any] = Depends(get_current_user),
+):
+    return {"schedules": list_schedules(user_id=current_user["id"], domain=domain)}
 
 
 @router.get("/{schedule_id}")
-def get_one(schedule_id: str):
-    s = get_schedule(schedule_id)
+def get_one(
+    schedule_id: str,
+    current_user: dict[str, Any] = Depends(get_current_user),
+):
+    s = get_schedule(schedule_id, user_id=current_user["id"])
     if not s:
         raise HTTPException(status_code=404, detail="Schedule not found")
     return s
 
 
 @router.patch("/{schedule_id}")
-def edit(schedule_id: str, body: UpdateScheduleRequest):
+def edit(
+    schedule_id: str,
+    body: UpdateScheduleRequest,
+    current_user: dict[str, Any] = Depends(get_current_user),
+):
     updated = update_schedule(
         schedule_id,
+        current_user["id"],
         **body.model_dump(exclude_none=True),
     )
     if not updated:
@@ -86,15 +101,21 @@ def edit(schedule_id: str, body: UpdateScheduleRequest):
 
 
 @router.delete("/{schedule_id}", status_code=204)
-def remove(schedule_id: str):
-    if not delete_schedule(schedule_id):
+def remove(
+    schedule_id: str,
+    current_user: dict[str, Any] = Depends(get_current_user),
+):
+    if not delete_schedule(schedule_id, user_id=current_user["id"]):
         raise HTTPException(status_code=404, detail="Schedule not found")
 
 
 @router.post("/{schedule_id}/trigger", status_code=202)
-def trigger(schedule_id: str):
+def trigger(
+    schedule_id: str,
+    current_user: dict[str, Any] = Depends(get_current_user),
+):
     """Immediately dispatch process_site for this schedule."""
-    s = get_schedule(schedule_id)
+    s = get_schedule(schedule_id, user_id=current_user["id"])
     if not s:
         raise HTTPException(status_code=404, detail="Schedule not found")
 
@@ -114,6 +135,7 @@ def trigger(schedule_id: str):
         "ai_crawler_access": robots_result.get("ai_crawler_access"),
         "disallowed_paths": robots_result.get("disallowed_paths", []),
         "triggered_by_schedule": schedule_id,
+        "user_id": current_user["id"],
     })
     process_site.delay(
         s["url"],

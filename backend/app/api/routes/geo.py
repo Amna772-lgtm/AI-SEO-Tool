@@ -15,26 +15,28 @@ from __future__ import annotations
 import csv
 import io
 from datetime import datetime
+from typing import Any
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 
+from app.dependencies.auth import get_current_user
 from app.store.crawl_store import get_meta, get_geo, get_all_pages
 
 router = APIRouter()
 
 
-def _require_meta(task_id: str) -> dict:
+def _get_meta_for_user(task_id: str, user_id: str) -> dict:
     meta = get_meta(task_id)
-    if not meta:
+    if not meta or meta.get("user_id") != user_id:
         raise HTTPException(status_code=404, detail="Crawl not found")
     return meta
 
 
 @router.get("/{task_id}/geo")
-def get_geo_all(task_id: str):
+def get_geo_all(task_id: str, current_user: dict[str, Any] = Depends(get_current_user)):
     """Return all GEO agent results in a single response."""
-    meta = _require_meta(task_id)
+    meta = _get_meta_for_user(task_id, current_user["id"])
     geo_status = meta.get("geo_status", "pending")
 
     return {
@@ -54,8 +56,8 @@ def get_geo_all(task_id: str):
 
 
 @router.get("/{task_id}/geo/score")
-def get_geo_score(task_id: str):
-    _require_meta(task_id)
+def get_geo_score(task_id: str, current_user: dict[str, Any] = Depends(get_current_user)):
+    _get_meta_for_user(task_id, current_user["id"])
     data = get_geo(task_id, "score")
     if not data:
         raise HTTPException(status_code=404, detail="GEO score not yet available")
@@ -63,8 +65,8 @@ def get_geo_score(task_id: str):
 
 
 @router.get("/{task_id}/geo/schema")
-def get_geo_schema(task_id: str):
-    _require_meta(task_id)
+def get_geo_schema(task_id: str, current_user: dict[str, Any] = Depends(get_current_user)):
+    _get_meta_for_user(task_id, current_user["id"])
     data = get_geo(task_id, "schema")
     if not data:
         raise HTTPException(status_code=404, detail="Schema analysis not yet available")
@@ -72,8 +74,8 @@ def get_geo_schema(task_id: str):
 
 
 @router.get("/{task_id}/geo/content")
-def get_geo_content(task_id: str):
-    _require_meta(task_id)
+def get_geo_content(task_id: str, current_user: dict[str, Any] = Depends(get_current_user)):
+    _get_meta_for_user(task_id, current_user["id"])
     data = get_geo(task_id, "content")
     if not data:
         raise HTTPException(status_code=404, detail="Content analysis not yet available")
@@ -81,8 +83,8 @@ def get_geo_content(task_id: str):
 
 
 @router.get("/{task_id}/geo/nlp")
-def get_geo_nlp(task_id: str):
-    _require_meta(task_id)
+def get_geo_nlp(task_id: str, current_user: dict[str, Any] = Depends(get_current_user)):
+    _get_meta_for_user(task_id, current_user["id"])
     data = get_geo(task_id, "nlp")
     if not data:
         raise HTTPException(status_code=404, detail="NLP analysis not yet available")
@@ -90,8 +92,8 @@ def get_geo_nlp(task_id: str):
 
 
 @router.get("/{task_id}/geo/eeat")
-def get_geo_eeat(task_id: str):
-    _require_meta(task_id)
+def get_geo_eeat(task_id: str, current_user: dict[str, Any] = Depends(get_current_user)):
+    _get_meta_for_user(task_id, current_user["id"])
     data = get_geo(task_id, "eeat")
     if not data:
         raise HTTPException(status_code=404, detail="E-E-A-T analysis not yet available")
@@ -99,8 +101,8 @@ def get_geo_eeat(task_id: str):
 
 
 @router.get("/{task_id}/geo/site-type")
-def get_geo_site_type(task_id: str):
-    _require_meta(task_id)
+def get_geo_site_type(task_id: str, current_user: dict[str, Any] = Depends(get_current_user)):
+    _get_meta_for_user(task_id, current_user["id"])
     data = get_geo(task_id, "site_type")
     if not data:
         raise HTTPException(status_code=404, detail="Site type detection not yet available")
@@ -108,8 +110,8 @@ def get_geo_site_type(task_id: str):
 
 
 @router.get("/{task_id}/geo/suggestions")
-def get_geo_suggestions(task_id: str):
-    _require_meta(task_id)
+def get_geo_suggestions(task_id: str, current_user: dict[str, Any] = Depends(get_current_user)):
+    _get_meta_for_user(task_id, current_user["id"])
     data = get_geo(task_id, "suggestions")
     if not data:
         raise HTTPException(status_code=404, detail="Suggestions not yet available")
@@ -117,8 +119,8 @@ def get_geo_suggestions(task_id: str):
 
 
 @router.get("/{task_id}/geo/probe")
-def get_geo_probe(task_id: str):
-    _require_meta(task_id)
+def get_geo_probe(task_id: str, current_user: dict[str, Any] = Depends(get_current_user)):
+    _get_meta_for_user(task_id, current_user["id"])
     data = get_geo(task_id, "probe")
     if not data:
         raise HTTPException(status_code=404, detail="Probe results not yet available")
@@ -126,8 +128,8 @@ def get_geo_probe(task_id: str):
 
 
 @router.get("/{task_id}/geo/entity")
-def get_geo_entity(task_id: str):
-    _require_meta(task_id)
+def get_geo_entity(task_id: str, current_user: dict[str, Any] = Depends(get_current_user)):
+    _get_meta_for_user(task_id, current_user["id"])
     data = get_geo(task_id, "entity")
     if not data:
         raise HTTPException(status_code=404, detail="Entity analysis not yet available")
@@ -135,8 +137,8 @@ def get_geo_entity(task_id: str):
 
 
 @router.get("/{task_id}/geo/pages")
-def get_geo_page_scores(task_id: str):
-    _require_meta(task_id)
+def get_geo_page_scores(task_id: str, current_user: dict[str, Any] = Depends(get_current_user)):
+    _get_meta_for_user(task_id, current_user["id"])
     data = get_geo(task_id, "page_scores")
     if data is None:
         raise HTTPException(status_code=404, detail="Per-page scores not yet available")
@@ -147,9 +149,10 @@ def get_geo_page_scores(task_id: str):
 def export_geo_report(
     task_id: str,
     format: str = Query("csv", pattern="^(csv|pdf)$"),
+    current_user: dict[str, Any] = Depends(get_current_user),
 ):
     """Export GEO analysis as CSV or PDF."""
-    meta = _require_meta(task_id)
+    meta = _get_meta_for_user(task_id, current_user["id"])
     score = get_geo(task_id, "score") or {}
     schema = get_geo(task_id, "schema") or {}
     eeat = get_geo(task_id, "eeat") or {}

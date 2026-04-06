@@ -1,7 +1,9 @@
 import uuid
+from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
+from app.dependencies.auth import get_current_user
 from app.schemas.analysis import AnalyzeRequest
 from app.worker.tasks import process_site
 from app.analyzers.robots import check_robots
@@ -11,7 +13,10 @@ router = APIRouter()
 
 
 @router.post("/")
-def analyze_site(request: AnalyzeRequest):
+def analyze_site(
+    request: AnalyzeRequest,
+    current_user: dict[str, Any] = Depends(get_current_user),
+):
     robots_result = check_robots(request.url)
     if not robots_result["crawl_allowed"]:
         raise HTTPException(
@@ -32,6 +37,7 @@ def analyze_site(request: AnalyzeRequest):
             "robots_allowed": robots_result["crawl_allowed"],
             "ai_crawler_access": robots_result.get("ai_crawler_access"),
             "disallowed_paths": robots_result.get("disallowed_paths", []),
+            "user_id": current_user["id"],
         },
     )
 
