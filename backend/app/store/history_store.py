@@ -67,6 +67,15 @@ def init_db() -> None:
                 );
                 CREATE INDEX IF NOT EXISTS idx_schedules_next_run ON schedules(next_run_at);
                 CREATE INDEX IF NOT EXISTS idx_schedules_domain   ON schedules(domain);
+
+                CREATE TABLE IF NOT EXISTS users (
+                    id            TEXT PRIMARY KEY,
+                    email         TEXT NOT NULL UNIQUE,
+                    name          TEXT NOT NULL,
+                    password_hash TEXT NOT NULL,
+                    created_at    TEXT NOT NULL
+                );
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email);
             """)
             conn.commit()
         finally:
@@ -469,3 +478,56 @@ def mark_schedule_ran(schedule_id: str) -> None:
             conn.commit()
         finally:
             conn.close()
+
+
+# ---------------------------------------------------------------------------
+# User CRUD
+# ---------------------------------------------------------------------------
+
+def create_user(user_id: str, email: str, name: str, password_hash: str) -> dict[str, Any]:
+    """Insert a new user. Raises sqlite3.IntegrityError on duplicate email."""
+    created_at = datetime.now(timezone.utc).isoformat()
+    with _lock:
+        conn = _connect()
+        try:
+            conn.execute(
+                "INSERT INTO users (id, email, name, password_hash, created_at) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (user_id, email.lower(), name, password_hash, created_at),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+    return {
+        "id": user_id,
+        "email": email.lower(),
+        "name": name,
+        "password_hash": password_hash,
+        "created_at": created_at,
+    }
+
+
+def get_user_by_email(email: str) -> dict[str, Any] | None:
+    """Return a user row by email (case-insensitive) or None."""
+    conn = _connect()
+    try:
+        row = conn.execute(
+            "SELECT id, email, name, password_hash, created_at FROM users WHERE email = ?",
+            (email.lower(),),
+        ).fetchone()
+        return dict(row) if row else None
+    finally:
+        conn.close()
+
+
+def get_user_by_id(user_id: str) -> dict[str, Any] | None:
+    """Return a user row by id or None."""
+    conn = _connect()
+    try:
+        row = conn.execute(
+            "SELECT id, email, name, password_hash, created_at FROM users WHERE id = ?",
+            (user_id,),
+        ).fetchone()
+        return dict(row) if row else None
+    finally:
+        conn.close()
