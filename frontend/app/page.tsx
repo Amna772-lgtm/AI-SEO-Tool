@@ -23,6 +23,7 @@ import { ChecklistPanel } from "./components/geo/ChecklistPanel";
 import { SiteStructurePanel } from "./components/geo/SiteStructurePanel";
 import { HistoryTab } from "./components/history/HistoryTab";
 import { SchedulesTab } from "./components/schedules/SchedulesTab";
+import { useAuth } from "./lib/auth";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 type MainTab = "dashboard" | "crawl" | "audit" | "geo" | "insights" | "history" | "schedules";
@@ -380,6 +381,7 @@ export default function Home() {
   const [exportingAll, setExportingAll] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const { user, signOut: handleSignOut } = useAuth();
 
   // ── Crawl status polling ─────────────────────────────────────────────────
   const pollSite = useCallback(async (id: string) => {
@@ -643,6 +645,50 @@ export default function Home() {
             </button>
           ))}
         </nav>
+        {user && (
+          <div className="mt-auto border-t border-[var(--border)] p-3">
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0 flex-1">
+                <div
+                  className="truncate text-xs font-semibold"
+                  style={{ color: "var(--foreground)" }}
+                  title={user.name}
+                >
+                  {user.name}
+                </div>
+                <div
+                  className="truncate text-[10px]"
+                  style={{ color: "var(--muted)" }}
+                  title={user.email}
+                >
+                  {user.email}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => { void handleSignOut(); }}
+                title="Sign out"
+                aria-label="Sign out"
+                className="shrink-0 text-[var(--muted)] transition-colors hover:text-[var(--error)]"
+              >
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                  <polyline points="16 17 21 12 16 7" />
+                  <line x1="21" y1="12" x2="9" y2="12" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        )}
       </aside>
 
       {/* ── Main area ─────────────────────────────────────────────────────── */}
