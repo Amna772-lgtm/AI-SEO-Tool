@@ -121,10 +121,10 @@
 **Goal:** Multi-user accounts gate the entire tool — open registration with email/name/password, JWT HTTP-only cookie sessions (24h), per-user data isolation for history and schedules, full app redirected to /login when unauthenticated, session-expired re-auth modal mid-use, and a sidebar logout button.
 **Requirements**: AUTH-D01, AUTH-D02, AUTH-D03, AUTH-D05, AUTH-D06, AUTH-D07, AUTH-D08, AUTH-D09, AUTH-D10, AUTH-D11, AUTH-D12, AUTH-D13, AUTH-D14
 **Depends on:** Phase 3
-**Plans:** 4 plans
+**Plans:** 1/4 plans executed
 
 Plans:
-- [ ] 04-01-PLAN.md — Backend auth foundation: users table, /auth router (signup/signin/logout/me), get_current_user dependency, pytest scaffolding
+- [x] 04-01-PLAN.md — Backend auth foundation: users table, /auth router (signup/signin/logout/me), get_current_user dependency, pytest scaffolding
 - [ ] 04-02-PLAN.md — Protect existing routes with auth dependency + per-user data isolation (user_id columns + scoped queries) + cross-user isolation tests
 - [ ] 04-03-PLAN.md — Frontend foundation: api.ts credentials + 401 dispatch, AuthContext, proxy.ts route guard, /login and /signup pages
 - [ ] 04-04-PLAN.md — Wire AuthProvider into layout, SessionExpiredModal, sidebar user info + Sign-out button (manual UAT)
