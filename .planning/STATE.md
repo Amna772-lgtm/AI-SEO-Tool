@@ -4,12 +4,12 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 05
 status: completed
-last_updated: "2026-04-07T12:09:54.368Z"
+last_updated: "2026-04-07T12:16:38.806Z"
 progress:
   total_phases: 5
   completed_phases: 1
   total_plans: 8
-  completed_plans: 5
+  completed_plans: 6
 ---
 
 # Project State
@@ -57,6 +57,8 @@ Status: Phase 01 COMPLETE — All 3 plans executed
 - [Phase 05]: subscriptions table uses UNIQUE constraint on user_id + CHECK constraints on plan/status enforced at DB level
 - [Phase 05]: update_subscription uses keyword-only args to prevent positional shift bugs (PIPE-04 pattern)
 - [Phase 05]: signup_and_subscribe fixture bypasses HTTP route so plan 03 enforcement tests are independent of plan 02 routes
+- [Phase 05]: webhook_router and router exported separately from subscriptions.py so webhook mounts at /webhooks without auth dep leaking in
+- [Phase 05]: Stripe HMAC signature verification via stripe.Webhook.construct_event — webhook authenticates via sig header not JWT cookie
 
 ## Codebase Map
 
