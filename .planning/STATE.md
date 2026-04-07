@@ -4,12 +4,12 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 05
 status: completed
-last_updated: "2026-04-07T12:16:38.806Z"
+last_updated: "2026-04-07T12:26:10.641Z"
 progress:
   total_phases: 5
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 8
-  completed_plans: 6
+  completed_plans: 8
 ---
 
 # Project State
@@ -59,6 +59,8 @@ Status: Phase 01 COMPLETE — All 3 plans executed
 - [Phase 05]: signup_and_subscribe fixture bypasses HTTP route so plan 03 enforcement tests are independent of plan 02 routes
 - [Phase 05]: webhook_router and router exported separately from subscriptions.py so webhook mounts at /webhooks without auth dep leaking in
 - [Phase 05]: Stripe HMAC signature verification via stripe.Webhook.construct_event — webhook authenticates via sig header not JWT cookie
+- [Phase 05]: authLoading alias used in page.tsx to avoid collision with crawl loading state
+- [Phase 05]: Stripe success polling checks sub.plan !== free to confirm paid activation via webhook
 
 ## Codebase Map
 
