@@ -150,6 +150,12 @@ def test_user_isolation_schedules():
     _make_user(client_a, "alice")
     _make_user(client_b, "bob")
 
+    # Give User A a Pro subscription so schedule creation is allowed (D-21)
+    from app.store.history_store import create_subscription, get_user_by_email
+    res_me = client_a.get("/auth/me")
+    user_a_id = res_me.json()["id"]
+    create_subscription(user_id=user_a_id, plan="pro")
+
     # User A creates a schedule
     res = client_a.post("/schedules/", json={
         "url": "https://example.com",

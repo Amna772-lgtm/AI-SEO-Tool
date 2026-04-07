@@ -87,14 +87,13 @@ def test_pro_quota_reset(signup_and_subscribe):
 
 
 # --- SUB-06: Schedules blocked for Free users ----------------------------
-@pytest.mark.xfail(reason="Enforcement added in plan 05-03", strict=False)
 def test_schedules_blocked_for_free(client, signup_and_subscribe):
     """Free user POST /schedules -> 403 with upgrade message."""
     signup_and_subscribe(plan="free")
-    res = client.post("/schedules", json={
+    res = client.post("/schedules/", json={
         "url": "https://example.com",
         "frequency": "daily",
-        "hour_utc": 9,
+        "hour": 9,
     })
     assert res.status_code == 403
     assert "upgrade" in res.json()["detail"]["message"].lower()
