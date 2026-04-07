@@ -805,7 +805,7 @@ export default function Home() {
           )}
 
           {/* ── DASHBOARD TAB ── */}
-          {mainTab === "dashboard" && (
+          {!authLoading && mainTab === "dashboard" && !quotaExhausted && (
             <div className="flex min-h-0 flex-1 flex-col overflow-auto">
               {!site ? (
                 <div className="flex flex-1 items-center justify-center">
