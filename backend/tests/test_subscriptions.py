@@ -65,7 +65,6 @@ def test_webhook_activates_subscription(client, signup_user, monkeypatch):
 
 
 # --- SUB-04: Free quota exceeded returns 402 -----------------------------
-@pytest.mark.xfail(reason="Enforcement added in plan 05-03", strict=False)
 def test_free_quota_exceeded(client, signup_and_subscribe):
     """Free user with audit_count >= 1 -> POST /analyze/ returns 402."""
     from app.store.history_store import increment_audit_count
@@ -77,7 +76,6 @@ def test_free_quota_exceeded(client, signup_and_subscribe):
 
 
 # --- SUB-05: Pro quota resets at period end ------------------------------
-@pytest.mark.xfail(reason="Enforcement added in plan 05-03", strict=False)
 def test_pro_quota_reset(signup_and_subscribe):
     """Pro user with current_period_end in the past -> audit_count resets to 0."""
     from datetime import datetime, timedelta, timezone
@@ -90,14 +88,13 @@ def test_pro_quota_reset(signup_and_subscribe):
 
 
 # --- SUB-06: Schedules blocked for Free users ----------------------------
-@pytest.mark.xfail(reason="Enforcement added in plan 05-03", strict=False)
 def test_schedules_blocked_for_free(client, signup_and_subscribe):
     """Free user POST /schedules -> 403 with upgrade message."""
     signup_and_subscribe(plan="free")
-    res = client.post("/schedules", json={
+    res = client.post("/schedules/", json={
         "url": "https://example.com",
         "frequency": "daily",
-        "hour_utc": 9,
+        "hour": 9,
     })
     assert res.status_code == 403
     assert "upgrade" in res.json()["detail"]["message"].lower()

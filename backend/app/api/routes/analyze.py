@@ -8,6 +8,11 @@ from app.schemas.analysis import AnalyzeRequest
 from app.worker.tasks import process_site
 from app.analyzers.robots import check_robots
 from app.store.crawl_store import set_meta
+from app.store.history_store import (
+    get_subscription_by_user,
+    maybe_reset_pro_audit_count,
+    increment_audit_count,
+)
 
 router = APIRouter()
 
@@ -17,6 +22,33 @@ def analyze_site(
     request: AnalyzeRequest,
     current_user: dict[str, Any] = Depends(get_current_user),
 ):
+    # --- Plan enforcement (Phase 05, D-02/03/04/05/14) -----------------------
+    sub = get_subscription_by_user(current_user["id"])
+    if not sub:
+        raise HTTPException(
+            status_code=402,
+            detail={"code": "no_subscription",
+                    "message": "Plan selection required."},
+        )
+    plan = sub["plan"]
+    if plan == "free":
+        if sub["audit_count"] >= 1:
+            raise HTTPException(
+                status_code=402,
+                detail={"code": "quota_exceeded", "plan": "free", "limit": 1,
+                        "message": "You've used your 1 free audit. Upgrade to Pro for 10 audits per month."},
+            )
+    elif plan == "pro":
+        sub = maybe_reset_pro_audit_count(current_user["id"]) or sub
+        if sub["audit_count"] >= 10:
+            raise HTTPException(
+                status_code=402,
+                detail={"code": "quota_exceeded", "plan": "pro", "limit": 10,
+                        "message": "You've used all 10 audits for this billing period. Upgrade to Agency for unlimited audits."},
+            )
+    # plan == "agency": no cap
+    # -------------------------------------------------------------------------
+
     robots_result = check_robots(request.url)
     if not robots_result["crawl_allowed"]:
         raise HTTPException(
@@ -47,6 +79,8 @@ def analyze_site(
         robots_allowed=robots_result["crawl_allowed"],
         ai_crawler_access=robots_result.get("ai_crawler_access"),
     )
+
+    increment_audit_count(current_user["id"])
 
     return {
         "message": "Crawl started",

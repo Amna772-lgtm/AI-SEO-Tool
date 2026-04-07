@@ -9,6 +9,7 @@ from app.store.history_store import (
     create_schedule,
     delete_schedule,
     get_schedule,
+    get_subscription_by_user,
     list_schedules,
     mark_schedule_ran,
     update_schedule,
@@ -50,6 +51,19 @@ def create(
     body: CreateScheduleRequest,
     current_user: dict[str, Any] = Depends(get_current_user),
 ):
+    # --- Plan enforcement (D-21): Free users cannot create schedules --------
+    sub = get_subscription_by_user(current_user["id"])
+    if not sub or sub["plan"] == "free":
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "code": "plan_required",
+                "message": "Upgrade to Pro to schedule re-audits.",
+                "required_plan": "pro",
+            },
+        )
+    # -------------------------------------------------------------------------
+
     try:
         normalized_url = validate_and_normalize_url(body.url)
     except URLValidationError as e:

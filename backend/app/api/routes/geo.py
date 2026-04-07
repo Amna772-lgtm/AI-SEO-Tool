@@ -22,6 +22,7 @@ from fastapi.responses import StreamingResponse
 
 from app.dependencies.auth import get_current_user
 from app.store.crawl_store import get_meta, get_geo, get_all_pages
+from app.store.history_store import get_subscription_by_user
 
 router = APIRouter()
 
@@ -39,6 +40,9 @@ def get_geo_all(task_id: str, current_user: dict[str, Any] = Depends(get_current
     meta = _get_meta_for_user(task_id, current_user["id"])
     geo_status = meta.get("geo_status", "pending")
 
+    sub = get_subscription_by_user(current_user["id"])
+    user_plan = sub["plan"] if sub else "free"
+
     return {
         "site_id": task_id,
         "geo_status": geo_status,
@@ -48,10 +52,12 @@ def get_geo_all(task_id: str, current_user: dict[str, Any] = Depends(get_current
         "eeat":        get_geo(task_id, "eeat"),
         "nlp":         get_geo(task_id, "nlp"),
         "score":       get_geo(task_id, "score"),
-        "suggestions": get_geo(task_id, "suggestions"),
+        # D-20: suggestions gated for Free users
+        "suggestions": [] if user_plan == "free" else get_geo(task_id, "suggestions"),
         "probe":       get_geo(task_id, "probe"),
         "entity":      get_geo(task_id, "entity"),
-        "page_scores": get_geo(task_id, "page_scores"),
+        # D-19: per-page scores gated for Free users
+        "page_scores": None if user_plan == "free" else get_geo(task_id, "page_scores"),
     }
 
 
@@ -112,6 +118,12 @@ def get_geo_site_type(task_id: str, current_user: dict[str, Any] = Depends(get_c
 @router.get("/{task_id}/geo/suggestions")
 def get_geo_suggestions(task_id: str, current_user: dict[str, Any] = Depends(get_current_user)):
     _get_meta_for_user(task_id, current_user["id"])
+    # D-20: suggestions gated for Free users
+    sub = get_subscription_by_user(current_user["id"])
+    user_plan = sub["plan"] if sub else "free"
+    if user_plan == "free":
+        return {"site_id": task_id, "locked": True, "required_plan": "pro",
+                "critical": [], "important": [], "optional": []}
     data = get_geo(task_id, "suggestions")
     if not data:
         raise HTTPException(status_code=404, detail="Suggestions not yet available")
@@ -139,6 +151,11 @@ def get_geo_entity(task_id: str, current_user: dict[str, Any] = Depends(get_curr
 @router.get("/{task_id}/geo/pages")
 def get_geo_page_scores(task_id: str, current_user: dict[str, Any] = Depends(get_current_user)):
     _get_meta_for_user(task_id, current_user["id"])
+    # D-19: per-page scores gated for Free users
+    sub = get_subscription_by_user(current_user["id"])
+    user_plan = sub["plan"] if sub else "free"
+    if user_plan == "free":
+        return {"site_id": task_id, "page_scores": None, "locked": True, "required_plan": "pro"}
     data = get_geo(task_id, "page_scores")
     if data is None:
         raise HTTPException(status_code=404, detail="Per-page scores not yet available")
