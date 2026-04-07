@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "./lib/auth";
 import { SessionExpiredModal } from "./components/auth/SessionExpiredModal";
+import UpgradeModal from "./components/UpgradeModal";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -32,6 +33,7 @@ export default function RootLayout({
         <AuthProvider>
           {children}
           <SessionExpiredModal />
+          <UpgradeModal />
         </AuthProvider>
       </body>
     </html>

@@ -381,7 +381,14 @@ export default function Home() {
   const [exportingAll, setExportingAll] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const { user, signOut: handleSignOut } = useAuth();
+  const { user, signOut: handleSignOut, subscription, loading: authLoading } = useAuth();
+
+  // ── Subscription guard (D-13): redirect to /select-plan if no subscription ──
+  useEffect(() => {
+    if (!authLoading && user && !subscription) {
+      window.location.href = "/select-plan";
+    }
+  }, [authLoading, user, subscription]);
 
   // ── Crawl status polling ─────────────────────────────────────────────────
   const pollSite = useCallback(async (id: string) => {
