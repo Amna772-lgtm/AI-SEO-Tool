@@ -24,6 +24,7 @@ import { SiteStructurePanel } from "./components/geo/SiteStructurePanel";
 import { HistoryTab } from "./components/history/HistoryTab";
 import { SchedulesTab } from "./components/schedules/SchedulesTab";
 import { useAuth } from "./lib/auth";
+import LockedFeature from "./components/LockedFeature";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 type MainTab = "dashboard" | "crawl" | "audit" | "geo" | "insights" | "history" | "schedules";
@@ -382,6 +383,11 @@ export default function Home() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const { user, signOut: handleSignOut, subscription, loading: authLoading } = useAuth();
+  const isFree = subscription?.plan === "free";
+  const quotaExhausted = subscription
+    ? (subscription.plan === "free" && subscription.audit_count >= 1) ||
+      (subscription.plan === "pro" && subscription.audit_count >= 10)
+    : false;
 
   // ── Subscription guard (D-13): redirect to /select-plan if no subscription ──
   useEffect(() => {
@@ -505,7 +511,11 @@ export default function Home() {
         ai_crawler_access: null,
       });
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Analysis failed");
+      // Don't show a generic error when quota exceeded — UpgradeModal handles it
+      const msg = e instanceof Error ? e.message : "Analysis failed";
+      if (!msg.toLowerCase().includes("quota")) {
+        setError(msg);
+      }
       setSiteId(null);
       setSite(null);
       setIsAnalyzing(false);
@@ -729,10 +739,11 @@ export default function Home() {
               placeholder="https://example.com/"
               value={url}
               onChange={(e) => setUrl(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleStart()}
-              className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-[var(--muted)]"
+              onKeyDown={(e) => e.key === "Enter" && !quotaExhausted && handleStart()}
+              disabled={quotaExhausted}
+              className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-[var(--muted)] disabled:opacity-50 disabled:cursor-not-allowed"
             />
-            <button onClick={handleStart} className="shrink-0 text-[var(--muted)] transition-colors hover:text-[var(--foreground)]">
+            <button onClick={handleStart} disabled={quotaExhausted} className="shrink-0 text-[var(--muted)] transition-colors hover:text-[var(--foreground)] disabled:opacity-50 disabled:cursor-not-allowed">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
               </svg>
@@ -741,18 +752,18 @@ export default function Home() {
           <div className="flex shrink-0 items-center gap-1.5">
             <button
               onClick={handleStart}
-              disabled={loading || isAnalyzing}
-              className="rounded bg-[var(--accent)] px-4 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-[var(--accent-hover)] disabled:opacity-50"
+              disabled={loading || isAnalyzing || quotaExhausted}
+              className="rounded bg-[var(--accent)] px-4 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-[var(--accent-hover)] disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? "Starting..." : "Start"}
             </button>
-            <button className="flex items-center gap-1 rounded border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5 text-xs text-[var(--muted)] transition-colors hover:bg-[var(--surface-elevated)]">
+            <button disabled={quotaExhausted} className="flex items-center gap-1 rounded border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5 text-xs text-[var(--muted)] transition-colors hover:bg-[var(--surface-elevated)] disabled:opacity-50 disabled:cursor-not-allowed">
               <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 0-14.14 0"/><path d="M4.93 19.07a10 10 0 0 0 14.14 0"/>
               </svg>
               Config
             </button>
-            <button onClick={handleClear} className="rounded border border-[var(--border)] px-2.5 py-1.5 text-xs text-[var(--muted)] transition-colors hover:opacity-80" style={{ backgroundColor: "#DCFCE7" }}>
+            <button onClick={handleClear} disabled={quotaExhausted} className="rounded border border-[var(--border)] px-2.5 py-1.5 text-xs text-[var(--muted)] transition-colors hover:opacity-80 disabled:opacity-50 disabled:cursor-not-allowed" style={{ backgroundColor: quotaExhausted ? undefined : "#DCFCE7" }}>
               Clear
             </button>
             {site?.status === "completed" && (
@@ -772,6 +783,26 @@ export default function Home() {
 
         {/* ── Tab content ───────────────────────────────────────────────── */}
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+
+          {/* Loading state — wait for auth + subscription before rendering tabs */}
+          {authLoading && (
+            <div className="flex flex-1 items-center justify-center">
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-[var(--border)] border-t-[var(--accent)]" />
+            </div>
+          )}
+
+          {/* ── Quota-exhausted gate for all tabs except history ── */}
+          {!authLoading && quotaExhausted && mainTab !== "history" && (
+            <div className="flex min-h-0 flex-1 flex-col items-center justify-center overflow-auto bg-[var(--background)] p-8">
+              <LockedFeature
+                title={subscription?.plan === "pro" ? "Monthly Audit Limit Reached" : "Audit Limit Reached"}
+                plan={subscription?.plan === "pro" ? "Agency" : "Pro"}
+              />
+              <p className="mt-4 text-xs text-[var(--muted)]">
+                Your past audits are still available in the <button onClick={() => setMainTab("history")} className="underline text-[var(--accent)]">History</button> tab.
+              </p>
+            </div>
+          )}
 
           {/* ── DASHBOARD TAB ── */}
           {mainTab === "dashboard" && (
@@ -1137,7 +1168,7 @@ export default function Home() {
           )}
 
         {/* ── CRAWL TAB ── */}
-        {mainTab === "crawl" && (
+        {mainTab === "crawl" && !quotaExhausted && (
           <div className="flex min-h-0 flex-1">
             {/* Main table */}
             <div className="flex min-w-0 flex-1 flex-col bg-[var(--surface)]">
@@ -1322,7 +1353,7 @@ export default function Home() {
         )}
 
         {/* ── AUDIT TAB ── */}
-        {mainTab === "audit" && (
+        {mainTab === "audit" && !quotaExhausted && (
           <div className="flex min-h-0 flex-1 flex-col bg-[var(--background)]">
             {!site || site.status !== "completed" ? (
               <div className="flex flex-1 items-center justify-center text-[var(--muted)]">
@@ -1343,9 +1374,11 @@ export default function Home() {
         )}
 
         {/* ── INSIGHTS TAB ── */}
-        {mainTab === "insights" && (
+        {mainTab === "insights" && !quotaExhausted && (
           <div className="flex min-h-0 flex-1 flex-col overflow-auto bg-[var(--background)] p-4">
-            {!site || site.status !== "completed" ? (
+            {isFree ? (
+              <LockedFeature title="Insights" />
+            ) : !site || site.status !== "completed" ? (
               <div className="flex flex-1 items-center justify-center text-[var(--muted)]">
                 Complete a crawl to view Insights.
               </div>
@@ -1390,12 +1423,18 @@ export default function Home() {
         )}
 
         {/* ── SCHEDULES TAB ── */}
-        {mainTab === "schedules" && (
-          <SchedulesTab initialDomain={site?.url ? new URL(site.url).hostname.replace(/^www\./, "") : ""} />
+        {mainTab === "schedules" && !quotaExhausted && (
+          isFree ? (
+            <div className="flex min-h-0 flex-1 flex-col overflow-auto bg-[var(--background)] p-4">
+              <LockedFeature title="Scheduled Re-audits" />
+            </div>
+          ) : (
+            <SchedulesTab initialDomain={site?.url ? new URL(site.url).hostname.replace(/^www\./, "") : ""} />
+          )
         )}
 
         {/* ── GEO TAB ── */}
-        {mainTab === "geo" && (
+        {mainTab === "geo" && !quotaExhausted && (
           <div className="flex min-h-0 flex-1 flex-col bg-[var(--background)]">
             {!site || site.status !== "completed" ? (
               <div className="flex flex-1 items-center justify-center text-[var(--muted)]">
@@ -1406,7 +1445,7 @@ export default function Home() {
                 <Spinner label="Starting GEO analysis…" />
               </div>
             ) : (
-              <GeoTab geo={geo} siteId={siteId!} siteUrl={site?.url ?? ""} pages={pagesData?.pages ?? []} />
+              <GeoTab geo={geo} siteId={siteId!} siteUrl={site?.url ?? ""} pages={pagesData?.pages ?? []} isFree={isFree} plan={subscription?.plan} />
             )}
           </div>
         )}
@@ -1414,7 +1453,7 @@ export default function Home() {
         </div>
 
       {/* ── URL detail panel (bottom, crawl tab only) ─────────────────── */}
-      {mainTab === "crawl" && crawlActive && (
+      {mainTab === "crawl" && crawlActive && !quotaExhausted && (
         <div
           className="flex shrink-0 flex-col border-t border-[var(--border)] bg-[var(--surface)]"
           style={{ maxHeight: "240px" }}

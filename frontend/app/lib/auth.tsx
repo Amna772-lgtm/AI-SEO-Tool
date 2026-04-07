@@ -49,6 +49,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
         }
       } finally {
+        // Only mark loading complete after both user AND subscription are resolved
         if (!cancelled) setLoading(false);
       }
     })();

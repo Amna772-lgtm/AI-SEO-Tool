@@ -14,6 +14,7 @@ import { ProbePanel } from "./ProbePanel";
 import { PageScoresPanel } from "./PageScoresPanel";
 import { EngineScores } from "./EngineScores";
 import { EntityPanel } from "./EntityPanel";
+import LockedFeature from "../LockedFeature";
 
 const SITE_TYPE_ICONS: Record<string, string> = {
   ecommerce:      "🛒",
@@ -70,9 +71,12 @@ interface Props {
   siteId: string;
   siteUrl: string;
   pages: PageRow[];
+  isFree?: boolean;
+  plan?: "free" | "pro" | "agency";
 }
 
-export function GeoTab({ geo, siteId, siteUrl, pages }: Props) {
+export function GeoTab({ geo, siteId, siteUrl, pages, isFree = false, plan }: Props) {
+  const isAgency = plan === "agency";
   const [detailTab, setDetailTab] = useState<DetailTab>("schema");
   const isLoading = geo.geo_status === "running" || geo.geo_status === "pending";
 
@@ -106,7 +110,7 @@ export function GeoTab({ geo, siteId, siteUrl, pages }: Props) {
                 </div>
                 <div className="border-t border-[var(--border)] pt-3">
                   <p className="mb-2 text-xs font-medium text-[var(--foreground)]">Score breakdown</p>
-                  <ScoreBreakdown score={score} />
+                  {isFree ? <LockedFeature title="Score Breakdown" /> : <ScoreBreakdown score={score} />}
                 </div>
               </div>
             ) : (
@@ -122,26 +126,49 @@ export function GeoTab({ geo, siteId, siteUrl, pages }: Props) {
               <h2 className="text-sm font-semibold text-[var(--foreground)]">Prioritized Recommendations</h2>
               <p className="text-[10px] text-[var(--muted)]">Actionable improvements sorted by impact</p>
             </div>
-            {/* Export buttons */}
+            {/* Export buttons — Agency only */}
             <div className="flex gap-2">
-              <a
-                href={getGeoExportUrl(siteId, "csv")}
-                download
-                className="rounded-md border border-[var(--border)] bg-[var(--surface-elevated)] px-3 py-1.5 text-xs font-medium text-[var(--foreground)] hover:bg-[var(--border)] transition-colors"
-              >
-                ↓ CSV
-              </a>
-              <a
-                href={getGeoExportUrl(siteId, "pdf")}
-                download
-                className="rounded-md border border-[var(--accent)] bg-[var(--accent-light)] px-3 py-1.5 text-xs font-medium text-[var(--accent)] hover:bg-[var(--accent)] hover:text-white transition-colors"
-              >
-                ↓ PDF
-              </a>
+              {isAgency ? (
+                <>
+                  <a
+                    href={getGeoExportUrl(siteId, "csv")}
+                    download
+                    className="rounded-md border border-[var(--border)] bg-[var(--surface-elevated)] px-3 py-1.5 text-xs font-medium text-[var(--foreground)] hover:bg-[var(--border)] transition-colors"
+                  >
+                    ↓ CSV
+                  </a>
+                  <a
+                    href={getGeoExportUrl(siteId, "pdf")}
+                    download
+                    className="rounded-md border border-[var(--accent)] bg-[var(--accent-light)] px-3 py-1.5 text-xs font-medium text-[var(--accent)] hover:bg-[var(--accent)] hover:text-white transition-colors"
+                  >
+                    ↓ PDF
+                  </a>
+                </>
+              ) : (
+                <>
+                  <button
+                    disabled
+                    title="Available on Agency plan"
+                    className="rounded-md border border-[var(--border)] bg-[var(--surface-elevated)] px-3 py-1.5 text-xs font-medium text-[var(--muted)] opacity-50 cursor-not-allowed"
+                  >
+                    ↓ CSV
+                  </button>
+                  <button
+                    disabled
+                    title="Available on Agency plan"
+                    className="rounded-md border border-[var(--border)] bg-[var(--surface-elevated)] px-3 py-1.5 text-xs font-medium text-[var(--muted)] opacity-50 cursor-not-allowed"
+                  >
+                    ↓ PDF
+                  </button>
+                </>
+              )}
             </div>
           </div>
           <div className="flex-1 overflow-hidden p-4">
-            {isLoading && !suggestions ? (
+            {isFree ? (
+              <LockedFeature title="Prioritized Recommendations" />
+            ) : isLoading && !suggestions ? (
               <LoadingCard label="suggestions" />
             ) : suggestions ? (
               <SuggestionsList suggestions={suggestions} />
@@ -153,7 +180,7 @@ export function GeoTab({ geo, siteId, siteUrl, pages }: Props) {
       </div>
 
       {/* ── Row 1b: Per-engine scores ─────────────────────────────────────── */}
-      {score && <EngineScores score={score} />}
+      {score && !isFree && <EngineScores score={score} />}
 
       {/* ── Row 2: Detail tabs (Schema / Content / E-E-A-T / NLP) ────────── */}
       <div className="rounded-xl border border-[var(--border)] bg-white shadow-sm">
@@ -184,26 +211,32 @@ export function GeoTab({ geo, siteId, siteUrl, pages }: Props) {
 
         {/* Tab content */}
         <div className="p-4">
-          {detailTab === "schema" && (
-            geo.schema ? <SchemaPanel schema={geo.schema} /> : <LoadingCard label="schema analysis" />
-          )}
-          {detailTab === "content" && (
-            geo.content ? <ContentPanel content={geo.content} /> : <LoadingCard label="content analysis" />
-          )}
-          {detailTab === "eeat" && (
-            geo.eeat ? <EeatPanel eeat={geo.eeat} /> : <LoadingCard label="E-E-A-T analysis" />
-          )}
-          {detailTab === "nlp" && (
-            geo.nlp ? <NlpPanel nlp={geo.nlp} /> : <LoadingCard label="NLP analysis" />
-          )}
-          {detailTab === "visibility" && (
-            geo.probe ? <ProbePanel probe={geo.probe} /> : <LoadingCard label="AI visibility probe" />
-          )}
-          {detailTab === "entity" && (
-            geo.entity ? <EntityPanel entity={geo.entity} /> : <LoadingCard label="entity analysis" />
-          )}
-          {detailTab === "pages" && (
-            geo.page_scores ? <PageScoresPanel pageScores={geo.page_scores} /> : <LoadingCard label="per-page scoring" />
+          {isFree ? (
+            <LockedFeature title={(DETAIL_TABS.find(t => t.key === detailTab)?.label ?? "GEO") + " Analysis"} />
+          ) : (
+            <>
+              {detailTab === "schema" && (
+                geo.schema ? <SchemaPanel schema={geo.schema} /> : <LoadingCard label="schema analysis" />
+              )}
+              {detailTab === "content" && (
+                geo.content ? <ContentPanel content={geo.content} /> : <LoadingCard label="content analysis" />
+              )}
+              {detailTab === "eeat" && (
+                geo.eeat ? <EeatPanel eeat={geo.eeat} /> : <LoadingCard label="E-E-A-T analysis" />
+              )}
+              {detailTab === "nlp" && (
+                geo.nlp ? <NlpPanel nlp={geo.nlp} /> : <LoadingCard label="NLP analysis" />
+              )}
+              {detailTab === "visibility" && (
+                geo.probe ? <ProbePanel probe={geo.probe} /> : <LoadingCard label="AI visibility probe" />
+              )}
+              {detailTab === "entity" && (
+                geo.entity ? <EntityPanel entity={geo.entity} /> : <LoadingCard label="entity analysis" />
+              )}
+              {detailTab === "pages" && (
+                geo.page_scores ? <PageScoresPanel pageScores={geo.page_scores} /> : <LoadingCard label="per-page scoring" />
+              )}
+            </>
           )}
         </div>
       </div>

@@ -118,15 +118,16 @@ async def stripe_webhook(request: Request) -> dict[str, str]:
     except stripe.error.SignatureVerificationError:
         raise HTTPException(status_code=400, detail="Invalid signature")
 
-    event_type = event.get("type") if isinstance(event, dict) else event["type"]
+    event_type = event.type if hasattr(event, "type") else event["type"]
     if event_type == "checkout.session.completed":
-        obj = event["data"]["object"]
-        user_id = obj.get("client_reference_id")
-        stripe_sub_id = obj.get("subscription")
-        stripe_cust_id = obj.get("customer")
-        plan = (obj.get("metadata") or {}).get("plan", "pro")
-        period_start = obj.get("current_period_start")
-        period_end = obj.get("current_period_end")
+        obj = event.data.object
+        user_id = obj.client_reference_id
+        stripe_sub_id = obj.subscription
+        stripe_cust_id = obj.customer
+        metadata = obj.metadata or {}
+        plan = metadata.get("plan", "pro") if isinstance(metadata, dict) else getattr(metadata, "plan", "pro")
+        period_start = getattr(obj, "current_period_start", None)
+        period_end = getattr(obj, "current_period_end", None)
         if user_id:
             existing = get_subscription_by_user(user_id)
             if existing:
