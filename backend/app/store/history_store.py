@@ -85,6 +85,24 @@ def init_db() -> None:
                 );
                 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email);
             """)
+            conn.executescript("""
+                CREATE TABLE IF NOT EXISTS subscriptions (
+                    id                     TEXT PRIMARY KEY,
+                    user_id                TEXT NOT NULL UNIQUE,
+                    plan                   TEXT NOT NULL CHECK(plan IN ('free','pro','agency')),
+                    status                 TEXT NOT NULL CHECK(status IN ('active','canceled','past_due')) DEFAULT 'active',
+                    stripe_customer_id     TEXT,
+                    stripe_subscription_id TEXT,
+                    current_period_start   TEXT,
+                    current_period_end     TEXT,
+                    audit_count            INTEGER NOT NULL DEFAULT 0,
+                    created_at             TEXT NOT NULL,
+                    updated_at             TEXT NOT NULL,
+                    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+                );
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_subscriptions_user_id ON subscriptions(user_id);
+                CREATE INDEX IF NOT EXISTS idx_subscriptions_stripe_sub ON subscriptions(stripe_subscription_id);
+            """)
             conn.commit()
             # Per-user isolation columns. Pre-existing rows will have NULL user_id (orphaned).
             # Use plain TEXT (no REFERENCES clause) to avoid SQLite ADD COLUMN FK restriction.
@@ -568,3 +586,123 @@ def get_user_by_id(user_id: str) -> dict[str, Any] | None:
         return dict(row) if row else None
     finally:
         conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Subscription CRUD
+# ---------------------------------------------------------------------------
+
+def create_subscription(
+    user_id: str,
+    plan: str,
+    stripe_customer_id: str | None = None,
+    stripe_subscription_id: str | None = None,
+    current_period_start: str | None = None,
+    current_period_end: str | None = None,
+) -> dict[str, Any]:
+    sub_id = str(uuid.uuid4())
+    now = datetime.now(timezone.utc).isoformat()
+    with _lock:
+        conn = _connect()
+        try:
+            conn.execute(
+                """
+                INSERT INTO subscriptions
+                    (id, user_id, plan, status, stripe_customer_id,
+                     stripe_subscription_id, current_period_start,
+                     current_period_end, audit_count, created_at, updated_at)
+                VALUES (?, ?, ?, 'active', ?, ?, ?, ?, 0, ?, ?)
+                """,
+                (sub_id, user_id, plan, stripe_customer_id,
+                 stripe_subscription_id, current_period_start,
+                 current_period_end, now, now),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+    return get_subscription_by_user(user_id)
+
+
+def get_subscription_by_user(user_id: str) -> dict[str, Any] | None:
+    conn = _connect()
+    try:
+        row = conn.execute(
+            "SELECT * FROM subscriptions WHERE user_id = ?", (user_id,)
+        ).fetchone()
+        return dict(row) if row else None
+    finally:
+        conn.close()
+
+
+def update_subscription(
+    user_id: str,
+    *,
+    plan: str | None = None,
+    status: str | None = None,
+    stripe_subscription_id: str | None = None,
+    stripe_customer_id: str | None = None,
+    current_period_start: str | None = None,
+    current_period_end: str | None = None,
+    audit_count: int | None = None,
+) -> dict[str, Any] | None:
+    """Keyword-only partial update — follows generate_suggestions() pattern (PIPE-04 decision)."""
+    current = get_subscription_by_user(user_id)
+    if not current:
+        return None
+    now = datetime.now(timezone.utc).isoformat()
+    with _lock:
+        conn = _connect()
+        try:
+            conn.execute(
+                """UPDATE subscriptions
+                   SET plan=?, status=?, stripe_subscription_id=?,
+                       stripe_customer_id=?, current_period_start=?,
+                       current_period_end=?, audit_count=?, updated_at=?
+                   WHERE user_id=?""",
+                (
+                    plan if plan is not None else current["plan"],
+                    status if status is not None else current["status"],
+                    stripe_subscription_id if stripe_subscription_id is not None else current["stripe_subscription_id"],
+                    stripe_customer_id if stripe_customer_id is not None else current["stripe_customer_id"],
+                    current_period_start if current_period_start is not None else current["current_period_start"],
+                    current_period_end if current_period_end is not None else current["current_period_end"],
+                    audit_count if audit_count is not None else current["audit_count"],
+                    now, user_id,
+                ),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+    return get_subscription_by_user(user_id)
+
+
+def increment_audit_count(user_id: str) -> None:
+    now = datetime.now(timezone.utc).isoformat()
+    with _lock:
+        conn = _connect()
+        try:
+            conn.execute(
+                "UPDATE subscriptions SET audit_count = audit_count + 1, updated_at = ? WHERE user_id = ?",
+                (now, user_id),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+
+def maybe_reset_pro_audit_count(user_id: str) -> dict[str, Any] | None:
+    """Lazy reset of audit_count for Pro users when current_period_end has passed.
+    Returns the (possibly updated) subscription row. Per RESEARCH Pitfall 5."""
+    sub = get_subscription_by_user(user_id)
+    if not sub or sub["plan"] != "pro":
+        return sub
+    end_iso = sub.get("current_period_end")
+    if not end_iso:
+        return sub
+    try:
+        end_dt = datetime.fromisoformat(end_iso)
+    except (ValueError, TypeError):
+        return sub
+    if datetime.now(timezone.utc) >= end_dt:
+        return update_subscription(user_id, audit_count=0)
+    return sub
