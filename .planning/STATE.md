@@ -2,20 +2,20 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 04
+current_phase: 05
 status: completed
-last_updated: "2026-04-06T18:38:05.198Z"
+last_updated: "2026-04-07T12:09:54.368Z"
 progress:
-  total_phases: 4
+  total_phases: 5
   completed_phases: 1
-  total_plans: 4
-  completed_plans: 4
+  total_plans: 8
+  completed_plans: 5
 ---
 
 # Project State
 
 **Last Updated:** 2026-03-31
-**Current Phase:** 04
+**Current Phase:** 05
 **Overall Status:** Executing
 
 ## Project Reference
@@ -23,7 +23,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-31)
 
 **Core value:** Give website owners a credible, actionable score for AI citation readiness
-**Current focus:** Phase 04 — add-user-authentication-with-signup-signin-session-management-and-logout
+**Current focus:** Phase 05 — implement-pricing-plan-selection-flow-after-signup
 
 ## Current Phase
 
@@ -54,6 +54,9 @@ Status: Phase 01 COMPLETE — All 3 plans executed
 - [Phase 04]: Celery worker not modified — save_analysis produces NULL user_id rows (orphaned, invisible to users). Deferred to plan 03
 - [Phase 04]: _get_schedule_internal helper added so mark_schedule_ran bypasses user scoping for Beat compatibility
 - [Phase 04]: SessionExpiredModal falls back to /login redirect when no user in context to prevent broken state
+- [Phase 05]: subscriptions table uses UNIQUE constraint on user_id + CHECK constraints on plan/status enforced at DB level
+- [Phase 05]: update_subscription uses keyword-only args to prevent positional shift bugs (PIPE-04 pattern)
+- [Phase 05]: signup_and_subscribe fixture bypasses HTTP route so plan 03 enforcement tests are independent of plan 02 routes
 
 ## Codebase Map
 
