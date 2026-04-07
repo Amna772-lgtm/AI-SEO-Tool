@@ -55,8 +55,7 @@ _KEYWORD_PATHS = frozenset({
 })
 
 _LOW_VALUE_SECTIONS = frozenset({
-    "tag", "tags", "author", "authors", "category", "categories",
-    "page", "archive", "archives", "feed", "rss", "wp-content",
+    "page", "feed", "rss", "wp-content",
     "wp-includes", "search", "cart", "checkout", "account",
     "login", "register", "sitemap",
 })
@@ -490,12 +489,47 @@ def _build_url_tree(
 
 
 # Depth-1 paths that must never be skipped regardless of score.
-# These are commonly omitted from sitemaps but are critical for SEO auditing.
-_MUST_INCLUDE_PATHS = frozenset({
-    "/about", "/about-us", "/about_us",
-    "/contact", "/contact-us", "/contact_us",
+# Supports both exact matches and regex patterns (prefixed with "re:").
+_MUST_INCLUDE_PATHS: frozenset[str] = frozenset({
+    # About — regex catches /about-sigma-square, /about-us, /about-the-company, etc.
+    "re:/about(-.*)?$",
+    "/our-story", "/who-we-are",
+    # Contact — regex catches /contact-us, /contact-form, etc.
+    "re:/contact(-.*)?$",
+    "/get-in-touch", "/reach-us",
+    # Trust / legal
+    "re:/privacy(-policy|_policy)?$",
+    "re:/terms(-of-service|-and-conditions|_of_service)?$",
+    # E-E-A-T signals
+    "re:/faq(s)?$", "/frequently-asked-questions",
+    "re:/team$", "/our-team", "/meet-the-team",
+    "re:/case-stud(y|ies)$",
+    "re:/authors?$",
+    # Content & site-type signals
+    "/blog", "/news",
+    "re:/pric(ing|e)$", "/plans",
+    # Portfolio
+    "/portfolio", "/our-work", "/work", "/projects",
+    # Home fallback
     "/home",
 })
+
+# Pre-compiled regex patterns extracted from _MUST_INCLUDE_PATHS
+_MUST_INCLUDE_EXACT: frozenset[str] = frozenset(
+    p for p in _MUST_INCLUDE_PATHS if not p.startswith("re:")
+)
+_MUST_INCLUDE_REGEX: list[re.Pattern[str]] = [
+    re.compile(p[3:], re.IGNORECASE)
+    for p in _MUST_INCLUDE_PATHS if p.startswith("re:")
+]
+
+
+def _is_must_include(path: str) -> bool:
+    """Return True if the given URL path matches any must-include exact path or regex."""
+    normalised = path.rstrip("/").lower() or "/"
+    if normalised in _MUST_INCLUDE_EXACT:
+        return True
+    return any(pat.fullmatch(normalised) for pat in _MUST_INCLUDE_REGEX)
 
 
 def hierarchical_select(inventory: InventoryResult) -> list[str]:
@@ -561,7 +595,7 @@ def hierarchical_select(inventory: InventoryResult) -> list[str]:
         # 1. Pin critical pages (about/contact) regardless of which sub-sitemap
         #    they belong to, so they are never displaced by subsitemap sampling.
         for rec in sorted(candidates, key=lambda r: _sort_key(r, sitemap_index.get(r.url, 0))):
-            if urlparse(rec.url).path.rstrip("/").lower() in _MUST_INCLUDE_PATHS:
+            if _is_must_include(urlparse(rec.url).path):
                 _add(rec.url)
 
         # 2. Group remaining (unseen) candidates by sub-sitemap name.
@@ -598,7 +632,7 @@ def hierarchical_select(inventory: InventoryResult) -> list[str]:
 
         # Pass 1 — critical paths first (guaranteed presence regardless of score)
         for rec in root_records:
-            if urlparse(rec.url).path.rstrip("/").lower() in _MUST_INCLUDE_PATHS:
+            if _is_must_include(urlparse(rec.url).path):
                 _add(rec.url)
                 root_paths.append(urlparse(rec.url).path.rstrip("/") or "/")
 
