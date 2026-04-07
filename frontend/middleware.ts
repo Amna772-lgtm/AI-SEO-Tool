@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 const PUBLIC_PATHS = ["/login", "/signup"];
 
-export default function proxy(request: NextRequest) {
+export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Allow public auth routes through unconditionally
@@ -11,7 +11,7 @@ export default function proxy(request: NextRequest) {
   }
 
   // Cookie presence check only — JWT signature verification happens server-side
-  // in get_current_user() (defense in depth, see RESEARCH §Pattern 4 note)
+  // in get_current_user() (defense in depth)
   const token = request.cookies.get("access_token")?.value;
   if (!token) {
     const loginUrl = new URL("/login", request.url);

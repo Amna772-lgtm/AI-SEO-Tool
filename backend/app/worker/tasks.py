@@ -21,18 +21,18 @@ from app.worker.geo_pipeline import run_geo_pipeline
 )
 def process_site(url: str, task_id: str, robots_allowed: bool = True, ai_crawler_access: dict | None = None):
     try:
-        set_meta(
-            task_id,
-            {
-                "id": task_id,
-                "url": url,
-                "status": "processing",
-                "robots_allowed": robots_allowed,
-                "ai_crawler_access": ai_crawler_access,
-                "audit_status": "running",
-                "audit": None,
-            },
-        )
+        # Preserve user_id and other fields set by the API layer
+        existing_meta = get_meta(task_id) or {}
+        existing_meta.update({
+            "id": task_id,
+            "url": url,
+            "status": "processing",
+            "robots_allowed": robots_allowed,
+            "ai_crawler_access": ai_crawler_access,
+            "audit_status": "running",
+            "audit": None,
+        })
+        set_meta(task_id, existing_meta)
 
         # ── Phase 1: Build URL inventory from sitemap (fast, ~2-5s) ──────────
         inventory = build_inventory(url)
@@ -167,7 +167,8 @@ def process_site(url: str, task_id: str, robots_allowed: bool = True, ai_crawler
                 "probe":       get_geo(task_id, "probe"),
                 "page_scores": get_geo(task_id, "page_scores"),
             }
-            save_analysis(task_id, url, len(pages), geo_snapshot, audit_result)
+            crawl_user_id = (get_meta(task_id) or {}).get("user_id")
+            save_analysis(task_id, url, len(pages), geo_snapshot, audit_result, user_id=crawl_user_id)
         except Exception:
             print("History save failed (non-fatal):\n" + traceback.format_exc())
 
@@ -211,6 +212,7 @@ def check_due_schedules():
                 "ai_crawler_access": robots.get("ai_crawler_access"),
                 "disallowed_paths": robots.get("disallowed_paths", []),
                 "triggered_by_schedule": schedule["id"],
+                "user_id": schedule.get("user_id"),
             })
             process_site.delay(
                 schedule["url"],

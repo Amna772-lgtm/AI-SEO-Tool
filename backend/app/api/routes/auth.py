@@ -61,14 +61,19 @@ def signup(body: SignupRequest, response: Response) -> dict[str, Any]:
 @router.post("/signin", response_model=UserOut)
 def signin(body: SigninRequest, response: Response) -> dict[str, Any]:
     user = get_user_by_email(body.email)
-    invalid_detail = "Incorrect email or password. Please try again."
     if not user:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=invalid_detail)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No account found with this email. Please create an account first.",
+        )
     if not bcrypt.checkpw(
         body.password.encode("utf-8"),
         user["password_hash"].encode("utf-8"),
     ):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=invalid_detail)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect email or password. Please try again.",
+        )
     token = create_access_token(user["id"])
     _set_auth_cookie(response, token)
     return {"id": user["id"], "email": user["email"], "name": user["name"]}

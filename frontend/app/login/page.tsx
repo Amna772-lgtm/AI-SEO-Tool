@@ -1,20 +1,28 @@
 "use client";
 
 import { useState, FormEvent } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { signIn } from "../lib/api";
 
 export default function LoginPage() {
+  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [noAccount, setNoAccount] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
+    setNoAccount(false);
     if (!email.trim()) {
       setError("Email is required.");
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      setError("Please enter a valid email address.");
       return;
     }
     if (!password) {
@@ -25,8 +33,14 @@ export default function LoginPage() {
     try {
       await signIn(email.trim(), password);
       window.location.href = "/";
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
+    } catch (err: any) {
+      if (err?.status === 404) {
+        setError(err.message);
+        setNoAccount(true);
+        setTimeout(() => router.push("/signup"), 2000);
+      } else {
+        setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
+      }
       setSubmitting(false);
     }
   }
@@ -116,6 +130,14 @@ export default function LoginPage() {
           {error && (
             <div role="alert" className="mb-3 text-xs" style={{ color: "var(--error)" }}>
               {error}
+              {noAccount && (
+                <>
+                  {" "}
+                  <Link href="/signup" style={{ color: "var(--accent)" }}>
+                    Create an account
+                  </Link>
+                </>
+              )}
             </div>
           )}
 

@@ -14,9 +14,9 @@ export async function apiFetch(input: string, init: RequestInit = {}): Promise<R
     credentials: "include",
   });
   if (res.status === 401 && typeof window !== "undefined") {
-    // Don't dispatch for /auth/me — that's the AuthProvider's "am I logged in?" probe
-    // and it expects a 401 when the user is not authenticated.
-    if (!input.includes("/auth/me")) {
+    // Don't dispatch for auth routes — signin/signup show errors inline,
+    // /auth/me is the AuthProvider's "am I logged in?" probe.
+    if (!input.includes("/auth/")) {
       window.dispatchEvent(new Event("auth:expired"));
     }
   }
@@ -656,7 +656,15 @@ export async function signIn(email: string, password: string): Promise<AuthUser>
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail ?? "Incorrect email or password. Please try again.");
+    let message = "Incorrect email or password. Please try again.";
+    if (typeof err.detail === "string") {
+      message = err.detail;
+    } else if (Array.isArray(err.detail)) {
+      message = err.detail.map((e: any) => e.msg ?? String(e)).join(". ");
+    }
+    const error = new Error(message);
+    (error as any).status = res.status;
+    throw error;
   }
   return res.json();
 }
@@ -669,7 +677,13 @@ export async function signUp(email: string, name: string, password: string): Pro
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail ?? "Something went wrong. Please try again.");
+    let message = "Something went wrong. Please try again.";
+    if (typeof err.detail === "string") {
+      message = err.detail;
+    } else if (Array.isArray(err.detail)) {
+      message = err.detail.map((e: any) => e.msg ?? String(e)).join(". ");
+    }
+    throw new Error(message);
   }
   return res.json();
 }
