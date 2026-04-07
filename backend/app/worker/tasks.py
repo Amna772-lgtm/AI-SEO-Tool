@@ -3,9 +3,9 @@ import threading
 import uuid
 
 from app.worker.celery_app import celery
-from app.analyzers.crawler import crawl_site, crawl_sampled
+from app.analyzers.crawler import crawl_shallow, crawl_sampled
 from app.analyzers.audit import run_url_checks, run_page_checks
-from app.analyzers.page_inventory import build_inventory, smart_sample
+from app.analyzers.page_inventory import build_inventory, hierarchical_select
 from app.store.crawl_store import (
     set_meta, append_page, flush_pages_buffer, get_meta, get_all_pages,
     update_pages_alt_text, get_geo, set_inventory, store_page_html,
@@ -77,10 +77,10 @@ def process_site(url: str, task_id: str, robots_allowed: bool = True, ai_crawler
                 store_page_html(task_id, page_data.get("address", ""), html)
             append_page(task_id, page_data)
 
-        # ── Phase 2: Crawl — adaptive strategy ───────────────────────────────
-        if inventory.has_sitemap and inventory.total >= 100:
-            # Large site with a good sitemap → sample + direct fetch (no BFS)
-            sample_urls = smart_sample(inventory)
+        # ── Phase 2: Crawl — hierarchical or shallow-BFS ─────────────────────
+        if inventory.has_sitemap:
+            # Sitemap available → hierarchical three-level selection, no link following
+            selected_urls = hierarchical_select(inventory)
 
             # Update inventory with finalized sample size
             set_inventory(task_id, {
@@ -94,10 +94,10 @@ def process_site(url: str, task_id: str, robots_allowed: bool = True, ai_crawler
             meta_with_inv["inventory_sample_size"] = inventory.sample_size
             set_meta(task_id, meta_with_inv)
 
-            crawl_sampled(sample_urls, on_page_crawled=on_page_crawled, img_alt_out=img_alt_map)
+            crawl_sampled(selected_urls, on_page_crawled=on_page_crawled, img_alt_out=img_alt_map)
         else:
-            # Small site or no sitemap → traditional BFS
-            crawl_site(url, on_page_crawled=on_page_crawled, img_alt_out=img_alt_map)
+            # No sitemap → shallow BFS (homepage + depth-1 internal pages only)
+            crawl_shallow(url, on_page_crawled=on_page_crawled, img_alt_out=img_alt_map)
 
         flush_pages_buffer(task_id)
 

@@ -9,4 +9,5 @@ AI SEO Tool.pdf
 /backend/app/utils/__pycache__
 /backend/app/worker/__pycache__
 /backend/celerybeat-schedule
+/backend/app/dependencies/__pycache__
 .env

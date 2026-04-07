@@ -1,13 +1,29 @@
 """
-Two-Phase URL Inventory Engine.
+Hierarchical URL Inventory Engine.
 
-Phase 1: build_inventory() — fast sitemap parse, builds a full URL list with metadata
-Phase 2: smart_sample()    — score & select a representative subset for crawling
+Phase 1: build_inventory()      — fast sitemap parse, builds a full URL list with metadata
+Phase 2: hierarchical_select()  — selection strategy depends on sitemap structure:
+
+  Sitemap index (multiple sub-sitemaps detected):
+    • Homepage always included (synthesised from origin if absent)
+    • Critical pages (about, contact) always included from any sub-sitemap
+    • Exactly ONE representative URL selected per sub-sitemap via deterministic scoring
+    • Results ordered hierarchically: shallower URLs first, parent before child
+    • No link-following; relies strictly on sitemap/sub-sitemap structure
+    • Balanced coverage — no sub-sitemap is skipped or over-represented
+
+  Flat sitemap (single sitemap file):
+    Level 0 — homepage (always included)
+    Level 1 — ALL root pages at depth 1; critical pages (about, contact) guaranteed first
+    Level 2 — one best-scored child per root
+    Level 3 — one best-scored grandchild per level-2 page
+
+Scoring uses sitemap priority, freshness, path depth, and meaningful keywords.
+Tie-breaking is deterministic: score desc → URL length asc → alphabetical → sitemap order.
 
 Strategy selected by tasks.py:
-    has_sitemap=False or total<100  → BFS (crawl_site, unchanged behaviour)
-    has_sitemap=True, total<50      → "hybrid" (sitemap seeds + BFS)
-    has_sitemap=True, total>=100    → "sitemap" (Two-Phase: sample + crawl_sampled)
+    has_sitemap=True   → hierarchical_select  (no link following)
+    has_sitemap=False  → shallow BFS from homepage, depth-1 pages only
 """
 from __future__ import annotations
 
@@ -45,6 +61,11 @@ _LOW_VALUE_SECTIONS = frozenset({
     "login", "register", "sitemap",
 })
 
+# Any URL whose path contains one of these segments is excluded from hierarchical selection.
+# This matches _LOW_VALUE_SECTIONS but is applied at the URL level (any path segment, not just
+# the first), and also rejects URLs that carry query parameters.
+_LOW_VALUE_URL_SEGMENTS = _LOW_VALUE_SECTIONS
+
 
 # ── Data Classes ─────────────────────────────────────────────────────────────
 
@@ -55,7 +76,8 @@ class PageRecord:
     lastmod: str | None = None   # validated ISO date string, None if invalid
     depth: int = 1               # path segment count
     section: str = ""            # first meaningful path segment
-    score: float = 0.0           # computed by smart_sample()
+    score: float = 0.0           # computed by hierarchical_select()
+    sitemap_name: str = ""       # sub-sitemap label, e.g. "post", "page", "category"
 
 
 @dataclass
@@ -64,10 +86,11 @@ class InventoryResult:
     records: list[PageRecord] = field(default_factory=list)
     sections: dict[str, int] = field(default_factory=dict)   # section → count
     has_sitemap: bool = False
+    has_sitemap_index: bool = False  # True when sitemap index with sub-sitemaps was found
     priority_useful: bool = False
     lastmod_useful: bool = False
-    strategy: str = "bfs"        # "sitemap" | "hybrid" | "bfs"
-    sample_size: int = 0         # set after smart_sample() is called
+    strategy: str = "bfs"        # "hierarchical" | "bfs"
+    sample_size: int = 0         # set after hierarchical_select() is called
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -191,17 +214,42 @@ def _parse_sitemap_xml(
     return page_records, sitemap_locs
 
 
+def _sitemap_type_name(sitemap_url: str) -> str:
+    """
+    Extract a short content-type label from a sub-sitemap URL filename.
+
+    Examples:
+        post-sitemap.xml      → "post"
+        page-sitemap.xml      → "page"
+        category-sitemap.xml  → "category"
+        soliloquy-sitemap.xml → "soliloquy"
+        sitemap-products.xml  → "products"
+        news.xml              → "news"
+    """
+    filename = sitemap_url.rstrip("/").rsplit("/", 1)[-1].split("?")[0]
+    name = filename.rsplit(".", 1)[0] if "." in filename else filename
+    # Strip common sitemap affixes (with optional dash/underscore separator)
+    name = re.sub(r'(?:[-_]sitemap|sitemap[-_])', '', name, flags=re.IGNORECASE)
+    name = name.strip("-_")
+    return name.lower() if name else "default"
+
+
 def _fetch_sub_sitemap(
     args: tuple,
 ) -> list[PageRecord]:
-    """Worker: fetch one sub-sitemap and return its PageRecords."""
-    sub_url, base_netloc, alt_netloc, max_urls, client = args
+    """
+    Worker: fetch one sub-sitemap, stamp every record with its sitemap_name, and return them.
+    args = (sub_url, base_netloc, alt_netloc, max_urls, client, sitemap_name)
+    """
+    sub_url, base_netloc, alt_netloc, max_urls, client, sitemap_name = args
     try:
         resp = client.get(sub_url)
         if resp.status_code >= 400:
             return []
         xml_text = _decompress_response(resp)
         records, _ = _parse_sitemap_xml(xml_text, sub_url, base_netloc, alt_netloc, max_urls)
+        for rec in records:
+            rec.sitemap_name = sitemap_name
         return records
     except Exception:
         return []
@@ -214,10 +262,9 @@ def build_inventory(base_url: str, max_urls: int = 10000) -> InventoryResult:
     Build a URL inventory from the site's sitemap(s). Fast (~2-5s typical).
     Does NOT fetch page content — only reads sitemap XML.
 
-    Returns InventoryResult with:
-        strategy="sitemap"  → ≥100 URLs found, use Two-Phase
-        strategy="hybrid"   → <50 URLs found, BFS should supplement
-        strategy="bfs"      → no sitemap, caller should use BFS
+    Sets has_sitemap_index=True when a sitemap index file is found (multiple sub-sitemaps).
+    Each PageRecord is stamped with sitemap_name so hierarchical_select() can group by type.
+    Returns strategy="bfs" when no sitemap is found.
     """
     result = InventoryResult()
 
@@ -271,20 +318,25 @@ def build_inventory(base_url: str, max_urls: int = 10000) -> InventoryResult:
 
                     sitemap_found = True
 
+                    # Flat sitemap records — tag with the sitemap filename as their name
+                    flat_name = _sitemap_type_name(candidate)
                     for rec in records:
+                        rec.sitemap_name = flat_name
                         if rec.url not in seen_urls:
                             seen_urls.add(rec.url)
                             all_records.append(rec)
 
-                    # Sitemap index: fetch sub-sitemaps in parallel
+                    # Sitemap index: fetch all sub-sitemaps in parallel, tag each by type
                     if sub_urls:
+                        result.has_sitemap_index = True
                         to_fetch = sub_urls[:_MAX_SUB_SITEMAPS]
                         with ThreadPoolExecutor(max_workers=_FETCH_WORKERS) as executor:
                             futures = [
                                 executor.submit(
                                     _fetch_sub_sitemap,
                                     (su, base_netloc, alt_netloc,
-                                     max_urls - len(all_records), client),
+                                     max_urls - len(all_records), client,
+                                     _sitemap_type_name(su)),
                                 )
                                 for su in to_fetch
                             ]
@@ -335,24 +387,25 @@ def build_inventory(base_url: str, max_urls: int = 10000) -> InventoryResult:
     result.total = len(all_records)
     result.records = all_records
     result.has_sitemap = sitemap_found
-    result.strategy = "sitemap" if len(all_records) >= 100 else "hybrid"
+    result.strategy = "hierarchical"
 
     return result
 
 
-# ── Phase 2: Smart Sampling ───────────────────────────────────────────────────
+# ── Phase 2: Hierarchical Selection ──────────────────────────────────────────
 
-def _adaptive_target(total: int) -> int:
-    """Return ideal sample size based on inventory total."""
-    if total <= 100:
-        return total
-    if total <= 500:
-        return min(total, int(total * 0.8))
-    if total <= 2000:
-        return 250
-    if total <= 5000:
-        return 350
-    return 500
+
+def _is_low_value_url(url: str) -> bool:
+    """
+    Return True if a URL should be excluded from hierarchical selection.
+    Excludes URLs with query parameters and URLs whose path contains any
+    low-value segment (tags, categories, utility pages, etc.).
+    """
+    parsed = urlparse(url)
+    if parsed.query:
+        return True
+    segments = {seg.lower() for seg in parsed.path.strip("/").split("/") if seg}
+    return bool(segments & _LOW_VALUE_URL_SEGMENTS)
 
 
 def _score_record(
@@ -361,14 +414,22 @@ def _score_record(
     lastmod_useful: bool,
     now: datetime,
 ) -> float:
-    """Score a URL 0-100 for sampling priority. Higher = more valuable to analyze."""
+    """
+    Score a URL for hierarchical selection priority (higher = more valuable).
+
+    Components (max ~100 pts):
+      - Sitemap priority:  0–40 pts  (only when signal has real variance)
+      - Freshness:         0–20 pts  (only when lastmods are diverse)
+      - Shallower depth:   5–20 pts
+      - Keyword in path:   0–20 pts
+    Penalty: low-value section multiplier ×0.3 (already guarded by _is_low_value_url,
+    kept here as belt-and-suspenders for direct callers).
+    """
     score = 0.0
 
-    # Priority score: 0-40 pts (only when signal has real variance)
     if priority_useful:
         score += rec.priority * 40.0
 
-    # Freshness score: 0-20 pts (only when lastmods are diverse)
     if lastmod_useful and rec.lastmod:
         try:
             dt = datetime.fromisoformat(rec.lastmod)
@@ -380,128 +441,189 @@ def _score_record(
         except Exception:
             pass
 
-    # Depth score: 5-20 pts (prefer shallower pages)
     score += max(5.0, 20.0 - (rec.depth - 1) * 5.0)
 
-    # Keyword score: 0-20 pts (semantically meaningful pages)
     path_lower = urlparse(rec.url).path.lower()
     if any(kw in path_lower for kw in _KEYWORD_PATHS):
         score += 20.0
 
-    # Penalise low-value sections (tags, authors, archives, etc.)
     if rec.section in _LOW_VALUE_SECTIONS:
         score *= 0.3
 
     return round(score, 2)
 
 
-def smart_sample(inventory: InventoryResult, target: int | None = None) -> list[str]:
+def _sort_key(rec: PageRecord, sitemap_index: int) -> tuple:
     """
-    Select a representative sample of URLs from the inventory.
-    Returns list of URLs to crawl — homepage first, then section-balanced selection.
+    Deterministic sort key for child/grandchild selection.
+    Tie-breaking order: higher score → shorter URL → alphabetical → sitemap order.
+    """
+    return (-rec.score, len(rec.url), rec.url, sitemap_index)
 
-    Allocation strategy:
-    1. Always include: homepage + best URL per section (up to 6 sections)
-    2. Remaining budget split proportionally across sections (capped at 25% per section)
-    3. Fill any remaining slots with highest-score unselected URLs
+
+def _parent_path(path: str) -> str:
+    """Return the parent path one level up (always starts with '/')."""
+    path = path.rstrip("/")
+    if not path or "/" not in path:
+        return "/"
+    parent = path.rsplit("/", 1)[0]
+    return parent if parent else "/"
+
+
+def _build_url_tree(
+    records: list[PageRecord],
+    index_map: dict[str, int],
+) -> dict[str, list[tuple[int, PageRecord]]]:
+    """
+    Group records by their parent path.
+    Returns dict: parent_path → list of (sitemap_index, PageRecord) sorted by _sort_key.
+    """
+    tree: dict[str, list[tuple[int, PageRecord]]] = {}
+    for rec in records:
+        path = urlparse(rec.url).path.rstrip("/") or "/"
+        parent = _parent_path(path)
+        idx = index_map.get(rec.url, 0)
+        tree.setdefault(parent, []).append((idx, rec))
+    for children in tree.values():
+        children.sort(key=lambda pair: _sort_key(pair[1], pair[0]))
+    return tree
+
+
+# Depth-1 paths that must never be skipped regardless of score.
+# These are commonly omitted from sitemaps but are critical for SEO auditing.
+_MUST_INCLUDE_PATHS = frozenset({
+    "/about", "/about-us", "/about_us",
+    "/contact", "/contact-us", "/contact_us",
+    "/home",
+})
+
+
+def hierarchical_select(inventory: InventoryResult) -> list[str]:
+    """
+    Select a representative URL sample from the inventory and return it in
+    hierarchical order (suitable for display in a frontend table with one column
+    per depth level).
+
+    Sitemap index (has_sitemap_index=True):
+      - Homepage always included (synthesised from origin if absent from sitemap)
+      - Critical pages (about/contact) always included from any sub-sitemap
+      - Exactly ONE best-scored URL selected per sub-sitemap group (deterministic)
+      - No sub-sitemap is skipped; coverage is balanced across all content types
+      - Output ordered: shallower depth first, parent URL before its children
+
+    Flat sitemap (has_sitemap_index=False):
+      - Level 0: Homepage
+      - Level 1: ALL root pages (depth 1), critical pages pinned first
+      - Level 2: One best child per root page
+      - Level 3: One best grandchild per level-2 page
+
+    Scoring tie-breaking: score desc → URL length asc → alphabetical → sitemap order.
+    Updates inventory.sample_size in place and returns the ordered URL list.
     """
     if not inventory.records:
         return []
 
-    if target is None:
-        target = _adaptive_target(inventory.total)
-
-    # If inventory fits within target, crawl everything
-    if inventory.total <= target:
-        inventory.sample_size = inventory.total
-        return [r.url for r in inventory.records]
-
     now = datetime.now()
 
-    # Score all records in place
+    # Stable sitemap-order index captured before any filtering
+    sitemap_index: dict[str, int] = {rec.url: i for i, rec in enumerate(inventory.records)}
+
+    # Filter low-value URLs and score the rest
+    candidates: list[PageRecord] = []
     for rec in inventory.records:
-        rec.score = _score_record(rec, inventory.priority_useful, inventory.lastmod_useful, now)
+        if not _is_low_value_url(rec.url):
+            rec.score = _score_record(rec, inventory.priority_useful, inventory.lastmod_useful, now)
+            candidates.append(rec)
 
     seen: set[str] = set()
-    must_include: list[str] = []
+    result: list[str] = []
 
-    # 1. Always include homepage (depth=0 or root path)
-    homepage_url = None
-    for rec in inventory.records:
+    def _add(url: str) -> None:
+        if url not in seen:
+            seen.add(url)
+            result.append(url)
+
+    # ── Level 0: Homepage ────────────────────────────────────────────────────
+    # Find in sitemap records first; if absent, synthesise from the site origin.
+    homepage_url: str | None = None
+    for rec in candidates:
         if urlparse(rec.url).path.rstrip("/") in ("", "/"):
             homepage_url = rec.url
             break
+    if not homepage_url and candidates:
+        parsed = urlparse(candidates[0].url)
+        homepage_url = _normalize_for_dedupe(f"{parsed.scheme}://{parsed.netloc}/")
     if homepage_url:
-        must_include.append(homepage_url)
-        seen.add(homepage_url)
+        _add(homepage_url)
 
-    # 2. Group remaining records by section
-    section_records: dict[str, list[PageRecord]] = {}
-    for rec in inventory.records:
-        if rec.url in seen:
-            continue
-        sec = rec.section or "__root__"
-        section_records.setdefault(sec, []).append(rec)
+    if inventory.has_sitemap_index:
+        # ── Sitemap Index Strategy ────────────────────────────────────────────
+        # 1. Pin critical pages (about/contact) regardless of which sub-sitemap
+        #    they belong to, so they are never displaced by subsitemap sampling.
+        for rec in sorted(candidates, key=lambda r: _sort_key(r, sitemap_index.get(r.url, 0))):
+            if urlparse(rec.url).path.rstrip("/").lower() in _MUST_INCLUDE_PATHS:
+                _add(rec.url)
 
-    for sec in section_records:
-        section_records[sec].sort(key=lambda r: r.score, reverse=True)
-
-    # 3. Must-include: top URL from each meaningful section (up to 6)
-    meaningful_sections = [
-        sec for sec in section_records
-        if sec not in _LOW_VALUE_SECTIONS and sec != "__root__"
-    ]
-    for sec in meaningful_sections[:6]:
-        recs = section_records[sec]
-        if recs and recs[0].url not in seen:
-            must_include.append(recs[0].url)
-            seen.add(recs[0].url)
-
-    remaining_budget = target - len(must_include)
-    if remaining_budget <= 0:
-        inventory.sample_size = len(must_include)
-        return must_include
-
-    # 4. Per-section proportional budget
-    total_remaining = sum(len(v) for v in section_records.values())
-    max_per_section = max(1, remaining_budget // 4)  # no section > 25% of budget
-    section_budget: dict[str, int] = {}
-    for sec, recs in section_records.items():
-        if total_remaining == 0:
-            section_budget[sec] = 0
-        else:
-            prop = len(recs) / total_remaining
-            budget = max(2, round(remaining_budget * prop))
-            section_budget[sec] = min(budget, max_per_section)
-
-    # 5. Sample from each section
-    sampled: list[str] = []
-    for sec, recs in section_records.items():
-        budget = section_budget.get(sec, 2)
-        count = 0
-        for rec in recs:
-            if count >= budget:
-                break
-            if len(must_include) + len(sampled) >= target:
-                break
+        # 2. Group remaining (unseen) candidates by sub-sitemap name.
+        groups: dict[str, list[PageRecord]] = {}
+        for rec in candidates:
             if rec.url not in seen:
-                sampled.append(rec.url)
-                seen.add(rec.url)
-                count += 1
+                groups.setdefault(rec.sitemap_name, []).append(rec)
 
-    # 6. Fill remaining with highest-score unselected
-    if len(must_include) + len(sampled) < target:
-        leftover = sorted(
-            [r for r in inventory.records if r.url not in seen],
-            key=lambda r: r.score,
-            reverse=True,
+        # 3. From each group pick the single best-scored representative.
+        #    _sort_key is designed so that min() returns the best candidate:
+        #    it sorts by (-score, url_len, url, sitemap_order).
+        reps: list[PageRecord] = []
+        for group_recs in groups.values():
+            best = min(group_recs, key=lambda r: _sort_key(r, sitemap_index.get(r.url, 0)))
+            reps.append(best)
+
+        # 4. Order representatives hierarchically: shallower URLs (smaller depth)
+        #    come first so that parents naturally precede their children in the
+        #    output list — enabling the frontend to render aligned hierarchy columns.
+        reps.sort(key=lambda r: (r.depth, -r.score, len(r.url), r.url))
+
+        for rep in reps:
+            _add(rep.url)
+
+    else:
+        # ── Flat Sitemap Strategy: original L0 / L1 / L2 / L3 depth selection ─
+        tree = _build_url_tree(candidates, sitemap_index)
+        root_paths: list[str] = []
+
+        root_records = sorted(
+            [r for r in candidates if r.depth == 1],
+            key=lambda r: _sort_key(r, sitemap_index.get(r.url, 0)),
         )
-        for rec in leftover:
-            if len(must_include) + len(sampled) >= target:
-                break
-            sampled.append(rec.url)
-            seen.add(rec.url)
 
-    result = must_include + sampled
+        # Pass 1 — critical paths first (guaranteed presence regardless of score)
+        for rec in root_records:
+            if urlparse(rec.url).path.rstrip("/").lower() in _MUST_INCLUDE_PATHS:
+                _add(rec.url)
+                root_paths.append(urlparse(rec.url).path.rstrip("/") or "/")
+
+        # Pass 2 — remaining root pages in score order
+        for rec in root_records:
+            path = urlparse(rec.url).path.rstrip("/") or "/"
+            if rec.url not in seen:
+                _add(rec.url)
+                root_paths.append(path)
+
+        # Level 2: one best child per root page
+        child_paths: list[str] = []
+        for root_path in root_paths:
+            for _idx, child_rec in tree.get(root_path, []):
+                if child_rec.url not in seen:
+                    _add(child_rec.url)
+                    child_paths.append(urlparse(child_rec.url).path.rstrip("/") or "/")
+                    break
+
+        # Level 3: one best grandchild per level-2 page
+        for child_path in child_paths:
+            for _idx, gc_rec in tree.get(child_path, []):
+                if gc_rec.url not in seen:
+                    _add(gc_rec.url)
+                    break
+
     inventory.sample_size = len(result)
     return result

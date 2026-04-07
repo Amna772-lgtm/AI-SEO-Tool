@@ -697,11 +697,23 @@ export default function Home() {
         {/* ── Top header ────────────────────────────────────────────────── */}
         <header className="flex shrink-0 items-center gap-3 border-b border-[var(--border)] bg-[var(--surface)] px-4 py-2">
           <div className="flex shrink-0 items-center gap-1.5">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-[var(--accent)]">
-              <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
-              <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+            <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            style={{ color: "var(--accent)" }}
+            >
+              <circle cx="12" cy="12" r="10" />
+              <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10" />
+              <path d="M12 2a15.3 15.3 0 0 0-4 10 15.3 15.3 0 0 0 4 10" />
+              <path d="M2 12h20" />
             </svg>
-            <span className="text-sm font-semibold text-[var(--accent)]">AI SEO TOOL</span>
+            <span className="text-sm font-semibold text-[var(--accent)]">Enter Website URL</span>
           </div>
           <div className="flex min-w-0 flex-1 items-center gap-2 rounded border border-[var(--border)] bg-[var(--surface-elevated)] px-3 py-1.5">
             <span className="shrink-0 text-xs text-[var(--muted)]">URL:</span>

@@ -662,6 +662,127 @@ def _fetch_one_external(args: tuple[str, int]) -> tuple[str, int, str | None, ht
         return (ext_normal, ext_depth, ext_url, None, 0.0, e)
 
 
+def crawl_shallow(
+    url: str,
+    on_page_crawled: Callable[[dict], None] | None = None,
+    img_alt_out: dict | None = None,
+) -> list[dict]:
+    """
+    Shallow BFS fallback used when no sitemap is available.
+
+    Fetches the homepage (depth 0) then all internal links discovered on it (depth 1).
+    No further link-following occurs — traversal stays at most two levels deep.
+    External links are NOT fetched.
+    """
+    url = normalize_url(url)
+    results: list[dict] = []
+    crawled_normalized: set[str] = set()
+    img_alt_map: dict[str, dict] = {}
+
+    def _emit(pd: dict) -> None:
+        for abs_src, attrs in (pd.pop("_img_alts", None) or {}).items():
+            norm = _normalize_for_dedupe(abs_src)
+            if norm and norm not in img_alt_map:
+                img_alt_map[norm] = attrs
+        results.append(pd)
+        if on_page_crawled:
+            on_page_crawled(pd)
+
+    # ── Step 1: Fetch homepage (no redirect follow, capture redirect row) ────
+    with httpx.Client(**_http_client_kwargs(False)) as client:
+        response_no_follow, time_no_follow = fetch_page_with_client(url, client, follow_redirects=False)
+    page_data_first = build_page_data(url, response_no_follow, time_no_follow, crawl_depth=0, store_final_url=False)
+    _emit(page_data_first)
+    request_normalized = _normalize_for_dedupe(url)
+    if request_normalized:
+        crawled_normalized.add(request_normalized)
+
+    is_redirect = response_no_follow.status_code in (301, 302, 303, 307, 308)
+    if is_redirect:
+        with httpx.Client(**_http_client_kwargs(True)) as client:
+            response_follow, time_follow = fetch_page_with_client(url, client, follow_redirects=True)
+        final_url = str(response_follow.url)
+        final_normal = _normalize_for_dedupe(final_url)
+        if final_normal and final_normal not in crawled_normalized:
+            _emit(build_page_data(url, response_follow, time_follow, crawl_depth=0, store_final_url=True))
+            crawled_normalized.add(final_normal)
+        seed_html = response_follow.text if response_follow.status_code == 200 else ""
+        seed_base = final_url
+    else:
+        seed_html = response_no_follow.text if response_no_follow.status_code == 200 else ""
+        seed_base = str(response_no_follow.url)
+
+    if not seed_html:
+        if img_alt_out is not None:
+            img_alt_out.update(img_alt_map)
+        return results
+
+    # ── Step 2: Collect depth-1 internal links from homepage ─────────────────
+    depth1_urls: list[str] = []
+    seen_depth1: set[str] = set()
+    for rec in extract_links(seed_html, seed_base):
+        if rec.get("type") != "internal":
+            continue
+        addr = rec.get("address")
+        norm = _normalize_for_dedupe(addr) if addr else None
+        if norm and norm not in crawled_normalized and norm not in seen_depth1:
+            seen_depth1.add(norm)
+            depth1_urls.append(norm)
+
+    if not depth1_urls:
+        if img_alt_out is not None:
+            img_alt_out.update(img_alt_map)
+        return results
+
+    # ── Step 3: Fetch depth-1 pages in parallel — no further link following ──
+    with ThreadPoolExecutor(max_workers=CONCURRENT_REQUESTS) as executor:
+        futures = {
+            executor.submit(_fetch_one_internal, (norm, 1)): (i, norm)
+            for i, norm in enumerate(depth1_urls)
+        }
+        results_by_idx: dict[int, dict] = {}
+        for future in as_completed(futures):
+            idx, original_norm = futures[future]
+            current_normal, depth, current_url, response, resp_time, err = future.result()
+            if current_normal in crawled_normalized:
+                continue
+            crawled_normalized.add(current_normal)
+            if err is not None:
+                err_msg = type(err).__name__ + (f": {err!s}" if str(err) else "")
+                pd = build_error_page_data(current_url or current_normal, err_msg, depth, "internal")
+                results_by_idx[idx] = pd
+                continue
+            resolved_normal = _normalize_for_dedupe(str(response.url))
+            if resolved_normal and resolved_normal in crawled_normalized and resolved_normal != current_normal:
+                continue
+            if resolved_normal:
+                crawled_normalized.add(resolved_normal)
+            pd = build_page_data(
+                current_url or current_normal,
+                response,
+                resp_time,
+                crawl_depth=depth,
+                store_final_url=True,
+            )
+            results_by_idx[idx] = pd
+
+        for idx in sorted(results_by_idx.keys()):
+            _emit(results_by_idx[idx])
+
+    # Annotate image entries with collected alt text
+    for pd in results:
+        if "image" in (pd.get("content_type") or "").lower():
+            norm = _normalize_for_dedupe(pd.get("address") or "")
+            if norm:
+                attrs = img_alt_map.get(norm)
+                pd["alt_text"] = attrs["alt"] if isinstance(attrs, dict) else attrs
+
+    if img_alt_out is not None:
+        img_alt_out.update(img_alt_map)
+
+    return results
+
+
 def crawl_site(
     url: str,
     max_urls: int | None = None,

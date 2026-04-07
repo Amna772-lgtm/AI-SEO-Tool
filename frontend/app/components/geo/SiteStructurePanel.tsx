@@ -146,7 +146,7 @@ function TreeNodeRow({
           {Array.from(node.children.values())
             .sort((a, b) => countDescendants(b) - countDescendants(a))
             .map((child) => (
-              <TreeNodeRow key={child.segment} node={child} depth={depth + 1} defaultOpen={depth < 1} />
+              <TreeNodeRow key={child.segment} node={child} depth={depth + 1} defaultOpen={true} />
             ))}
         </div>
       )}
