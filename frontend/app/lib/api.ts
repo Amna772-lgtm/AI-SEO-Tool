@@ -20,6 +20,10 @@ export async function apiFetch(input: string, init: RequestInit = {}): Promise<R
       window.dispatchEvent(new Event("auth:expired"));
     }
   }
+  if (res.status === 402 && typeof window !== "undefined") {
+    const body = await res.clone().json().catch(() => ({}));
+    window.dispatchEvent(new CustomEvent("quota:exceeded", { detail: body }));
+  }
   return res;
 }
 
@@ -697,4 +701,50 @@ export async function fetchCurrentUser(): Promise<AuthUser | null> {
   if (res.status === 401) return null;
   if (!res.ok) return null;
   return res.json();
+}
+
+// ── Subscription Types ────────────────────────────────────────────────────────
+
+export type Subscription = {
+  id: string;
+  plan: "free" | "pro" | "agency";
+  status: "active" | "canceled" | "past_due";
+  audit_count: number;
+  current_period_end: string | null;
+};
+
+// ── Subscription API Functions ────────────────────────────────────────────────
+
+export async function fetchSubscription(): Promise<Subscription | null> {
+  const res = await apiFetch(`${API_BASE}/subscriptions/me`);
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`Failed to fetch subscription: ${res.status}`);
+  return (await res.json()) as Subscription;
+}
+
+export async function selectFreePlan(): Promise<Subscription> {
+  const res = await apiFetch(`${API_BASE}/subscriptions/select`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ plan: "free" }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail?.message || `Free plan selection failed: ${res.status}`);
+  }
+  return (await res.json()) as Subscription;
+}
+
+export async function createCheckoutSession(plan: "pro" | "agency"): Promise<string> {
+  const res = await apiFetch(`${API_BASE}/subscriptions/create-checkout-session`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ plan }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail?.message || `Could not start checkout: ${res.status}`);
+  }
+  const body = (await res.json()) as { checkout_url: string };
+  return body.checkout_url;
 }

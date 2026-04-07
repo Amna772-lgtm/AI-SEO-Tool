@@ -37,7 +37,7 @@ export default function SignupPage() {
     setSubmitting(true);
     try {
       await signUp(email.trim(), name.trim(), password);
-      window.location.href = "/";
+      window.location.href = "/select-plan";
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
       setSubmitting(false);

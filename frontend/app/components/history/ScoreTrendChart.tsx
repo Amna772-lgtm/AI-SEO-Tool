@@ -63,7 +63,7 @@ export function ScoreTrendChart({ data, width = 700, height = 280 }: Props) {
   function makePath(key: string): string {
     const pts = data
       .map((d, i) => {
-        const v = (d as Record<string, number | undefined>)[key];
+        const v = (d as unknown as Record<string, number | undefined>)[key];
         return v != null ? [xScale(i), yScale(v)] as [number, number] : null;
       })
       .filter((p): p is [number, number] => p !== null);
@@ -145,7 +145,7 @@ export function ScoreTrendChart({ data, width = 700, height = 280 }: Props) {
                   strokeLinecap="round"
                 />
                 {data.map((d, i) => {
-                  const v = (d as Record<string, number | undefined>)[key];
+                  const v = (d as unknown as Record<string, number | undefined>)[key];
                   if (v == null) return null;
                   return (
                     <circle key={i} cx={xScale(i)} cy={yScale(v)} r={3} fill={color}>
