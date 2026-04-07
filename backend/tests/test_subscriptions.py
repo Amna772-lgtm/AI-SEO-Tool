@@ -64,7 +64,6 @@ def test_webhook_activates_subscription(client, signup_user, monkeypatch):
 
 
 # --- SUB-04: Free quota exceeded returns 402 -----------------------------
-@pytest.mark.xfail(reason="Enforcement added in plan 05-03", strict=False)
 def test_free_quota_exceeded(client, signup_and_subscribe):
     """Free user with audit_count >= 1 -> POST /analyze/ returns 402."""
     from app.store.history_store import increment_audit_count
@@ -76,7 +75,6 @@ def test_free_quota_exceeded(client, signup_and_subscribe):
 
 
 # --- SUB-05: Pro quota resets at period end ------------------------------
-@pytest.mark.xfail(reason="Enforcement added in plan 05-03", strict=False)
 def test_pro_quota_reset(signup_and_subscribe):
     """Pro user with current_period_end in the past -> audit_count resets to 0."""
     from datetime import datetime, timedelta, timezone
