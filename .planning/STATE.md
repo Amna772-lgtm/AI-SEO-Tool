@@ -67,6 +67,7 @@ See: .planning/codebase/ (generated 2026-03-30)
 ### Roadmap Evolution
 
 - Phase 4 added: Add user authentication with Signup, Signin, Session management, and Logout
+- Phase 5 added: Implement Pricing Plan Selection Flow After Signup
 
 ### Phase 04 Decisions
 

@@ -129,5 +129,15 @@ Plans:
 - [x] 04-03-PLAN.md — Frontend foundation: api.ts credentials + 401 dispatch, AuthContext, proxy.ts route guard, /login and /signup pages
 - [x] 04-04-PLAN.md — Wire AuthProvider into layout, SessionExpiredModal, sidebar user info + Sign-out button (manual UAT)
 
+### Phase 5: Implement Pricing Plan Selection Flow After Signup
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 4
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 5 to break down)
+
 ---
 *Roadmap created: 2026-03-31*
