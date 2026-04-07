@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import jwt
-from fastapi import Cookie, HTTPException, status
+from fastapi import Cookie, Depends, HTTPException, status
 
 from app.store.history_store import get_user_by_id
 
@@ -54,3 +54,18 @@ def get_current_user(access_token: str | None = Cookie(default=None)) -> dict[st
             detail="User not found",
         )
     return user
+
+
+def get_current_subscription(
+    current_user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    """Return the subscription row for the current user.
+    Raises 402 if no subscription exists (D-13 edge case redirect target)."""
+    from app.store.history_store import get_subscription_by_user
+    sub = get_subscription_by_user(current_user["id"])
+    if not sub:
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail={"code": "no_subscription", "message": "Plan selection required."},
+        )
+    return sub
