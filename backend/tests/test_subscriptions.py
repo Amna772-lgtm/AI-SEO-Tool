@@ -8,7 +8,6 @@ import pytest
 
 
 # --- SUB-01: Free plan enrollment creates a subscription row -------------
-@pytest.mark.xfail(reason="Route /subscriptions/select not built until plan 05-02", strict=False)
 def test_free_plan_creates_subscription(client, signup_user):
     """POST /subscriptions/select {plan:'free'} -> 200, subscription row exists."""
     # Sign in first
@@ -23,9 +22,10 @@ def test_free_plan_creates_subscription(client, signup_user):
 
 
 # --- SUB-02: Pro plan returns Stripe Checkout URL ------------------------
-@pytest.mark.xfail(reason="Stripe checkout route not built until plan 05-02", strict=False)
 def test_pro_plan_returns_checkout_url(client, signup_user, monkeypatch):
     """POST /subscriptions/create-checkout-session {plan:'pro'} -> 200 with checkout_url."""
+    monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_test_fake")
+    monkeypatch.setenv("STRIPE_PRICE_PRO", "price_test_pro")
     # Mock stripe.checkout.Session.create to avoid real API call
     import stripe
     class FakeSession:
@@ -39,9 +39,10 @@ def test_pro_plan_returns_checkout_url(client, signup_user, monkeypatch):
 
 
 # --- SUB-03: Webhook activates subscription on checkout.session.completed -
-@pytest.mark.xfail(reason="Webhook route not built until plan 05-02", strict=False)
 def test_webhook_activates_subscription(client, signup_user, monkeypatch):
     """POST /webhooks/stripe with checkout.session.completed -> subscription row created."""
+    monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_test_fake")
+    monkeypatch.setenv("STRIPE_WEBHOOK_SECRET", "whsec_fake")
     import stripe
     from app.store.history_store import get_subscription_by_user, get_user_by_email
     user = get_user_by_email(signup_user["email"])
@@ -103,9 +104,10 @@ def test_schedules_blocked_for_free(client, signup_and_subscribe):
 
 
 # --- SUB-07: Webhook rejects invalid signature ---------------------------
-@pytest.mark.xfail(reason="Webhook route not built until plan 05-02", strict=False)
 def test_webhook_invalid_signature(client, monkeypatch):
     """POST /webhooks/stripe with bad signature -> 400."""
+    monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_test_fake")
+    monkeypatch.setenv("STRIPE_WEBHOOK_SECRET", "whsec_fake")
     import stripe
     def raise_sig(payload, sig, secret):
         raise stripe.error.SignatureVerificationError("bad sig", sig)
