@@ -473,10 +473,11 @@ function CompetitorsTabInner() {
 
       {/* Section 4: Comparison view */}
       {showComparison ? (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <div className="flex flex-col gap-4">
-            <p className="text-base font-semibold text-[var(--foreground)]">Score Comparison</p>
-            <div className="flex flex-wrap gap-4">
+        <div className="flex flex-col gap-6">
+          {/* Score cards row */}
+          <div className="flex flex-col gap-3">
+            <p className="text-sm font-semibold text-[var(--foreground)]">Score Comparison</p>
+            <div className="flex flex-wrap gap-3">
               {primaryRecord && (
                 <SiteComparisonCard
                   record={primaryRecord}
@@ -494,8 +495,9 @@ function CompetitorsTabInner() {
               ))}
             </div>
           </div>
-          <div className="flex flex-col gap-4">
-            <p className="text-base font-semibold text-[var(--foreground)]">GEO Dimension Comparison</p>
+          {/* Dimension bar chart */}
+          <div className="flex flex-col gap-3 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4">
+            <p className="text-sm font-semibold text-[var(--foreground)]">GEO Dimension Comparison</p>
             <CompetitorRadarChart sites={radarSites} />
           </div>
         </div>

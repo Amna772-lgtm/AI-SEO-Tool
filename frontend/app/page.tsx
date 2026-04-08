@@ -1437,7 +1437,7 @@ export default function Home() {
 
         {/* ── COMPETITORS TAB ── */}
         {mainTab === "competitors" && (
-          <div className="space-y-6 p-8">
+          <div className="flex min-h-0 flex-1 flex-col overflow-auto bg-[var(--background)]">
             <CompetitorsTab />
           </div>
         )}

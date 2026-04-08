@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from app.dependencies.auth import get_current_user
+from app.store.crawl_store import set_meta
 from app.store.history_store import (
     get_or_create_competitor_group,
     get_competitor_group,
@@ -187,6 +188,12 @@ def add_site(
     url = _normalize_url(req.url)
     site = add_competitor_site(group_id, url)
     task_id = str(uuid.uuid4())
+    set_meta(task_id, {
+        "id": task_id,
+        "url": url,
+        "status": "queued",
+        "user_id": current_user["id"],
+    })
     process_site.delay(url, task_id)
     increment_audit_count(current_user["id"])
     link_competitor_analysis(site["id"], task_id)
@@ -227,6 +234,12 @@ def reaudit_site(
     _check_quota_or_raise(current_user["id"], plan)
     url = _normalize_url(site["url"])
     task_id = str(uuid.uuid4())
+    set_meta(task_id, {
+        "id": task_id,
+        "url": url,
+        "status": "queued",
+        "user_id": current_user["id"],
+    })
     process_site.delay(url, task_id)
     increment_audit_count(current_user["id"])
     link_competitor_analysis(site_id, task_id)
