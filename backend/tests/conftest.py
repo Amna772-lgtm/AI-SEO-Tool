@@ -54,3 +54,47 @@ def signup_and_subscribe(client):
         create_subscription(user_id=user["id"], plan=plan)
         return {"email": email, "password": password, "user_id": user["id"], "plan": plan}
     return _make
+
+
+@pytest.fixture
+def pro_user_with_group(client):
+    """Signs up a Pro user, creates a primary analysis, returns (user_id, primary_analysis_id, group_id, cookies).
+
+    Reuses signup_and_subscribe logic inline to avoid fixture-of-fixture composition complexity.
+    """
+    import uuid
+    from app.store.history_store import (
+        create_subscription,
+        get_user_by_email,
+        save_analysis,
+        get_or_create_competitor_group,
+    )
+
+    email = f"pro-{uuid.uuid4().hex[:8]}@example.com"
+    password = "correct-horse-battery-staple"
+    client.post("/auth/signup", json={
+        "email": email,
+        "name": "Pro User",
+        "password": password,
+    })
+    signin_res = client.post("/auth/signin", json={"email": email, "password": password})
+    user = get_user_by_email(email)
+    create_subscription(user_id=user["id"], plan="pro")
+
+    primary_analysis_id = f"primary-{uuid.uuid4().hex[:8]}"
+    save_analysis(
+        task_id=primary_analysis_id,
+        url="https://primary-site.com",
+        pages_count=5,
+        geo_data={},
+        audit_result=None,
+        user_id=user["id"],
+    )
+
+    group = get_or_create_competitor_group(
+        user_id=user["id"],
+        primary_analysis_id=primary_analysis_id,
+    )
+
+    cookies = dict(signin_res.cookies)
+    yield user["id"], primary_analysis_id, group["id"], cookies
