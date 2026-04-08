@@ -4,12 +4,12 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 07
 status: completed
-last_updated: "2026-04-08T17:39:32.520Z"
+last_updated: "2026-04-08T17:59:43.102Z"
 progress:
   total_phases: 6
   completed_phases: 2
   total_plans: 12
-  completed_plans: 9
+  completed_plans: 11
 ---
 
 # Project State
@@ -66,6 +66,8 @@ Status: Phase 01 COMPLETE — All 3 plans executed
 - [Phase 07 Plan 02]: get_analysis() used instead of non-existent get_history_record() — same user-scoped lookup
 - [Phase 07 Plan 02]: process_site.delay(url, task_id) called positionally to match actual Celery task signature
 - [Phase 07 Plan 02]: staticmethod() wraps FakeClient lambda to prevent Python descriptor binding self as api_key
+- [Phase 07]: GeoScoreRing and EngineScores use named exports — competitor components import with braces
+- [Phase 07]: CompetitorsTab split into outer (plan gate) + inner (hooks) components to avoid hooks-after-return React error
 
 ## Codebase Map
 

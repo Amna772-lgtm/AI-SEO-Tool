@@ -144,12 +144,12 @@ Plans:
 **Goal:** Users can discover competitor websites via Claude, audit them through the existing crawl + GEO pipeline, and view a side-by-side comparison (score cards + custom-SVG radar chart) in a dedicated plan-gated Competitors tab.
 **Requirements**: D-01, D-02, D-03, D-04, D-05, D-06, D-07, D-08, D-09, D-10, D-11, D-12, D-13, D-14, D-15, D-16, D-17, D-18, D-19
 **Depends on:** Phase 5
-**Plans:** 1/4 plans executed
+**Plans:** 3/4 plans executed
 
 Plans:
 - [x] 07-01-PLAN.md — SQLite tables (competitor_groups, competitor_sites) + 7 store helpers + Wave 0 pytest scaffold
 - [x] 07-02-PLAN.md — Claude-powered competitor_discovery analyzer + /competitors/ API router with 7 routes + plan gating + cap enforcement
-- [ ] 07-03-PLAN.md — Frontend api.ts types/fetchers + 6 new components (tab container, selector, suggestion card, competitor card, comparison card, custom SVG radar chart)
+- [x] 07-03-PLAN.md — Frontend api.ts types/fetchers + 6 new components (tab container, selector, suggestion card, competitor card, comparison card, custom SVG radar chart)
 - [ ] 07-04-PLAN.md — Wire CompetitorsTab into page.tsx + human UAT checkpoint for end-to-end verification
 
 ---
