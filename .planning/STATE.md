@@ -2,20 +2,20 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 05
+current_phase: 07
 status: completed
-last_updated: "2026-04-07T12:26:10.641Z"
+last_updated: "2026-04-08T10:38:19.029Z"
 progress:
-  total_phases: 5
+  total_phases: 6
   completed_phases: 2
-  total_plans: 8
-  completed_plans: 8
+  total_plans: 12
+  completed_plans: 9
 ---
 
 # Project State
 
 **Last Updated:** 2026-03-31
-**Current Phase:** 05
+**Current Phase:** 07
 **Overall Status:** Executing
 
 ## Project Reference
@@ -23,7 +23,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-31)
 
 **Core value:** Give website owners a credible, actionable score for AI citation readiness
-**Current focus:** Phase 05 — implement-pricing-plan-selection-flow-after-signup
+**Current focus:** Phase 07 — add-a-competitor-tracking-feature-to-the-ai-seo-tool
 
 ## Current Phase
 
@@ -61,6 +61,8 @@ Status: Phase 01 COMPLETE — All 3 plans executed
 - [Phase 05]: Stripe HMAC signature verification via stripe.Webhook.construct_event — webhook authenticates via sig header not JWT cookie
 - [Phase 05]: authLoading alias used in page.tsx to avoid collision with crawl loading state
 - [Phase 05]: Stripe success polling checks sub.plan !== free to confirm paid activation via webhook
+- [Phase 07]: competitor_groups enforces D-09 via SELECT-before-INSERT AND UNIQUE INDEX at DB layer
+- [Phase 07]: competitor_sites.analysis_id is plain TEXT (no FK REFERENCES) - SQLite cannot add FK via ALTER TABLE
 
 ## Codebase Map
 
@@ -75,6 +77,7 @@ See: .planning/codebase/ (generated 2026-03-30)
 
 - Phase 4 added: Add user authentication with Signup, Signin, Session management, and Logout
 - Phase 5 added: Implement Pricing Plan Selection Flow After Signup
+- Phase 7 added: Add a Competitor Tracking feature to the AI SEO Tool
 
 ### Phase 04 Decisions
 
