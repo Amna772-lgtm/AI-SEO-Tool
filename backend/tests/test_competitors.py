@@ -155,7 +155,7 @@ def test_discovery_normalizes_domains(monkeypatch):
 
     monkeypatch.setattr(competitor_discovery, "ANTHROPIC_API_KEY", "fake-key")
     monkeypatch.setattr(competitor_discovery, "anthropic", type("M", (), {
-        "Anthropic": lambda api_key: FakeClient()
+        "Anthropic": staticmethod(lambda api_key: FakeClient())
     })())
 
     result = competitor_discovery.discover_competitors(
