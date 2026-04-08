@@ -748,3 +748,132 @@ export async function createCheckoutSession(plan: "pro" | "agency"): Promise<str
   const body = (await res.json()) as { checkout_url: string };
   return body.checkout_url;
 }
+
+// ============================================================
+// Competitor Tracking (Phase 07)
+// ============================================================
+
+export interface CompetitorSuggestion {
+  domain: string;
+  reason: string;
+}
+
+export interface CompetitorDiscoveryResponse {
+  suggestions: CompetitorSuggestion[];
+  fallback: boolean;
+  message?: string;
+}
+
+export interface CompetitorSite {
+  id: string;
+  group_id: string;
+  url: string;
+  analysis_id: string | null;  // populated immediately on add_site in Plan 02
+  created_at: string;
+}
+
+export interface CompetitorGroup {
+  id: string;
+  user_id: string;
+  primary_analysis_id: string;
+  primary_domain?: string;   // populated by backend get_group/create_group
+  created_at: string;
+  sites: CompetitorSite[];
+}
+
+export async function listCompetitorGroups(): Promise<{ groups: CompetitorGroup[] }> {
+  const res = await apiFetch(`${API_BASE}/competitors/groups`);
+  if (!res.ok) throw new Error(`Failed to list competitor groups: ${res.status}`);
+  return res.json();
+}
+
+export async function getCompetitorGroup(groupId: string): Promise<CompetitorGroup> {
+  const res = await apiFetch(`${API_BASE}/competitors/groups/${encodeURIComponent(groupId)}`);
+  if (!res.ok) throw new Error(`Failed to fetch group: ${res.status}`);
+  return res.json();
+}
+
+export async function createCompetitorGroup(primaryAnalysisId: string): Promise<CompetitorGroup> {
+  const res = await apiFetch(`${API_BASE}/competitors/groups`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ primary_analysis_id: primaryAnalysisId }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err?.detail?.message || `Failed to create group: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function discoverCompetitors(primaryAnalysisId: string): Promise<CompetitorDiscoveryResponse> {
+  const res = await apiFetch(`${API_BASE}/competitors/discover`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ primary_analysis_id: primaryAnalysisId }),
+  });
+  if (!res.ok) throw new Error(`Discovery failed: ${res.status}`);
+  return res.json();
+}
+
+export async function addCompetitorSite(groupId: string, url: string): Promise<CompetitorSite> {
+  const res = await apiFetch(`${API_BASE}/competitors/groups/${encodeURIComponent(groupId)}/sites`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ url }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    const detail = err?.detail;
+    // Surface structured backend errors for the UI: competitor_cap_reached, feature_unavailable, quota_exceeded
+    if (detail && typeof detail === "object") {
+      const e = new Error(detail.message || `Add site failed: ${res.status}`) as Error & { code?: string; cap?: number };
+      e.code = detail.code;
+      e.cap = detail.cap;
+      throw e;
+    }
+    throw new Error(`Add site failed: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function removeCompetitorSite(groupId: string, siteId: string): Promise<void> {
+  const res = await apiFetch(
+    `${API_BASE}/competitors/groups/${encodeURIComponent(groupId)}/sites/${encodeURIComponent(siteId)}`,
+    { method: "DELETE" }
+  );
+  if (!res.ok) throw new Error(`Remove failed: ${res.status}`);
+}
+
+export async function reauditCompetitorSite(groupId: string, siteId: string): Promise<CompetitorSite> {
+  const res = await apiFetch(
+    `${API_BASE}/competitors/groups/${encodeURIComponent(groupId)}/sites/${encodeURIComponent(siteId)}/reaudit`,
+    { method: "POST" }
+  );
+  if (!res.ok) throw new Error(`Re-audit failed: ${res.status}`);
+  return res.json();
+}
+
+// Helper: extract the 6 radar axes from a HistoryRecord. Pitfall 1: entity is NOT in score_breakdown.
+export interface RadarDimensions {
+  nlp: number;
+  structured_data: number;
+  eeat: number;
+  conversational: number;
+  entity: number;
+  technical: number;
+}
+
+export function extractRadarDimensions(record: HistoryRecord): RadarDimensions {
+  const bd = record.score_breakdown;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const entityScore = (record as any)?.geo_data?.entity?.entity_score ?? 0;
+  return {
+    nlp:             bd?.nlp?.raw ?? 0,
+    structured_data: bd?.structured_data?.raw ?? 0,
+    eeat:            bd?.eeat?.raw ?? 0,
+    conversational:  bd?.conversational?.raw ?? 0,
+    entity:          Number(entityScore) || 0,
+    technical:       bd?.technical?.raw ?? 0,
+  };
+}
