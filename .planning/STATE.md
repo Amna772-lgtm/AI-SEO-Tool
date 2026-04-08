@@ -4,11 +4,7 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 07
 status: completed
-<<<<<<< HEAD
-last_updated: "2026-04-08T10:38:19.029Z"
-=======
-last_updated: "2026-04-08T17:23:34.310Z"
->>>>>>> 11199e1 (improvements)
+last_updated: "2026-04-08T17:39:32.520Z"
 progress:
   total_phases: 6
   completed_phases: 2
@@ -67,6 +63,9 @@ Status: Phase 01 COMPLETE — All 3 plans executed
 - [Phase 05]: Stripe success polling checks sub.plan !== free to confirm paid activation via webhook
 - [Phase 07]: competitor_groups enforces D-09 via SELECT-before-INSERT AND UNIQUE INDEX at DB layer
 - [Phase 07]: competitor_sites.analysis_id is plain TEXT (no FK REFERENCES) - SQLite cannot add FK via ALTER TABLE
+- [Phase 07 Plan 02]: get_analysis() used instead of non-existent get_history_record() — same user-scoped lookup
+- [Phase 07 Plan 02]: process_site.delay(url, task_id) called positionally to match actual Celery task signature
+- [Phase 07 Plan 02]: staticmethod() wraps FakeClient lambda to prevent Python descriptor binding self as api_key
 
 ## Codebase Map
 
@@ -81,11 +80,8 @@ See: .planning/codebase/ (generated 2026-03-30)
 
 - Phase 4 added: Add user authentication with Signup, Signin, Session management, and Logout
 - Phase 5 added: Implement Pricing Plan Selection Flow After Signup
-<<<<<<< HEAD
 - Phase 7 added: Add a Competitor Tracking feature to the AI SEO Tool
-=======
 - Phase 6 added: Comprehensive review and optimization of entire project
->>>>>>> 11199e1 (improvements)
 
 ### Phase 04 Decisions
 

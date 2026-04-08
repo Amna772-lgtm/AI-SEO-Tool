@@ -155,7 +155,7 @@ def test_discovery_normalizes_domains(monkeypatch):
 
     monkeypatch.setattr(competitor_discovery, "ANTHROPIC_API_KEY", "fake-key")
     monkeypatch.setattr(competitor_discovery, "anthropic", type("M", (), {
-        "Anthropic": lambda api_key: FakeClient()
+        "Anthropic": staticmethod(lambda api_key: FakeClient())
     })())
 
     result = competitor_discovery.discover_competitors(
@@ -227,6 +227,8 @@ def test_competitor_cap_agency(client, signup_and_subscribe, monkeypatch):
     client2 = TestClient(app)
 
     u = signup_and_subscribe(plan="agency")
+    # Sign in on client2 so it carries the auth cookie for subsequent requests
+    client2.post("/auth/signin", json={"email": u["email"], "password": u["password"]})
     _insert_analysis("cap-agency-analysis-02", "https://cappedagency.com", u["user_id"])
     group_res = client2.post(
         "/competitors/groups",

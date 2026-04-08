@@ -137,7 +137,6 @@ Plans:
 **Plans:** 4/4 plans complete
 
 Plans:
-<<<<<<< HEAD
 - [x] TBD (run /gsd:plan-phase 5 to break down) (completed 2026-04-07)
 
 ### Phase 7: Add a Competitor Tracking feature to the AI SEO Tool
@@ -149,12 +148,10 @@ Plans:
 
 Plans:
 - [x] 07-01-PLAN.md — SQLite tables (competitor_groups, competitor_sites) + 7 store helpers + Wave 0 pytest scaffold
-- [ ] 07-02-PLAN.md — Claude-powered competitor_discovery analyzer + /competitors/ API router with 7 routes + plan gating + cap enforcement
+- [x] 07-02-PLAN.md — Claude-powered competitor_discovery analyzer + /competitors/ API router with 7 routes + plan gating + cap enforcement
 - [ ] 07-03-PLAN.md — Frontend api.ts types/fetchers + 6 new components (tab container, selector, suggestion card, competitor card, comparison card, custom SVG radar chart)
 - [ ] 07-04-PLAN.md — Wire CompetitorsTab into page.tsx + human UAT checkpoint for end-to-end verification
 
 ---
 *Roadmap created: 2026-03-31*
-=======
 - [x] TBD (run /gsd:plan-phase 5 to break down) (completed 2006-04-07)
->>>>>>> 11199e1 (improvements)
