@@ -25,9 +25,10 @@ import { HistoryTab } from "./components/history/HistoryTab";
 import { SchedulesTab } from "./components/schedules/SchedulesTab";
 import { useAuth } from "./lib/auth";
 import LockedFeature from "./components/LockedFeature";
+import CompetitorsTab from "./components/competitors/CompetitorsTab";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
-type MainTab = "dashboard" | "crawl" | "audit" | "geo" | "insights" | "history" | "schedules";
+type MainTab = "dashboard" | "crawl" | "audit" | "geo" | "insights" | "history" | "schedules" | "competitors";
 type TypeTab = "all" | "internal" | "external";
 
 // ── Small UI helpers ───────────────────────────────────────────────────────────
@@ -646,6 +647,7 @@ export default function Home() {
               { id: "insights",  label: "Insights",  icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg> },
               { id: "history",   label: "History",   icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.95"/></svg> },
               { id: "schedules", label: "Schedules", icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> },
+              { id: "competitors", label: "Competitors", icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="9" r="4"/><circle cx="17" cy="17" r="4"/><line x1="12.5" y1="12.5" x2="13.5" y2="13.5"/></svg> },
             ] as { id: MainTab; label: string; icon: React.ReactNode }[]
           ).map((item) => (
             <button
@@ -1431,6 +1433,13 @@ export default function Home() {
           ) : (
             <SchedulesTab initialDomain={site?.url ? new URL(site.url).hostname.replace(/^www\./, "") : ""} />
           )
+        )}
+
+        {/* ── COMPETITORS TAB ── */}
+        {mainTab === "competitors" && (
+          <div className="space-y-6 p-8">
+            <CompetitorsTab />
+          </div>
         )}
 
         {/* ── GEO TAB ── */}
