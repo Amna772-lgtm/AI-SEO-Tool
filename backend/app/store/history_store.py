@@ -103,6 +103,32 @@ def init_db() -> None:
                 CREATE UNIQUE INDEX IF NOT EXISTS idx_subscriptions_user_id ON subscriptions(user_id);
                 CREATE INDEX IF NOT EXISTS idx_subscriptions_stripe_sub ON subscriptions(stripe_subscription_id);
             """)
+            conn.executescript("""
+                CREATE TABLE IF NOT EXISTS competitor_groups (
+                    id                   TEXT PRIMARY KEY,
+                    user_id              TEXT NOT NULL,
+                    primary_analysis_id  TEXT NOT NULL,
+                    created_at           TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_competitor_groups_user_id
+                    ON competitor_groups(user_id);
+                CREATE INDEX IF NOT EXISTS idx_competitor_groups_primary_analysis_id
+                    ON competitor_groups(primary_analysis_id);
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_competitor_groups_user_primary
+                    ON competitor_groups(user_id, primary_analysis_id);
+
+                CREATE TABLE IF NOT EXISTS competitor_sites (
+                    id           TEXT PRIMARY KEY,
+                    group_id     TEXT NOT NULL,
+                    url          TEXT NOT NULL,
+                    analysis_id  TEXT,
+                    created_at   TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_competitor_sites_group_id
+                    ON competitor_sites(group_id);
+                CREATE INDEX IF NOT EXISTS idx_competitor_sites_analysis_id
+                    ON competitor_sites(analysis_id);
+            """)
             conn.commit()
             # Per-user isolation columns. Pre-existing rows will have NULL user_id (orphaned).
             # Use plain TEXT (no REFERENCES clause) to avoid SQLite ADD COLUMN FK restriction.
@@ -706,3 +732,133 @@ def maybe_reset_pro_audit_count(user_id: str) -> dict[str, Any] | None:
     if datetime.now(timezone.utc) >= end_dt:
         return update_subscription(user_id, audit_count=0)
     return sub
+
+
+# ---------------------------------------------------------------------------
+# Competitor tracking CRUD (Phase 07)
+# ---------------------------------------------------------------------------
+
+def get_or_create_competitor_group(user_id: str, primary_analysis_id: str) -> dict[str, Any]:
+    """D-09: one group per primary_analysis_id per user. SELECT-before-INSERT."""
+    now = datetime.now(timezone.utc).isoformat()
+    with _lock:
+        conn = _connect()
+        try:
+            existing = conn.execute(
+                "SELECT * FROM competitor_groups WHERE user_id=? AND primary_analysis_id=?",
+                (user_id, primary_analysis_id),
+            ).fetchone()
+            if existing:
+                return dict(existing)
+            group_id = str(uuid.uuid4())
+            conn.execute(
+                "INSERT INTO competitor_groups (id, user_id, primary_analysis_id, created_at) VALUES (?,?,?,?)",
+                (group_id, user_id, primary_analysis_id, now),
+            )
+            conn.commit()
+            row = conn.execute("SELECT * FROM competitor_groups WHERE id=?", (group_id,)).fetchone()
+            return dict(row)
+        finally:
+            conn.close()
+
+
+def get_competitor_group(group_id: str, user_id: str) -> dict[str, Any] | None:
+    """Returns group with embedded sites list. None if not found or not owned by user_id."""
+    conn = _connect()
+    try:
+        grow = conn.execute(
+            "SELECT * FROM competitor_groups WHERE id=? AND user_id=?",
+            (group_id, user_id),
+        ).fetchone()
+        if not grow:
+            return None
+        group = dict(grow)
+        sites = conn.execute(
+            "SELECT * FROM competitor_sites WHERE group_id=? ORDER BY created_at ASC",
+            (group_id,),
+        ).fetchall()
+        group["sites"] = [dict(s) for s in sites]
+        return group
+    finally:
+        conn.close()
+
+
+def list_competitor_groups(user_id: str) -> list[dict[str, Any]]:
+    """All groups for a user, sites embedded. Used by GET /competitors/groups."""
+    conn = _connect()
+    try:
+        rows = conn.execute(
+            "SELECT * FROM competitor_groups WHERE user_id=? ORDER BY created_at DESC",
+            (user_id,),
+        ).fetchall()
+        groups = []
+        for r in rows:
+            g = dict(r)
+            sites = conn.execute(
+                "SELECT * FROM competitor_sites WHERE group_id=? ORDER BY created_at ASC",
+                (g["id"],),
+            ).fetchall()
+            g["sites"] = [dict(s) for s in sites]
+            groups.append(g)
+        return groups
+    finally:
+        conn.close()
+
+
+def add_competitor_site(group_id: str, url: str) -> dict[str, Any]:
+    """Insert with analysis_id=NULL; Plan 02 API route calls link_competitor_analysis immediately after process_site.delay()."""
+    site_id = str(uuid.uuid4())
+    now = datetime.now(timezone.utc).isoformat()
+    with _lock:
+        conn = _connect()
+        try:
+            conn.execute(
+                "INSERT INTO competitor_sites (id, group_id, url, analysis_id, created_at) VALUES (?,?,?,NULL,?)",
+                (site_id, group_id, url, now),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+    return {"id": site_id, "group_id": group_id, "url": url, "analysis_id": None, "created_at": now}
+
+
+def link_competitor_analysis(site_id: str, analysis_id: str) -> None:
+    """Called by POST /competitors/groups/{id}/sites right after process_site.delay() returns task_id."""
+    with _lock:
+        conn = _connect()
+        try:
+            conn.execute(
+                "UPDATE competitor_sites SET analysis_id=? WHERE id=?",
+                (analysis_id, site_id),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+
+def count_competitor_sites(group_id: str) -> int:
+    """Used by POST /competitors/groups/{id}/sites to enforce D-13 cap (Pro=3, Agency=10)."""
+    conn = _connect()
+    try:
+        row = conn.execute(
+            "SELECT COUNT(*) AS n FROM competitor_sites WHERE group_id=?",
+            (group_id,),
+        ).fetchone()
+        return int(row["n"])
+    finally:
+        conn.close()
+
+
+def delete_competitor_site(site_id: str, group_id: str) -> bool:
+    """Returns True if row was deleted, False if not found. Caller verifies group ownership first."""
+    with _lock:
+        conn = _connect()
+        try:
+            cur = conn.execute(
+                "DELETE FROM competitor_sites WHERE id=? AND group_id=?",
+                (site_id, group_id),
+            )
+            conn.commit()
+            return cur.rowcount > 0
+        finally:
+            conn.close()
