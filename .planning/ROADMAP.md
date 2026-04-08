@@ -1,7 +1,7 @@
 # Roadmap: AI SEO Tool — GEO Citation Readiness Platform
 
 **Milestone:** v1 — Accuracy & Production Hardening
-**Created:** 2026-03-31
+**Created:** 2006-03-31
 **Granularity:** Coarse
 
 ## Phases
@@ -137,6 +137,7 @@ Plans:
 **Plans:** 4/4 plans complete
 
 Plans:
+<<<<<<< HEAD
 - [x] TBD (run /gsd:plan-phase 5 to break down) (completed 2026-04-07)
 
 ### Phase 7: Add a Competitor Tracking feature to the AI SEO Tool
@@ -154,3 +155,6 @@ Plans:
 
 ---
 *Roadmap created: 2026-03-31*
+=======
+- [x] TBD (run /gsd:plan-phase 5 to break down) (completed 2006-04-07)
+>>>>>>> 11199e1 (improvements)
