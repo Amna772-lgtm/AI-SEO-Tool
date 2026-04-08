@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from app.api.routes import analyze, sites, geo, history, schedules, auth, subscriptions
+from app.api.routes import analyze, sites, geo, history, schedules, auth, subscriptions, competitors
 from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
@@ -24,6 +24,7 @@ app.include_router(history.router, prefix="/history", tags=["history"])
 app.include_router(schedules.router, prefix="/schedules", tags=["schedules"])
 app.include_router(subscriptions.router, prefix="/subscriptions", tags=["subscriptions"])
 app.include_router(subscriptions.webhook_router, prefix="/webhooks", tags=["webhooks"])
+app.include_router(competitors.router, prefix="/competitors", tags=["competitors"])
 
 @app.get("/")
 def root():
