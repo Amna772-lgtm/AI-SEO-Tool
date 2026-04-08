@@ -866,7 +866,7 @@ export default function Home() {
 
                     {/* SEO Score */}
                     <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4">
-                      <p className="mb-2 text-xs font-medium text-[var(--muted)]">SEO Score</p>
+                      <p className="mb-2 text-xs font-medium text-[var(--muted)]">Overall GEO Score</p>
                       {geoScore != null ? (
                         <>
                           <div className="flex items-end gap-1">

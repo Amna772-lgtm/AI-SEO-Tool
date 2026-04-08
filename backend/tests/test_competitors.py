@@ -1,8 +1,6 @@
 """Wave 0 test scaffolding for Phase 07 — Competitor Tracking feature.
 
-Tests that cannot pass yet (Plan 02 enforcement layer) are marked
-@pytest.mark.xfail(reason="implemented in Plan 02") so Plan 01's wave run
-stays green after Task 2 implements the store helpers.
+Plan 02 enforcement tests are now GREEN (xfail markers removed).
 """
 import pytest
 from app.store.history_store import (
@@ -123,67 +121,236 @@ def test_count_competitor_sites():
 
 
 # ---------------------------------------------------------------------------
-# Plan 02 scaffolds — marked xfail until enforcement API routes are built
+# Discovery analyzer unit tests (no HTTP, no routes)
 # ---------------------------------------------------------------------------
 
-@pytest.mark.xfail(reason="implemented in Plan 02")
-def test_competitor_cap_pro(client, signup_and_subscribe):
-    """Pro user can add at most 3 competitor sites; 4th site returns 403."""
-    u = signup_and_subscribe(plan="pro")
-    _insert_analysis("cap-pro-analysis", "https://cappedpro.com", u["user_id"])
-    group = get_or_create_competitor_group(
-        user_id=u["user_id"],
-        primary_analysis_id="cap-pro-analysis",
+def test_discovery_no_api_key(monkeypatch):
+    """discover_competitors returns None when ANTHROPIC_API_KEY is empty."""
+    from app.analyzers import competitor_discovery
+    monkeypatch.setattr(competitor_discovery, "ANTHROPIC_API_KEY", "")
+    result = competitor_discovery.discover_competitors(
+        "example.com", "saas", ["seo", "audits"], ["q1"], ["faq1"]
+    )
+    assert result is None
+
+
+def test_discovery_normalizes_domains(monkeypatch):
+    """discover_competitors strips protocol and path, returns bare hostnames."""
+    from app.analyzers import competitor_discovery
+
+    class FakeContent:
+        text = '[{"domain": "https://Rival.COM/pricing", "reason": "r1"}, {"domain": "www.other.io", "reason": "r2"}]'
+
+    class FakeResponse:
+        content = [FakeContent()]
+
+    class FakeClient:
+        def messages(self):
+            pass
+
+        class messages:
+            @staticmethod
+            def create(**kwargs):
+                return FakeResponse()
+
+    monkeypatch.setattr(competitor_discovery, "ANTHROPIC_API_KEY", "fake-key")
+    monkeypatch.setattr(competitor_discovery, "anthropic", type("M", (), {
+        "Anthropic": lambda api_key: FakeClient()
+    })())
+
+    result = competitor_discovery.discover_competitors(
+        "example.com", "saas", ["seo"], ["q1"], ["faq1"]
+    )
+    assert result == [
+        {"domain": "rival.com", "reason": "r1"},
+        {"domain": "other.io", "reason": "r2"},
+    ]
+
+
+# ---------------------------------------------------------------------------
+# Plan 02 API route tests (formerly xfail — now GREEN)
+# ---------------------------------------------------------------------------
+
+def test_competitor_free_plan_gate(client, signup_and_subscribe):
+    """Free plan user cannot POST /competitors/groups; returns 403 feature_unavailable."""
+    u = signup_and_subscribe(plan="free")
+    _insert_analysis("free-gate-analysis-02", "https://freeuser.com", u["user_id"])
+    # Try to create a group — free plan should be blocked
+    res = client.post(
+        "/competitors/groups",
+        json={"primary_analysis_id": "free-gate-analysis-02"},
+    )
+    assert res.status_code == 403
+    assert res.json()["detail"]["code"] == "feature_unavailable"
+
+
+def test_competitor_cap_pro(pro_user_with_group, monkeypatch):
+    """Pro user can add 3 competitor sites; 4th returns 403 competitor_cap_reached."""
+    from fastapi.testclient import TestClient
+    from app.main import app
+    client = TestClient(app)
+
+    user_id, primary_id, group_id, cookies = pro_user_with_group
+    monkeypatch.setattr(
+        "app.api.routes.competitors.process_site.delay",
+        lambda *args, **kwargs: type("T", (), {"id": kwargs.get("task_id", "fake")})()
+    )
+    monkeypatch.setattr(
+        "app.api.routes.competitors.increment_audit_count",
+        lambda uid: None
+    )
+    monkeypatch.setattr(
+        "app.api.routes.competitors._check_quota_or_raise",
+        lambda user_id, plan: None
     )
     for i in range(3):
-        client.post(
-            f"/competitors/groups/{group['id']}/sites",
-            json={"url": f"https://comp{i}.com"},
-            cookies={"access_token": u.get("token", "")},
+        r = client.post(
+            f"/competitors/groups/{group_id}/sites",
+            json={"url": f"https://rival{i}.com"},
+            cookies=cookies,
         )
-    res = client.post(
-        f"/competitors/groups/{group['id']}/sites",
-        json={"url": "https://over-cap.com"},
-        cookies={"access_token": u.get("token", "")},
+        assert r.status_code == 200, r.text
+    r = client.post(
+        f"/competitors/groups/{group_id}/sites",
+        json={"url": "https://rival4.com"},
+        cookies=cookies,
     )
-    assert res.status_code == 403
+    assert r.status_code == 403
+    assert r.json()["detail"]["code"] == "competitor_cap_reached"
+    assert r.json()["detail"]["cap"] == 3
 
 
-@pytest.mark.xfail(reason="implemented in Plan 02")
-def test_competitor_cap_agency(client, signup_and_subscribe):
-    """Agency user can add at most 10 competitor sites; 11th returns 403."""
+def test_competitor_cap_agency(client, signup_and_subscribe, monkeypatch):
+    """Agency user can add 10 competitor sites; 11th returns 403 competitor_cap_reached."""
+    from fastapi.testclient import TestClient
+    from app.main import app
+    client2 = TestClient(app)
+
     u = signup_and_subscribe(plan="agency")
-    _insert_analysis("cap-agency-analysis", "https://cappedagency.com", u["user_id"])
-    group = get_or_create_competitor_group(
-        user_id=u["user_id"],
-        primary_analysis_id="cap-agency-analysis",
+    _insert_analysis("cap-agency-analysis-02", "https://cappedagency.com", u["user_id"])
+    group_res = client2.post(
+        "/competitors/groups",
+        json={"primary_analysis_id": "cap-agency-analysis-02"},
+    )
+    assert group_res.status_code == 200, group_res.text
+    group_id = group_res.json()["id"]
+
+    monkeypatch.setattr(
+        "app.api.routes.competitors.process_site.delay",
+        lambda *args, **kwargs: type("T", (), {"id": kwargs.get("task_id", "fake")})()
+    )
+    monkeypatch.setattr(
+        "app.api.routes.competitors.increment_audit_count",
+        lambda uid: None
+    )
+    monkeypatch.setattr(
+        "app.api.routes.competitors._check_quota_or_raise",
+        lambda user_id, plan: None
     )
     for i in range(10):
-        client.post(
-            f"/competitors/groups/{group['id']}/sites",
+        r = client2.post(
+            f"/competitors/groups/{group_id}/sites",
             json={"url": f"https://comp-agency{i}.com"},
-            cookies={"access_token": u.get("token", "")},
         )
-    res = client.post(
-        f"/competitors/groups/{group['id']}/sites",
+        assert r.status_code == 200, r.text
+    r = client2.post(
+        f"/competitors/groups/{group_id}/sites",
         json={"url": "https://over-cap-agency.com"},
-        cookies={"access_token": u.get("token", "")},
     )
-    assert res.status_code == 403
+    assert r.status_code == 403
+    assert r.json()["detail"]["code"] == "competitor_cap_reached"
+    assert r.json()["detail"]["cap"] == 10
 
 
-@pytest.mark.xfail(reason="implemented in Plan 02")
-def test_competitor_free_plan_gate(client, signup_and_subscribe):
-    """Free plan user cannot access competitor tracking; POST returns 403."""
-    u = signup_and_subscribe(plan="free")
-    _insert_analysis("free-gate-analysis", "https://freeuser.com", u["user_id"])
-    group = get_or_create_competitor_group(
-        user_id=u["user_id"],
-        primary_analysis_id="free-gate-analysis",
+def test_cross_user_group_returns_404(client, signup_and_subscribe):
+    """User A cannot GET /competitors/groups/{group_id} owned by User B; returns 404."""
+    from fastapi.testclient import TestClient
+    from app.main import app
+
+    u_a = signup_and_subscribe(plan="pro")
+    u_b = signup_and_subscribe(plan="pro")
+
+    _insert_analysis("cross-user-analysis-a", "https://site-a.com", u_a["user_id"])
+
+    # User A creates a group
+    client_a = TestClient(app)
+    client_a.post("/auth/signin", json={"email": u_a["email"], "password": u_a["password"]})
+    group_res = client_a.post(
+        "/competitors/groups",
+        json={"primary_analysis_id": "cross-user-analysis-a"},
     )
+    assert group_res.status_code == 200, group_res.text
+    group_id = group_res.json()["id"]
+
+    # User B tries to access User A's group — should get 404 per Phase 04 decision
+    client_b = TestClient(app)
+    client_b.post("/auth/signin", json={"email": u_b["email"], "password": u_b["password"]})
+    res = client_b.get(f"/competitors/groups/{group_id}")
+    assert res.status_code == 404
+
+
+def test_add_site_dispatches_analyze_and_links(pro_user_with_group, monkeypatch):
+    """POST /competitors/groups/{id}/sites dispatches delay and links task_id to analysis_id."""
+    from fastapi.testclient import TestClient
+    from app.main import app
+    client = TestClient(app)
+
+    user_id, primary_id, group_id, cookies = pro_user_with_group
+    captured = {}
+
+    def fake_delay(*args, **kwargs):
+        captured["task_id"] = kwargs.get("task_id", args[1] if len(args) > 1 else "")
+        return type("T", (), {"id": captured["task_id"]})()
+
+    monkeypatch.setattr("app.api.routes.competitors.process_site.delay", fake_delay)
+    monkeypatch.setattr("app.api.routes.competitors.increment_audit_count", lambda uid: None)
+    monkeypatch.setattr("app.api.routes.competitors._check_quota_or_raise", lambda uid, plan: None)
+
     res = client.post(
-        f"/competitors/groups/{group['id']}/sites",
-        json={"url": "https://rival-free.com"},
-        cookies={"access_token": u.get("token", "")},
+        f"/competitors/groups/{group_id}/sites",
+        json={"url": "https://dispatched-rival.com"},
+        cookies=cookies,
     )
-    assert res.status_code == 403
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["analysis_id"] is not None
+    assert body["analysis_id"] == captured["task_id"]
+
+
+def test_reaudit_dispatches_new_analyze(pro_user_with_group, monkeypatch):
+    """POST /competitors/groups/{id}/sites/{site_id}/reaudit generates new task_id and updates analysis_id."""
+    from fastapi.testclient import TestClient
+    from app.main import app
+    client = TestClient(app)
+
+    user_id, primary_id, group_id, cookies = pro_user_with_group
+    call_count = {"n": 0}
+
+    def fake_delay(*args, **kwargs):
+        call_count["n"] += 1
+        return type("T", (), {"id": kwargs.get("task_id", "fake")})()
+
+    monkeypatch.setattr("app.api.routes.competitors.process_site.delay", fake_delay)
+    monkeypatch.setattr("app.api.routes.competitors.increment_audit_count", lambda uid: None)
+    monkeypatch.setattr("app.api.routes.competitors._check_quota_or_raise", lambda uid, plan: None)
+
+    # Add a site first
+    add_res = client.post(
+        f"/competitors/groups/{group_id}/sites",
+        json={"url": "https://reaudit-rival.com"},
+        cookies=cookies,
+    )
+    assert add_res.status_code == 200, add_res.text
+    site_id = add_res.json()["id"]
+    first_analysis_id = add_res.json()["analysis_id"]
+
+    # Re-audit
+    reaudit_res = client.post(
+        f"/competitors/groups/{group_id}/sites/{site_id}/reaudit",
+        cookies=cookies,
+    )
+    assert reaudit_res.status_code == 200, reaudit_res.text
+    body = reaudit_res.json()
+    assert body["id"] == site_id
+    assert body["analysis_id"] != first_analysis_id
+    assert call_count["n"] == 2  # once for add, once for reaudit
