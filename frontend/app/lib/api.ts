@@ -650,6 +650,7 @@ export interface AuthUser {
   id: string;
   email: string;
   name: string;
+  is_admin: boolean;
 }
 
 export async function signIn(email: string, password: string): Promise<AuthUser> {
@@ -700,7 +701,8 @@ export async function fetchCurrentUser(): Promise<AuthUser | null> {
   const res = await apiFetch(`${API_BASE}/auth/me`);
   if (res.status === 401) return null;
   if (!res.ok) return null;
-  return res.json();
+  const data = await res.json();
+  return { ...data, is_admin: data.is_admin ?? false };
 }
 
 // ── Subscription Types ────────────────────────────────────────────────────────
@@ -852,6 +854,231 @@ export async function reauditCompetitorSite(groupId: string, siteId: string): Pr
   );
   if (!res.ok) throw new Error(`Re-audit failed: ${res.status}`);
   return res.json();
+}
+
+// ── Admin API Types ───────────────────────────────────────────────────────────
+
+export interface AdminUserRow {
+  id: string;
+  email: string;
+  name: string;
+  created_at: string;
+  is_admin: number;
+  is_disabled: number;
+  plan: string | null;
+  audit_count: number;
+}
+
+export interface AdminUsersResponse {
+  total: number;
+  users: AdminUserRow[];
+}
+
+export interface AdminAnalysisRow {
+  id: string;
+  url: string;
+  domain: string;
+  analyzed_at: string;
+  overall_score: number | null;
+  grade: string | null;
+  user_id: string | null;
+  user_email: string | null;
+}
+
+export interface AdminAnalysesResponse {
+  total: number;
+  analyses: AdminAnalysisRow[];
+}
+
+export interface AdminUserMetrics {
+  total: number;
+  active: number;
+  disabled: number;
+  plan_distribution: Record<string, number>;
+}
+
+export interface AdminAuditMetrics {
+  total_audits: number;
+  avg_score: number | null;
+  most_audited_domains: { domain: string; count: number }[];
+}
+
+export interface AdminRevenueMetrics {
+  mrr: number;
+  active_paid: number;
+  plan_distribution: Record<string, number>;
+}
+
+export interface AdminSystemHealth {
+  celery: {
+    active_tasks: number;
+    pending_tasks: number;
+    worker_online: boolean;
+  };
+  redis_memory_mb: number;
+  avg_audit_duration: number | null;
+  failed_jobs: number;
+}
+
+export interface AdminTrendPoint {
+  date: string;
+  count: number;
+}
+
+export interface BannedDomain {
+  domain: string;
+  reason: string | null;
+  banned_at: string;
+}
+
+export interface QuotaOverride {
+  user_id: string;
+  email: string;
+  plan: string;
+  audit_quota_override: number;
+}
+
+// ── Admin API Fetchers ────────────────────────────────────────────────────────
+
+export async function fetchAdminUsers(params?: {
+  search?: string;
+  plan?: string;
+  status?: string;
+  skip?: number;
+  limit?: number;
+}): Promise<AdminUsersResponse> {
+  const qs = new URLSearchParams();
+  if (params?.search) qs.set("search", params.search);
+  if (params?.plan) qs.set("plan_filter", params.plan);
+  if (params?.status) qs.set("status_filter", params.status);
+  if (params?.skip != null) qs.set("skip", String(params.skip));
+  if (params?.limit != null) qs.set("limit", String(params.limit));
+  const q = qs.toString();
+  const res = await apiFetch(`${API_BASE}/admin/users${q ? `?${q}` : ""}`);
+  if (!res.ok) throw new Error("Failed to fetch users");
+  return res.json();
+}
+
+export async function adminUpdateUserPlan(userId: string, plan: string): Promise<void> {
+  const res = await apiFetch(`${API_BASE}/admin/users/${userId}/plan`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ plan }),
+  });
+  if (!res.ok) throw new Error("Failed to update plan");
+}
+
+export async function adminDisableUser(userId: string): Promise<void> {
+  const res = await apiFetch(`${API_BASE}/admin/users/${userId}/disable`, { method: "POST" });
+  if (!res.ok) throw new Error("Failed to disable user");
+}
+
+export async function adminEnableUser(userId: string): Promise<void> {
+  const res = await apiFetch(`${API_BASE}/admin/users/${userId}/enable`, { method: "POST" });
+  if (!res.ok) throw new Error("Failed to enable user");
+}
+
+export async function adminDeleteUser(userId: string): Promise<void> {
+  const res = await apiFetch(`${API_BASE}/admin/users/${userId}`, { method: "DELETE" });
+  if (!res.ok) throw new Error("Failed to delete user");
+}
+
+export async function fetchAdminDashboard(): Promise<{
+  users: AdminUserMetrics;
+  audits: AdminAuditMetrics;
+  revenue: AdminRevenueMetrics;
+  system: AdminSystemHealth;
+  signup_trend: AdminTrendPoint[];
+  audit_trend: AdminTrendPoint[];
+}> {
+  const res = await apiFetch(`${API_BASE}/admin/dashboard`);
+  if (!res.ok) throw new Error("Failed to fetch dashboard");
+  return res.json();
+}
+
+export async function fetchAdminSystemHealth(): Promise<AdminSystemHealth> {
+  const res = await apiFetch(`${API_BASE}/admin/system/health`);
+  if (!res.ok) throw new Error("Failed to fetch system health");
+  return res.json();
+}
+
+export async function fetchAdminSettings(): Promise<Record<string, string>> {
+  const res = await apiFetch(`${API_BASE}/admin/system/settings`);
+  if (!res.ok) throw new Error("Failed to fetch settings");
+  return res.json();
+}
+
+export async function updateAdminSetting(key: string, value: string): Promise<void> {
+  const res = await apiFetch(`${API_BASE}/admin/system/settings`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ key, value }),
+  });
+  if (!res.ok) throw new Error("Failed to update setting");
+}
+
+export async function fetchAdminAnalyses(params?: {
+  search?: string;
+  skip?: number;
+  limit?: number;
+}): Promise<AdminAnalysesResponse> {
+  const qs = new URLSearchParams();
+  if (params?.search) qs.set("search", params.search);
+  if (params?.skip != null) qs.set("skip", String(params.skip));
+  if (params?.limit != null) qs.set("limit", String(params.limit));
+  const q = qs.toString();
+  const res = await apiFetch(`${API_BASE}/admin/moderation/audits${q ? `?${q}` : ""}`);
+  if (!res.ok) throw new Error("Failed to fetch analyses");
+  return res.json();
+}
+
+export async function adminDeleteAnalysis(analysisId: string): Promise<void> {
+  const res = await apiFetch(`${API_BASE}/admin/moderation/audits/${analysisId}`, { method: "DELETE" });
+  if (!res.ok) throw new Error("Failed to delete analysis");
+}
+
+export async function fetchBannedDomains(): Promise<BannedDomain[]> {
+  const res = await apiFetch(`${API_BASE}/admin/moderation/banned-domains`);
+  if (!res.ok) throw new Error("Failed to fetch banned domains");
+  return res.json();
+}
+
+export async function adminBanDomain(domain: string, reason?: string): Promise<void> {
+  const res = await apiFetch(`${API_BASE}/admin/moderation/banned-domains`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ domain, reason }),
+  });
+  if (!res.ok) throw new Error("Failed to ban domain");
+}
+
+export async function adminUnbanDomain(domain: string): Promise<void> {
+  const res = await apiFetch(`${API_BASE}/admin/moderation/banned-domains/${encodeURIComponent(domain)}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) throw new Error("Failed to unban domain");
+}
+
+export async function fetchQuotaOverrides(): Promise<QuotaOverride[]> {
+  const res = await apiFetch(`${API_BASE}/admin/moderation/quota-overrides`);
+  if (!res.ok) throw new Error("Failed to fetch quota overrides");
+  return res.json();
+}
+
+export async function adminSetQuotaOverride(userId: string, quota: number): Promise<void> {
+  const res = await apiFetch(`${API_BASE}/admin/moderation/quota-overrides/${userId}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ quota }),
+  });
+  if (!res.ok) throw new Error("Failed to set quota override");
+}
+
+export async function adminRemoveQuotaOverride(userId: string): Promise<void> {
+  const res = await apiFetch(`${API_BASE}/admin/moderation/quota-overrides/${userId}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) throw new Error("Failed to remove quota override");
 }
 
 // Helper: extract the 6 radar axes from a HistoryRecord. Pitfall 1: entity is NOT in score_breakdown.

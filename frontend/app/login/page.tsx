@@ -238,8 +238,8 @@ export default function LoginPage() {
     if (!password) { setError("Password is required."); return; }
     setSubmitting(true);
     try {
-      const user = await signIn(email.trim(), password);
-      window.location.href = user.is_admin ? "/admin/dashboard" : "/dashboard";
+      await signIn(email.trim(), password);
+      window.location.href = "/dashboard";
     } catch (err: any) {
       if (err?.status === 404) {
         setError(err.message);
