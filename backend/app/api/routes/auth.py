@@ -99,4 +99,5 @@ def me(current_user: dict[str, Any] = Depends(get_current_user)) -> dict[str, An
         "id": current_user["id"],
         "email": current_user["email"],
         "name": current_user["name"],
+        "is_admin": bool(current_user.get("is_admin", False)),
     }

@@ -152,20 +152,6 @@ Plans:
 - [x] 07-03-PLAN.md — Frontend api.ts types/fetchers + 6 new components (tab container, selector, suggestion card, competitor card, comparison card, custom SVG radar chart)
 - [ ] 07-04-PLAN.md — Wire CompetitorsTab into page.tsx + human UAT checkpoint for end-to-end verification
 
-### Phase 8: Admin Account — Recommended Features
-
-**Goal:** Admin role layer on top of existing multi-user auth — is_admin flag on users table, dedicated admin panel at /admin/* with analytics dashboard, user management (search, plan override, disable, delete), system controls (Celery queue, feature toggles, API key management), and content moderation (audit browsing, domain blocklist, per-user rate limit overrides).
-**Requirements**: D-01, D-02, D-03, D-04, D-05, D-06, D-07, D-08, D-09, D-10, D-11, D-12, D-13, D-14, D-15, D-16, D-17, D-18, D-19, D-20, D-21, D-22, D-23, D-24, D-25, D-26, D-27, D-28
-**Depends on:** Phase 7
-**Plans:** 6 plans
-
-Plans:
-- [ ] 08-01-PLAN.md — DB schema migrations (is_admin, is_disabled, admin_settings, banned_domains), admin store CRUD helpers, get_admin_user dependency, test scaffold
-- [ ] 08-02-PLAN.md — Auth integration: is_admin in /auth/me, disabled user block, feature toggle enforcement, frontend AuthUser + admin API types/fetchers
-- [ ] 08-03-PLAN.md — Admin API router: user management + moderation + analytics + system control routes, mount at /admin in main.py
-- [ ] 08-04-PLAN.md — Frontend admin shell: layout with auth guard, AdminSidebar, placeholder pages, admin link in main sidebar, login redirect
-- [ ] 08-05-PLAN.md — Admin dashboard page (stat cards, SVG trend charts, system health) + users page (searchable table with CRUD actions)
-- [ ] 08-06-PLAN.md — System controls page (queue, toggles, API keys) + moderation page (audits, blocklist, overrides) + UAT checkpoint
-
 ---
 *Roadmap created: 2026-03-31*
+- [x] TBD (run /gsd:plan-phase 5 to break down) (completed 2006-04-07)
