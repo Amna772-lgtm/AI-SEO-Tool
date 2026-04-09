@@ -138,6 +138,26 @@ def init_db() -> None:
             conn.execute("CREATE INDEX IF NOT EXISTS idx_analyses_user_id  ON analyses(user_id)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_schedules_user_id ON schedules(user_id)")
             conn.commit()
+            # Admin columns on users table (Phase 08, Plan 01)
+            _add_column_if_missing(conn, "users", "is_admin", "INTEGER NOT NULL DEFAULT 0")
+            _add_column_if_missing(conn, "users", "is_disabled", "INTEGER NOT NULL DEFAULT 0")
+            # Quota override column on subscriptions (D-28)
+            _add_column_if_missing(conn, "subscriptions", "audit_quota_override", "INTEGER")
+            # Admin-specific tables
+            conn.executescript("""
+                CREATE TABLE IF NOT EXISTS admin_settings (
+                    key        TEXT PRIMARY KEY,
+                    value      TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS banned_domains (
+                    domain     TEXT PRIMARY KEY,
+                    reason     TEXT,
+                    banned_at  TEXT NOT NULL
+                );
+            """)
+            conn.commit()
         finally:
             conn.close()
 
@@ -593,7 +613,7 @@ def get_user_by_email(email: str) -> dict[str, Any] | None:
     conn = _connect()
     try:
         row = conn.execute(
-            "SELECT id, email, name, password_hash, created_at FROM users WHERE email = ?",
+            "SELECT id, email, name, password_hash, created_at, is_admin, is_disabled FROM users WHERE email = ?",
             (email.lower(),),
         ).fetchone()
         return dict(row) if row else None
@@ -606,7 +626,7 @@ def get_user_by_id(user_id: str) -> dict[str, Any] | None:
     conn = _connect()
     try:
         row = conn.execute(
-            "SELECT id, email, name, password_hash, created_at FROM users WHERE id = ?",
+            "SELECT id, email, name, password_hash, created_at, is_admin, is_disabled FROM users WHERE id = ?",
             (user_id,),
         ).fetchone()
         return dict(row) if row else None
@@ -860,5 +880,468 @@ def delete_competitor_site(site_id: str, group_id: str) -> bool:
             )
             conn.commit()
             return cur.rowcount > 0
+        finally:
+            conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Admin settings helpers (D-24)
+# ---------------------------------------------------------------------------
+
+def get_admin_setting(key: str, default: str | None = None) -> str | None:
+    """Return the string value for an admin_settings key, or default if not set."""
+    conn = _connect()
+    try:
+        row = conn.execute(
+            "SELECT value FROM admin_settings WHERE key = ?", (key,)
+        ).fetchone()
+        return row["value"] if row else default
+    finally:
+        conn.close()
+
+
+def set_admin_setting(key: str, value: str) -> None:
+    """Upsert a key-value pair in admin_settings."""
+    now = datetime.now(timezone.utc).isoformat()
+    with _lock:
+        conn = _connect()
+        try:
+            conn.execute(
+                "INSERT OR REPLACE INTO admin_settings (key, value, updated_at) VALUES (?, ?, ?)",
+                (key, value, now),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+
+def get_all_admin_settings() -> dict[str, str]:
+    """Return all admin_settings as a plain dict."""
+    conn = _connect()
+    try:
+        rows = conn.execute("SELECT key, value FROM admin_settings").fetchall()
+        return {row["key"]: row["value"] for row in rows}
+    finally:
+        conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Domain blocklist helpers (D-27)
+# ---------------------------------------------------------------------------
+
+def is_domain_banned(domain: str) -> bool:
+    """Return True if the domain (already lowercased, www-stripped) is in the banned_domains table."""
+    conn = _connect()
+    try:
+        row = conn.execute(
+            "SELECT 1 FROM banned_domains WHERE domain = ?", (domain.lower(),)
+        ).fetchone()
+        return row is not None
+    finally:
+        conn.close()
+
+
+def ban_domain(domain: str, reason: str | None = None) -> None:
+    """Add a domain to the banned_domains table. Idempotent."""
+    now = datetime.now(timezone.utc).isoformat()
+    with _lock:
+        conn = _connect()
+        try:
+            conn.execute(
+                "INSERT OR REPLACE INTO banned_domains (domain, reason, banned_at) VALUES (?, ?, ?)",
+                (domain.lower(), reason, now),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+
+def unban_domain(domain: str) -> bool:
+    """Remove a domain from the banned_domains table. Returns True if removed."""
+    with _lock:
+        conn = _connect()
+        try:
+            cur = conn.execute(
+                "DELETE FROM banned_domains WHERE domain = ?", (domain.lower(),)
+            )
+            conn.commit()
+            return cur.rowcount > 0
+        finally:
+            conn.close()
+
+
+def list_banned_domains() -> list[dict[str, Any]]:
+    """Return all banned domains ordered by banned_at DESC."""
+    conn = _connect()
+    try:
+        rows = conn.execute(
+            "SELECT domain, reason, banned_at FROM banned_domains ORDER BY banned_at DESC"
+        ).fetchall()
+        return [dict(row) for row in rows]
+    finally:
+        conn.close()
+
+
+# Aliases matching the plan API naming convention
+def add_banned_domain(domain: str, reason: str | None = None) -> None:
+    """Alias for ban_domain — add a domain to the blocklist."""
+    ban_domain(domain, reason)
+
+
+def remove_banned_domain(domain: str) -> None:
+    """Alias for unban_domain — remove a domain from the blocklist."""
+    unban_domain(domain)
+
+
+# ---------------------------------------------------------------------------
+# Admin User Management
+# ---------------------------------------------------------------------------
+
+def list_all_users(
+    *,
+    search: str | None = None,
+    plan_filter: str | None = None,
+    status_filter: str | None = None,
+    skip: int = 0,
+    limit: int = 50,
+) -> dict[str, Any]:
+    """List all users with optional filters. Returns {total, users}."""
+    conn = _connect()
+    try:
+        where_clauses: list[str] = []
+        params: list[Any] = []
+        if search:
+            where_clauses.append("(u.email LIKE ? OR u.name LIKE ?)")
+            params.extend([f"%{search}%", f"%{search}%"])
+        if status_filter == "active":
+            where_clauses.append("u.is_disabled = 0")
+        elif status_filter == "disabled":
+            where_clauses.append("u.is_disabled = 1")
+        if plan_filter:
+            where_clauses.append("s.plan = ?")
+            params.append(plan_filter)
+        where_sql = (" WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
+        count_row = conn.execute(
+            f"SELECT COUNT(*) FROM users u LEFT JOIN subscriptions s ON u.id = s.user_id{where_sql}",
+            params,
+        ).fetchone()
+        total = count_row[0]
+        rows = conn.execute(
+            f"SELECT u.id, u.email, u.name, u.created_at, u.is_admin, u.is_disabled, "
+            f"s.plan, "
+            f"(SELECT COUNT(*) FROM analyses a WHERE a.user_id = u.id) as audit_count "
+            f"FROM users u LEFT JOIN subscriptions s ON u.id = s.user_id"
+            f"{where_sql} ORDER BY u.created_at DESC LIMIT ? OFFSET ?",
+            params + [limit, skip],
+        ).fetchall()
+        return {"total": total, "users": [dict(row) for row in rows]}
+    finally:
+        conn.close()
+
+
+def admin_update_user_status(user_id: str, *, is_disabled: int) -> None:
+    """Set is_disabled flag for a user (0=active, 1=disabled)."""
+    with _lock:
+        conn = _connect()
+        try:
+            conn.execute("UPDATE users SET is_disabled = ? WHERE id = ?", (is_disabled, user_id))
+            conn.commit()
+        finally:
+            conn.close()
+
+
+def admin_update_user_plan(user_id: str, plan: str) -> None:
+    """Update subscription plan for a user (admin override)."""
+    with _lock:
+        conn = _connect()
+        try:
+            conn.execute(
+                "UPDATE subscriptions SET plan = ?, updated_at = ? WHERE user_id = ?",
+                (plan, datetime.now(timezone.utc).isoformat(), user_id),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+
+def delete_user_cascade(user_id: str) -> None:
+    """Hard delete user and ALL related records. Per D-14, manual cascade required
+    because analyses/schedules user_id columns have no FK constraint."""
+    with _lock:
+        conn = _connect()
+        try:
+            conn.execute(
+                "DELETE FROM competitor_sites WHERE group_id IN "
+                "(SELECT id FROM competitor_groups WHERE user_id = ?)", (user_id,)
+            )
+            conn.execute("DELETE FROM competitor_groups WHERE user_id = ?", (user_id,))
+            conn.execute("DELETE FROM analyses WHERE user_id = ?", (user_id,))
+            conn.execute("DELETE FROM schedules WHERE user_id = ?", (user_id,))
+            conn.execute("DELETE FROM subscriptions WHERE user_id = ?", (user_id,))
+            conn.execute("DELETE FROM users WHERE id = ?", (user_id,))
+            conn.commit()
+        finally:
+            conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Admin Analytics
+# ---------------------------------------------------------------------------
+
+PLAN_PRICES = {"free": 0, "pro": 29, "agency": 99}
+
+
+def get_admin_user_metrics() -> dict[str, Any]:
+    """Return total/active/disabled counts and plan distribution."""
+    conn = _connect()
+    try:
+        total = conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
+        active = conn.execute("SELECT COUNT(*) FROM users WHERE is_disabled = 0").fetchone()[0]
+        disabled = conn.execute("SELECT COUNT(*) FROM users WHERE is_disabled = 1").fetchone()[0]
+        plan_rows = conn.execute(
+            "SELECT plan, COUNT(*) as count FROM subscriptions GROUP BY plan"
+        ).fetchall()
+        return {
+            "total": total,
+            "active": active,
+            "disabled": disabled,
+            "plan_distribution": {row["plan"]: row["count"] for row in plan_rows},
+        }
+    finally:
+        conn.close()
+
+
+def get_signup_trend(days: int = 30) -> list[dict[str, Any]]:
+    """Return per-day signup counts for the last N days."""
+    conn = _connect()
+    try:
+        rows = conn.execute(
+            "SELECT DATE(created_at) as date, COUNT(*) as count "
+            "FROM users WHERE created_at >= DATE('now', ? || ' days') "
+            "GROUP BY DATE(created_at) ORDER BY date ASC",
+            (f"-{days}",),
+        ).fetchall()
+        return [{"date": row["date"], "count": row["count"]} for row in rows]
+    finally:
+        conn.close()
+
+
+def get_audit_metrics() -> dict[str, Any]:
+    """Return total audits, average score, and top domains."""
+    conn = _connect()
+    try:
+        total = conn.execute("SELECT COUNT(*) FROM analyses").fetchone()[0]
+        avg_row = conn.execute(
+            "SELECT AVG(overall_score) FROM analyses WHERE overall_score IS NOT NULL"
+        ).fetchone()
+        avg_score = round(avg_row[0], 1) if avg_row[0] is not None else None
+        top_domains = conn.execute(
+            "SELECT domain, COUNT(*) as count FROM analyses GROUP BY domain ORDER BY count DESC LIMIT 10"
+        ).fetchall()
+        return {
+            "total_audits": total,
+            "avg_score": avg_score,
+            "most_audited_domains": [{"domain": r["domain"], "count": r["count"]} for r in top_domains],
+        }
+    finally:
+        conn.close()
+
+
+def get_revenue_metrics() -> dict[str, Any]:
+    """Return MRR, active paid count, and plan distribution."""
+    conn = _connect()
+    try:
+        paid_rows = conn.execute(
+            "SELECT plan, COUNT(*) as count FROM subscriptions "
+            "WHERE status = 'active' AND plan != 'free' GROUP BY plan"
+        ).fetchall()
+        mrr = sum(PLAN_PRICES.get(r["plan"], 0) * r["count"] for r in paid_rows)
+        active_paid = sum(r["count"] for r in paid_rows)
+        return {
+            "mrr": mrr,
+            "active_paid": active_paid,
+            "plan_distribution": {r["plan"]: r["count"] for r in paid_rows},
+        }
+    finally:
+        conn.close()
+
+
+def get_audit_trend(days: int = 30) -> list[dict[str, Any]]:
+    """Return per-day audit counts for the last N days."""
+    conn = _connect()
+    try:
+        rows = conn.execute(
+            "SELECT DATE(analyzed_at) as date, COUNT(*) as count "
+            "FROM analyses WHERE analyzed_at >= DATE('now', ? || ' days') "
+            "GROUP BY DATE(analyzed_at) ORDER BY date ASC",
+            (f"-{days}",),
+        ).fetchall()
+        return [{"date": row["date"], "count": row["count"]} for row in rows]
+    finally:
+        conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Admin Moderation
+# ---------------------------------------------------------------------------
+
+def list_all_analyses(
+    *,
+    search: str | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    score_min: float | None = None,
+    score_max: float | None = None,
+    skip: int = 0,
+    limit: int = 50,
+) -> dict[str, Any]:
+    """List all analyses with optional filters. Per D-25: searchable by domain,
+    user email, date range, and score range."""
+    conn = _connect()
+    try:
+        where_clauses: list[str] = []
+        params: list[Any] = []
+        if search:
+            where_clauses.append("(a.domain LIKE ? OR u.email LIKE ?)")
+            params.extend([f"%{search}%", f"%{search}%"])
+        if date_from:
+            where_clauses.append("DATE(a.analyzed_at) >= ?")
+            params.append(date_from)
+        if date_to:
+            where_clauses.append("DATE(a.analyzed_at) <= ?")
+            params.append(date_to)
+        if score_min is not None:
+            where_clauses.append("a.overall_score >= ?")
+            params.append(score_min)
+        if score_max is not None:
+            where_clauses.append("a.overall_score <= ?")
+            params.append(score_max)
+        where_sql = (" WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
+        count_row = conn.execute(
+            f"SELECT COUNT(*) FROM analyses a LEFT JOIN users u ON a.user_id = u.id{where_sql}",
+            params,
+        ).fetchone()
+        total = count_row[0]
+        rows = conn.execute(
+            f"SELECT a.id, a.url, a.domain, a.analyzed_at, a.overall_score, a.grade, "
+            f"a.user_id, u.email as user_email "
+            f"FROM analyses a LEFT JOIN users u ON a.user_id = u.id"
+            f"{where_sql} ORDER BY a.analyzed_at DESC LIMIT ? OFFSET ?",
+            params + [limit, skip],
+        ).fetchall()
+        return {"total": total, "analyses": [dict(row) for row in rows]}
+    finally:
+        conn.close()
+
+
+def delete_analysis_admin(analysis_id: str) -> None:
+    """Hard delete an analysis record by id (admin only, no user scope check)."""
+    with _lock:
+        conn = _connect()
+        try:
+            conn.execute("DELETE FROM analyses WHERE id = ?", (analysis_id,))
+            conn.commit()
+        finally:
+            conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Celery Job Management (per D-21)
+# ---------------------------------------------------------------------------
+
+def celery_get_active_jobs() -> list[dict[str, Any]]:
+    """Get list of active and pending Celery jobs. Returns empty list if worker offline."""
+    try:
+        from app.worker.celery_app import celery as celery_app  # type: ignore[import]
+        inspector = celery_app.control.inspect(timeout=2.0)
+        jobs: list[dict[str, Any]] = []
+        active = inspector.active() or {}
+        for worker, tasks in active.items():
+            for task in tasks:
+                jobs.append({
+                    "task_id": task.get("id", ""),
+                    "name": task.get("name", "unknown"),
+                    "state": "active",
+                    "worker": worker,
+                    "started_at": task.get("time_start"),
+                })
+        reserved = inspector.reserved() or {}
+        for worker, tasks in reserved.items():
+            for task in tasks:
+                jobs.append({
+                    "task_id": task.get("id", ""),
+                    "name": task.get("name", "unknown"),
+                    "state": "pending",
+                    "worker": worker,
+                    "started_at": None,
+                })
+        return jobs
+    except Exception:
+        return []
+
+
+def celery_retry_job(task_id: str) -> bool:
+    """Retry a Celery task by task_id. Returns True if the retry was dispatched."""
+    try:
+        from app.worker.celery_app import celery as celery_app  # type: ignore[import]
+        celery_app.send_task("app.worker.tasks.run_analysis", task_id=task_id)
+        return True
+    except Exception:
+        return False
+
+
+def celery_cancel_job(task_id: str) -> bool:
+    """Cancel (revoke) a Celery task by task_id. Terminates if active. Returns True on success."""
+    try:
+        from app.worker.celery_app import celery as celery_app  # type: ignore[import]
+        celery_app.control.revoke(task_id, terminate=True, signal="SIGTERM")
+        return True
+    except Exception:
+        return False
+
+
+# ---------------------------------------------------------------------------
+# Rate Limit Overrides (per D-28)
+# ---------------------------------------------------------------------------
+
+def get_user_quota_overrides() -> list[dict[str, Any]]:
+    """Return all subscriptions that have a non-NULL audit_quota_override."""
+    conn = _connect()
+    try:
+        rows = conn.execute(
+            "SELECT s.user_id, u.email, s.plan, s.audit_quota_override "
+            "FROM subscriptions s JOIN users u ON s.user_id = u.id "
+            "WHERE s.audit_quota_override IS NOT NULL "
+            "ORDER BY u.email ASC"
+        ).fetchall()
+        return [dict(row) for row in rows]
+    finally:
+        conn.close()
+
+
+def set_user_quota_override(user_id: str, quota: int) -> None:
+    """Set a custom audit quota override for a user."""
+    with _lock:
+        conn = _connect()
+        try:
+            conn.execute(
+                "UPDATE subscriptions SET audit_quota_override = ? WHERE user_id = ?",
+                (quota, user_id),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+
+def remove_user_quota_override(user_id: str) -> None:
+    """Clear the audit_quota_override for a user (revert to plan default)."""
+    with _lock:
+        conn = _connect()
+        try:
+            conn.execute(
+                "UPDATE subscriptions SET audit_quota_override = NULL WHERE user_id = ?",
+                (user_id,),
+            )
+            conn.commit()
         finally:
             conn.close()

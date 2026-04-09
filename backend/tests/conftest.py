@@ -98,3 +98,32 @@ def pro_user_with_group(client):
 
     cookies = dict(signin_res.cookies)
     yield user["id"], primary_analysis_id, group["id"], cookies
+
+
+@pytest.fixture
+def admin_user(client):
+    """Create an admin user directly in DB and sign in. Returns dict with user_id, email, cookies."""
+    import uuid
+    from app.store.history_store import _connect, _lock, get_user_by_email
+
+    email = f"admin-{uuid.uuid4().hex[:8]}@example.com"
+    password = "admin-password-strong-123"
+    # Sign up normally first
+    client.post("/auth/signup", json={
+        "email": email,
+        "name": "Admin User",
+        "password": password,
+    })
+    # Promote to admin directly in DB
+    with _lock:
+        conn = _connect()
+        try:
+            conn.execute("UPDATE users SET is_admin = 1 WHERE email = ?", (email,))
+            conn.commit()
+        finally:
+            conn.close()
+    # Sign in to get fresh cookie with admin user data
+    signin_res = client.post("/auth/signin", json={"email": email, "password": password})
+    cookies = dict(signin_res.cookies)
+    user = get_user_by_email(email)
+    return {"user_id": user["id"], "email": email, "password": password, "cookies": cookies}
