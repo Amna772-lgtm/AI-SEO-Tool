@@ -138,6 +138,24 @@ def init_db() -> None:
             conn.execute("CREATE INDEX IF NOT EXISTS idx_analyses_user_id  ON analyses(user_id)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_schedules_user_id ON schedules(user_id)")
             conn.commit()
+            # Admin columns on users table (Phase 08)
+            _add_column_if_missing(conn, "users", "is_admin",   "INTEGER NOT NULL DEFAULT 0")
+            _add_column_if_missing(conn, "users", "is_disabled", "INTEGER NOT NULL DEFAULT 0")
+            # Admin-specific tables
+            conn.executescript("""
+                CREATE TABLE IF NOT EXISTS admin_settings (
+                    key        TEXT PRIMARY KEY,
+                    value      TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS banned_domains (
+                    domain     TEXT PRIMARY KEY,
+                    reason     TEXT,
+                    banned_at  TEXT NOT NULL
+                );
+            """)
+            conn.commit()
         finally:
             conn.close()
 
@@ -593,7 +611,7 @@ def get_user_by_email(email: str) -> dict[str, Any] | None:
     conn = _connect()
     try:
         row = conn.execute(
-            "SELECT id, email, name, password_hash, created_at FROM users WHERE email = ?",
+            "SELECT id, email, name, password_hash, created_at, is_admin, is_disabled FROM users WHERE email = ?",
             (email.lower(),),
         ).fetchone()
         return dict(row) if row else None
@@ -606,7 +624,7 @@ def get_user_by_id(user_id: str) -> dict[str, Any] | None:
     conn = _connect()
     try:
         row = conn.execute(
-            "SELECT id, email, name, password_hash, created_at FROM users WHERE id = ?",
+            "SELECT id, email, name, password_hash, created_at, is_admin, is_disabled FROM users WHERE id = ?",
             (user_id,),
         ).fetchone()
         return dict(row) if row else None
@@ -862,3 +880,101 @@ def delete_competitor_site(site_id: str, group_id: str) -> bool:
             return cur.rowcount > 0
         finally:
             conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Admin settings helpers (D-24)
+# ---------------------------------------------------------------------------
+
+def get_admin_setting(key: str, default: str | None = None) -> str | None:
+    """Return the string value for an admin_settings key, or default if not set."""
+    conn = _connect()
+    try:
+        row = conn.execute(
+            "SELECT value FROM admin_settings WHERE key = ?", (key,)
+        ).fetchone()
+        return row["value"] if row else default
+    finally:
+        conn.close()
+
+
+def set_admin_setting(key: str, value: str) -> None:
+    """Upsert a key-value pair in admin_settings."""
+    now = datetime.now(timezone.utc).isoformat()
+    with _lock:
+        conn = _connect()
+        try:
+            conn.execute(
+                "INSERT OR REPLACE INTO admin_settings (key, value, updated_at) VALUES (?, ?, ?)",
+                (key, value, now),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+
+def get_all_admin_settings() -> dict[str, str]:
+    """Return all admin_settings as a plain dict."""
+    conn = _connect()
+    try:
+        rows = conn.execute("SELECT key, value FROM admin_settings").fetchall()
+        return {row["key"]: row["value"] for row in rows}
+    finally:
+        conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Domain blocklist helpers (D-27)
+# ---------------------------------------------------------------------------
+
+def is_domain_banned(domain: str) -> bool:
+    """Return True if the domain (already lowercased, www-stripped) is in the banned_domains table."""
+    conn = _connect()
+    try:
+        row = conn.execute(
+            "SELECT 1 FROM banned_domains WHERE domain = ?", (domain.lower(),)
+        ).fetchone()
+        return row is not None
+    finally:
+        conn.close()
+
+
+def ban_domain(domain: str, reason: str | None = None) -> None:
+    """Add a domain to the banned_domains table. Idempotent."""
+    now = datetime.now(timezone.utc).isoformat()
+    with _lock:
+        conn = _connect()
+        try:
+            conn.execute(
+                "INSERT OR REPLACE INTO banned_domains (domain, reason, banned_at) VALUES (?, ?, ?)",
+                (domain.lower(), reason, now),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+
+def unban_domain(domain: str) -> bool:
+    """Remove a domain from the banned_domains table. Returns True if removed."""
+    with _lock:
+        conn = _connect()
+        try:
+            cur = conn.execute(
+                "DELETE FROM banned_domains WHERE domain = ?", (domain.lower(),)
+            )
+            conn.commit()
+            return cur.rowcount > 0
+        finally:
+            conn.close()
+
+
+def list_banned_domains() -> list[dict[str, Any]]:
+    """Return all banned domains ordered by banned_at DESC."""
+    conn = _connect()
+    try:
+        rows = conn.execute(
+            "SELECT domain, reason, banned_at FROM banned_domains ORDER BY banned_at DESC"
+        ).fetchall()
+        return [dict(row) for row in rows]
+    finally:
+        conn.close()
