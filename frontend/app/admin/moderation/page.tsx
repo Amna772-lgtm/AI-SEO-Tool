@@ -362,7 +362,7 @@ export default function AdminModeration() {
             {/* Pagination */}
             <div className="flex items-center justify-between px-4 py-2 border-t border-[var(--border)] text-xs text-[var(--muted)]">
               <span>
-                Showing {startIdx}&#8211;{endIdx} of {total} audits
+                Showing {startIdx}–{endIdx} of {total} audits
               </span>
               <div className="flex gap-2">
                 <button
