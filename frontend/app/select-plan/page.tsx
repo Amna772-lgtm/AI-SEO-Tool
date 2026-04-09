@@ -82,7 +82,7 @@ export default function SelectPlanPage() {
         attempts++;
         const sub = await fetchSubscription().catch(() => null);
         if (sub && sub.status === "active" && sub.plan !== "free") {
-          window.location.href = "/";
+          window.location.href = "/dashboard";
           return;
         }
         if (attempts < 5) {
@@ -103,7 +103,7 @@ export default function SelectPlanPage() {
     fetchSubscription()
       .then((sub) => {
         if (sub && sub.status === "active") {
-          window.location.href = "/";
+          window.location.href = "/dashboard";
         } else {
           setChecking(false);
         }
@@ -116,7 +116,7 @@ export default function SelectPlanPage() {
     setError(null);
     try {
       await selectFreePlan();
-      window.location.href = "/";
+      window.location.href = "/dashboard";
     } catch {
       setError(
         "Something went wrong. Please try again. If the problem persists, contact support."

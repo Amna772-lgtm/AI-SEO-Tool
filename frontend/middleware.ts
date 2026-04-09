@@ -5,6 +5,11 @@ const PUBLIC_PATHS = ["/login", "/signup"];
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
+  // Allow landing page (root) through unconditionally
+  if (pathname === "/") {
+    return NextResponse.next();
+  }
+
   // Allow public auth routes through unconditionally
   if (PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`))) {
     return NextResponse.next();

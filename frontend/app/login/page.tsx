@@ -32,7 +32,7 @@ export default function LoginPage() {
     setSubmitting(true);
     try {
       await signIn(email.trim(), password);
-      window.location.href = "/";
+      window.location.href = "/dashboard";
     } catch (err: any) {
       if (err?.status === 404) {
         setError(err.message);

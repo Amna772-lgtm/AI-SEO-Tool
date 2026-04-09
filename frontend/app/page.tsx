@@ -1,1542 +1,1182 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
-import {
-  startAnalysis,
-  getSite,
-  getPages,
-  getOverview,
-  getAudit,
-  getGeo,
-  type Site,
-  type PageRow,
-  type PagesResponse,
-  type OverviewResponse,
-  type AuditResponse,
-  type AuditResult,
-  type PageSpeedResult,
-  type SecurityHeadersResult,
-  type GeoResponse,
-} from "./lib/api";
-import { GeoTab } from "./components/geo/GeoTab";
-import { ChecklistPanel } from "./components/geo/ChecklistPanel";
-import { SiteStructurePanel } from "./components/geo/SiteStructurePanel";
-import { HistoryTab } from "./components/history/HistoryTab";
-import { SchedulesTab } from "./components/schedules/SchedulesTab";
-import { useAuth } from "./lib/auth";
-import LockedFeature from "./components/LockedFeature";
-import CompetitorsTab from "./components/competitors/CompetitorsTab";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
 
-// ── Types ──────────────────────────────────────────────────────────────────────
-type MainTab = "dashboard" | "crawl" | "audit" | "geo" | "insights" | "history" | "schedules" | "competitors";
-type TypeTab = "all" | "internal" | "external";
+export default function LandingPage() {
+  const router = useRouter();
+  const [navScrolled, setNavScrolled] = useState(false);
+  const [activeRecTab, setActiveRecTab] = useState<"critical" | "important" | "optional">("critical");
+  const [openFaqIndex, setOpenFaqIndex] = useState(0);
+  const [ctaUrl, setCtaUrl] = useState("");
+  const [ctaAuditing, setCtaAuditing] = useState(false);
+  const scoreCardRef = useRef<HTMLDivElement>(null);
+  const [barsAnimated, setBarsAnimated] = useState(false);
 
-// ── Small UI helpers ───────────────────────────────────────────────────────────
-
-function psiErrorMessage(error: string): string {
-  if (error.includes("NO_FCP"))
-    return "Page blocked automated testing (NO_FCP) — likely bot protection";
-  if (error.includes("ERRORED_DOCUMENT_REQUEST")) return "Page failed to load during analysis";
-  if (error.includes("FAILED_DOCUMENT_REQUEST")) return "Page request was blocked or timed out";
-  if (error.includes("DNS_FAILURE")) return "DNS lookup failed for this domain";
-  if (error.includes("NOT_HTML")) return "Page is not HTML — cannot analyze";
-  if (error.includes("400")) return `PSI could not analyze this page (${error.split(":")[0]})`;
-  return error;
-}
-
-function Spinner({ label }: { label: string }) {
-  return (
-    <div className="flex items-center gap-2 text-xs text-[var(--muted)]">
-      <div className="h-3 w-3 animate-spin rounded-full border-2 border-[var(--border)] border-t-[var(--accent)]" />
-      {label}
-    </div>
-  );
-}
-
-// ── Semicircle gauge (PageSpeed) ──────────────────────────────────────────────
-function SemiGauge({ score, label }: { score: number; label: string }) {
-  const r = 36, cx = 56, cy = 48;
-  const circ = Math.PI * r;
-  const filled = Math.min(score / 100, 1) * circ;
-  const color = score >= 90 ? "var(--success)" : score >= 50 ? "#f59e0b" : "#ef4444";
-  return (
-    <div className="flex flex-col items-center gap-1">
-      <svg width="112" height="58" viewBox="0 0 112 58">
-        <path
-          d={`M ${cx - r} ${cy} A ${r} ${r} 0 0 1 ${cx + r} ${cy}`}
-          fill="none" stroke="var(--border)" strokeWidth="7" strokeLinecap="round"
-        />
-        <path
-          d={`M ${cx - r} ${cy} A ${r} ${r} 0 0 1 ${cx + r} ${cy}`}
-          fill="none" stroke={color} strokeWidth="7" strokeLinecap="round"
-          strokeDasharray={`${filled} ${circ}`}
-        />
-        <text x={cx} y={cy - 5} textAnchor="middle" fontSize="22" fontWeight="bold"
-          fill={color} fontFamily="monospace">
-          {score}
-        </text>
-      </svg>
-      <span className="text-xs uppercase tracking-wide text-[var(--muted)]">{label}</span>
-    </div>
-  );
-}
-
-// ── Security Headers block ─────────────────────────────────────────────────────
-function SecurityHeadersBlock({ sh }: { sh: SecurityHeadersResult }) {
-  const preferredOrder = [
-    "x_content_type_options",
-    "x_frame_options",
-    "strict_transport_security",
-    "content_security_policy",
-    "referrer_policy",
-  ];
-  const displayKeys = [
-    ...preferredOrder.filter((k) => sh.headers[k]),
-    ...Object.keys(sh.headers).filter((k) => !preferredOrder.includes(k)),
-  ];
-  return (
-    <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4">
-      <div className="mb-4 flex items-center justify-between">
-        <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">
-          Security Headers
-        </p>
-        <span className={`font-mono text-xs font-bold ${
-          sh.passed_count === sh.total_count ? "text-[var(--success)]" : "text-[var(--warning)]"
-        }`}>
-          {sh.passed_count}/{sh.total_count}
-        </span>
-      </div>
-      {sh.error ? (
-        <p className="text-xs text-[var(--warning)]">{sh.error}</p>
-      ) : (
-        <div className="space-y-2.5">
-          {displayKeys.map((key) => {
-            const info = sh.headers[key];
-            if (!info) return null;
-            return (
-              <div key={key} className="flex items-center justify-between text-xs">
-                <span className="text-[var(--foreground)]">{info.label}</span>
-                <span className={info.present ? "text-[var(--success)]" : "text-red-500"}>
-                  {info.present ? "✓" : "✗"}
-                </span>
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ── Technical Audit Panel ──────────────────────────────────────────────────────
-function AuditFullPanel({ audit }: { audit: AuditResult }) {
-  const { https, sitemap, broken_links, missing_canonicals, pagespeed } = audit;
-  const desk = pagespeed.desktop;
-  const mob = pagespeed.mobile;
-
-  function StatusCard({
-    icon, title, ok, badge,
-  }: {
-    icon: React.ReactNode; title: string; ok: boolean; badge: string;
-  }) {
-    return (
-      <div className="flex flex-col gap-4 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4">
-        <div className="flex items-center gap-2">
-          <span className={ok ? "text-[var(--success)]" : "text-[var(--warning)]"}>{icon}</span>
-          <span className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">{title}</span>
-        </div>
-        <span className={`self-start rounded px-3 py-1 text-xs font-bold ${
-          ok
-            ? "bg-[var(--success)]/15 text-[var(--success)]"
-            : "bg-red-500/15 text-red-400"
-        }`}>
-          {badge}
-        </span>
-      </div>
-    );
-  }
-
-  const cwvMetrics: { key: keyof PageSpeedResult; label: string }[] = [
-    { key: "fcp", label: "FCP" },
-    { key: "lcp", label: "LCP" },
-    { key: "tbt", label: "TBT" },
-    { key: "cls", label: "CLS" },
-    { key: "speed_index", label: "SI" },
-  ];
-
-  const hasSecHeaders = !!audit.security_headers;
-
-  return (
-    <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-auto p-4">
-      {/* Top: 4 status cards */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <StatusCard
-          title="HTTPS"
-          ok={https.passed}
-          badge={https.passed ? "Secure" : "Not Secure"}
-          icon={
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" />
-            </svg>
-          }
-        />
-        <StatusCard
-          title="Sitemap"
-          ok={sitemap.found}
-          badge={sitemap.found ? "Found" : "Not Found"}
-          icon={
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
-              <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
-            </svg>
-          }
-        />
-        <StatusCard
-          title="Broken Links"
-          ok={broken_links.count === 0}
-          badge={broken_links.count === 0 ? "None" : `${broken_links.count} found`}
-          icon={
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-              <line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" />
-            </svg>
-          }
-        />
-        <StatusCard
-          title="Canonicals"
-          ok={missing_canonicals.missing_count === 0}
-          badge={missing_canonicals.missing_count === 0 ? "OK" : `${missing_canonicals.missing_count} missing`}
-          icon={
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
-              <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
-            </svg>
-          }
-        />
-      </div>
-
-      {/* Broken links list */}
-      {broken_links.urls.length > 0 && (
-        <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)]">
-          <p className="border-b border-[var(--border)] px-4 py-2 text-xs font-semibold uppercase tracking-wide text-[var(--warning)]">
-            Broken Links
-          </p>
-          <div className="max-h-40 overflow-auto">
-            {broken_links.urls.map((u, i) => (
-              <p key={i} className="truncate border-b border-[var(--border)]/40 px-4 py-1.5 font-mono text-xs text-red-400" title={u}>
-                {u}
-              </p>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Missing canonicals list */}
-      {missing_canonicals.missing_count > 0 && (
-        <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)]">
-          <p className="border-b border-[var(--border)] px-4 py-2 text-xs font-semibold uppercase tracking-wide text-[var(--warning)]">
-            Missing Canonicals ({missing_canonicals.missing_count} / {missing_canonicals.total_html_pages})
-          </p>
-          <div className="max-h-40 overflow-auto">
-            {missing_canonicals.urls.map((u, i) => (
-              <p key={i} className="truncate border-b border-[var(--border)]/40 px-4 py-1.5 font-mono text-xs text-[var(--muted)]" title={u}>
-                {u}
-              </p>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Bottom: Security Headers + PageSpeed */}
-      <div className={`grid gap-4 ${hasSecHeaders ? "grid-cols-1 lg:grid-cols-2" : "grid-cols-1"}`}>
-        {hasSecHeaders && <SecurityHeadersBlock sh={audit.security_headers!} />}
-
-        {/* PageSpeed */}
-        <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4">
-          <p className="mb-4 text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">Pagespeed</p>
-          {desk.error && mob.error ? (
-            <p className="text-xs text-[var(--warning)]">{psiErrorMessage(desk.error)}</p>
-          ) : (
-            <>
-              <div className="flex justify-around mb-5">
-                {!desk.error && desk.performance != null && <SemiGauge score={desk.performance} label="Desktop" />}
-                {!mob.error && mob.performance != null && <SemiGauge score={mob.performance} label="Mobile" />}
-              </div>
-              <div className="grid grid-cols-2 gap-3 text-xs">
-                <div className="rounded-lg bg-[var(--surface-elevated)] px-4 py-3 space-y-2">
-                  {cwvMetrics.map(({ key, label }) => {
-                    const val = desk[key];
-                    if (!val) return null;
-                    return (
-                      <div key={label} className="flex justify-between">
-                        <span className="text-[var(--muted)]">{label}</span>
-                        <span className="font-mono text-[var(--accent)]">{val}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-                <div className="rounded-lg bg-[var(--surface-elevated)] px-4 py-3 space-y-2">
-                  {cwvMetrics.map(({ key, label }) => {
-                    const val = mob[key];
-                    if (!val) return null;
-                    return (
-                      <div key={label} className="flex justify-between">
-                        <span className="text-[var(--muted)]">{label}</span>
-                        <span className="font-mono text-[var(--accent)]">{val}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── Donut Chart ────────────────────────────────────────────────────────────────
-const TYPE_COLORS: Record<string, string> = {
-  HTML:       "#4f46e5",
-  Images:     "#0ea5e9",
-  CSS:        "#f59e0b",
-  JavaScript: "#f97316",
-  PDF:        "#8b5cf6",
-  Other:      "#94a3b8",
-};
-
-function DonutChart({ slices, size = 110 }: {
-  slices: { label: string; value: number; color: string }[];
-  size?: number;
-}) {
-  const total = slices.reduce((s, d) => s + d.value, 0);
-  if (!total) return null;
-  const r = size / 2 - 14;
-  const cx = size / 2;
-  const cy = size / 2;
-  const C = 2 * Math.PI * r;
-  let cum = 0;
-  return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ transform: "rotate(-90deg)", flexShrink: 0 }}>
-      <circle cx={cx} cy={cy} r={r} fill="none" stroke="var(--border)" strokeWidth="13" />
-      {slices.map((s, i) => {
-        const fraction = s.value / total;
-        const dash = fraction * C;
-        const offset = -(cum * C);
-        cum += fraction;
-        return (
-          <circle key={i} cx={cx} cy={cy} r={r} fill="none"
-            stroke={s.color} strokeWidth="13"
-            strokeDasharray={`${dash} ${C}`}
-            strokeDashoffset={offset}
-          />
-        );
-      })}
-    </svg>
-  );
-}
-
-// ── CSV Export Helper ──────────────────────────────────────────────────────────
-function downloadCSV(rows: PageRow[], filename: string) {
-  const headers = ["Address","Type","Content-Type","Status Code","Status","Indexability","Title","H1","Meta Description","Canonical","Depth","Response Time","Redirect URL","Readability"];
-  const csv = [
-    headers.join(","),
-    ...rows.map(r =>
-      [r.address, r.type, r.content_type, r.status_code, r.status, r.indexability, r.title, r.h1, r.meta_descp, r.canonical, r.crawl_depth, r.response_time, r.redirect_url, r.readability]
-        .map(v => `"${String(v ?? "").replace(/"/g, '""')}"`)
-        .join(",")
-    ),
-  ].join("\n");
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(a.href);
-}
-
-// ── Main Component ─────────────────────────────────────────────────────────────
-const PAGE_SIZE = 100;
-
-export default function Home() {
-  const [url, setUrl] = useState("");
-  const [siteId, setSiteId] = useState<string | null>(null);
-  const [site, setSite] = useState<Site | null>(null);
-  const [pagesData, setPagesData] = useState<PagesResponse | null>(null);
-  const [overview, setOverview] = useState<OverviewResponse | null>(null);
-  const [selectedPage, setSelectedPage] = useState<PageRow | null>(null);
-  const [typeTab, setTypeTab] = useState<TypeTab>("all");
-  const [mainTab, setMainTab] = useState<MainTab>("dashboard");
-  const [search, setSearch] = useState("");
-  const [pageNum, setPageNum] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [detailSearch, setDetailSearch] = useState("");
-  const [audit, setAudit] = useState<AuditResponse | null>(null);
-  const [geo, setGeo] = useState<GeoResponse | null>(null);
-  const [openDropdown, setOpenDropdown] = useState<"export" | "filter" | null>(null);
-  const [colFilters, setColFilters] = useState<{
-    statusGroup: string[];
-    indexability: string[];
-    hasCanonical: boolean | null;
-  }>({ statusGroup: [], indexability: [], hasCanonical: null });
-  const [exportingAll, setExportingAll] = useState(false);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
-  const { user, signOut: handleSignOut, subscription, loading: authLoading } = useAuth();
-  const isFree = subscription?.plan === "free";
-  const quotaExhausted = subscription
-    ? (subscription.plan === "free" && subscription.audit_count >= 1) ||
-      (subscription.plan === "pro" && subscription.audit_count >= 10)
-    : false;
-
-  // ── Subscription guard (D-13): redirect to /select-plan if no subscription ──
+  // Navbar shadow on scroll
   useEffect(() => {
-    if (!authLoading && user && !subscription) {
-      window.location.href = "/select-plan";
-    }
-  }, [authLoading, user, subscription]);
-
-  // ── Crawl status polling ─────────────────────────────────────────────────
-  const pollSite = useCallback(async (id: string) => {
-    try {
-      const s = await getSite(id);
-      setSite(s);
-      if (s.status === "completed") {
-        const [pages, ov] = await Promise.all([getPages(id), getOverview(id)]);
-        setPagesData(pages);
-        setOverview(ov);
-        setSelectedPage(null);
-      } else if (s.status === "failed") {
-        setError("Crawl failed.");
-      } else if (s.status === "processing" || s.status === "queued") {
-        const [pages, ov] = await Promise.all([getPages(id), getOverview(id)]);
-        setPagesData(pages);
-        setOverview(ov);
-      }
-    } catch {
-      setError("Failed to fetch site status.");
-    }
+    const handleScroll = () => {
+      setNavScrolled(window.scrollY > 10);
+    };
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
+  // Animate score bars on scroll into view
   useEffect(() => {
-    if (!siteId || !site) return;
-    if (site.status === "completed" || site.status === "failed") {
-      setIsAnalyzing(false);
-      return;
-    }
-    const t = setInterval(() => pollSite(siteId), 1500);
-    return () => clearInterval(t);
-  }, [siteId, site?.status, pollSite]);
+    if (!scoreCardRef.current) return;
+    const obs = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((e) => {
+          if (e.isIntersecting) setBarsAnimated(true);
+        });
+      },
+      { threshold: 0.3 }
+    );
+    obs.observe(scoreCardRef.current);
+    return () => obs.disconnect();
+  }, []);
 
-  // ── Audit polling ─────────────────────────────────────────────────────────
+  // Card entrance animations
   useEffect(() => {
-    if (!siteId || site?.status !== "completed") return;
-    if (audit?.audit_status === "completed" || audit?.audit_status === "failed") return;
-    const fetchAudit = () => getAudit(siteId).then(setAudit).catch(() => {});
-    fetchAudit();
-    const t = setInterval(fetchAudit, 3000);
-    return () => clearInterval(t);
-  }, [siteId, site?.status, audit?.audit_status]);
+    const cards = document.querySelectorAll(".lp-feat-card, .lp-problem-card, .lp-testi-card");
+    const obs = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((e) => {
+          if (e.isIntersecting) {
+            (e.target as HTMLElement).style.opacity = "1";
+            (e.target as HTMLElement).style.transform = "translateY(0)";
+          }
+        });
+      },
+      { threshold: 0.1 }
+    );
+    cards.forEach((c) => {
+      const el = c as HTMLElement;
+      el.style.opacity = "0";
+      el.style.transform = "translateY(16px)";
+      el.style.transition = "opacity .45s ease, transform .45s ease, box-shadow .2s, border-color .2s";
+      obs.observe(el);
+    });
+    return () => obs.disconnect();
+  }, []);
 
-  // ── GEO polling ───────────────────────────────────────────────────────────
-  useEffect(() => {
-    if (!siteId || site?.status !== "completed") return;
-    if (geo?.geo_status === "completed" || geo?.geo_status === "failed") return;
-    const fetchGeo = () => getGeo(siteId).then(setGeo).catch(() => {});
-    fetchGeo();
-    const t = setInterval(fetchGeo, 4000);
-    return () => clearInterval(t);
-  }, [siteId, site?.status, geo?.geo_status]);
+  const handleRunAudit = useCallback(() => {
+    router.push("/signup");
+  }, [router]);
 
-  // ── Close dropdown on outside click ───────────────────────────────────────
-  useEffect(() => {
-    if (!openDropdown) return;
-    const handler = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-        setOpenDropdown(null);
-      }
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [openDropdown]);
+  const handleCtaAudit = useCallback(() => {
+    if (!ctaUrl.trim()) return;
+    setCtaAuditing(true);
+    setTimeout(() => {
+      setCtaAuditing(false);
+      router.push("/signup");
+    }, 1500);
+  }, [ctaUrl, router]);
 
-  // ── Pages / overview refresh ──────────────────────────────────────────────
-  const refreshPages = useCallback(() => {
-    if (!siteId) return;
-    const typeParam = typeTab === "all" ? undefined : typeTab;
-    getPages(siteId, {
-      type: typeParam,
-      search: search || undefined,
-      skip: pageNum * PAGE_SIZE,
-      limit: PAGE_SIZE,
-    })
-      .then(setPagesData)
-      .catch(() => setError("Failed to load pages"));
-  }, [siteId, typeTab, search, pageNum]);
+  const toggleFaq = useCallback((index: number) => {
+    setOpenFaqIndex((prev) => (prev === index ? -1 : index));
+  }, []);
 
-  useEffect(() => {
-    if (!siteId || !site) return;
-    if (site.status !== "completed" && site.status !== "processing") return;
-    refreshPages();
-  }, [siteId, site?.status, typeTab, search, pageNum, refreshPages]);
-
-  useEffect(() => {
-    if (!siteId || !site) return;
-    if (site.status !== "completed" && site.status !== "processing") return;
-    getOverview(siteId).then(setOverview).catch(() => {});
-  }, [siteId, site?.status]);
-
-  // ── Handlers ─────────────────────────────────────────────────────────────
-  const handleStart = async () => {
-    if (!url.trim()) return;
-    setError(null);
-    setLoading(true);
-    setIsAnalyzing(true);
-    setPagesData(null);
-    setOverview(null);
-    setSelectedPage(null);
-    setAudit(null);
-    setGeo(null);
-    setPageNum(0);
-    setMainTab("dashboard");
-    try {
-      const result = await startAnalysis(url.trim());
-      setSiteId(result.site_id);
-      setSite({
-        id: result.site_id,
-        url: url.trim(),
-        status: result.status as Site["status"],
-        created_at: null,
-        robots_allowed: result.robots_allowed,
-        ai_crawler_access: null,
-      });
-    } catch (e) {
-      // Don't show a generic error when quota exceeded — UpgradeModal handles it
-      const msg = e instanceof Error ? e.message : "Analysis failed";
-      if (!msg.toLowerCase().includes("quota")) {
-        setError(msg);
-      }
-      setSiteId(null);
-      setSite(null);
-      setIsAnalyzing(false);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleClear = () => {
-    setSiteId(null);
-    setSite(null);
-    setPagesData(null);
-    setOverview(null);
-    setSelectedPage(null);
-    setAudit(null);
-    setGeo(null);
-    setError(null);
-    setUrl("");
-    setSearch("");
-    setDetailSearch("");
-    setPageNum(0);
-    setMainTab("dashboard");
-    setIsAnalyzing(false);
-  };
-
-  // ── Filter helpers ────────────────────────────────────────────────────────
-  function matchesStatusGroup(code: number | null | undefined, group: string): boolean {
-    if (code == null) return false;
-    if (group === "2xx") return code >= 200 && code < 300;
-    if (group === "3xx") return code >= 300 && code < 400;
-    if (group === "4xx") return code >= 400 && code < 500;
-    if (group === "5xx") return code >= 500;
-    return false;
-  }
-
-  const activeFilterCount = [
-    colFilters.statusGroup.length > 0,
-    colFilters.indexability.length > 0,
-    colFilters.hasCanonical !== null,
-  ].filter(Boolean).length;
-
-  const filteredDashboardPages = (pagesData?.pages ?? []).filter(page => {
-    if (colFilters.statusGroup.length > 0 && !colFilters.statusGroup.some(g => matchesStatusGroup(page.status_code, g))) return false;
-    if (colFilters.indexability.length > 0 && !colFilters.indexability.includes(page.indexability ?? "")) return false;
-    if (colFilters.hasCanonical !== null) {
-      const hasCanon = !!page.canonical;
-      if (colFilters.hasCanonical !== hasCanon) return false;
-    }
-    return true;
-  });
-
-  const handleExportAll = async () => {
-    if (!siteId) return;
-    setExportingAll(true);
-    try {
-      const allData = await getPages(siteId, { skip: 0, limit: 100000 });
-      downloadCSV(allData.pages, "crawl-all-export.csv");
-    } catch { /* silent */ } finally {
-      setExportingAll(false);
-      setOpenDropdown(null);
-    }
-  };
-
-  // ── Detail rows for bottom panel ──────────────────────────────────────────
-  const filteredDetailRows = selectedPage
-    ? Object.entries({
-        Address: selectedPage.address,
-        Type: selectedPage.type ?? "—",
-        "Status Code": selectedPage.status_code ?? "—",
-        Indexability: selectedPage.indexability ?? "—",
-        Title: selectedPage.title ?? "—",
-        "Meta Description": selectedPage.meta_descp ?? "—",
-        H1: selectedPage.h1 ?? "—",
-        "H2 Headings": selectedPage.h2s?.length ? selectedPage.h2s.join(" · ") : "—",
-        "H3 Headings": selectedPage.h3s?.length ? selectedPage.h3s.join(" · ") : "—",
-        Canonical: selectedPage.canonical ?? "—",
-        "Crawl Depth": selectedPage.crawl_depth ?? "—",
-        "Response Time (ms)": selectedPage.response_time ?? "—",
-        "Redirect URL": selectedPage.redirect_url ?? "—",
-        Readability: selectedPage.readability ?? "—",
-      }).filter(
-        ([key, val]) =>
-          !detailSearch ||
-          key.toLowerCase().includes(detailSearch.toLowerCase()) ||
-          String(val).toLowerCase().includes(detailSearch.toLowerCase())
-      )
-    : [];
-
-  const crawlActive = site?.status === "completed" || site?.status === "processing";
-  const geoScore = geo?.score?.overall_score;
-  const geoGrade = geo?.score?.grade;
-
-  // ── Dashboard computed stats ──────────────────────────────────────────────
-  const typeSlices = overview
-    ? Object.entries(overview.by_type)
-        .map(([label, value]) => ({ label, value: value as unknown as number, color: TYPE_COLORS[label] ?? "#94a3b8" }))
-        .filter((s) => s.value > 0)
-    : [];
-  const totalTypeCount = typeSlices.reduce((s, d) => s + d.value, 0);
-
-  const indexabilityCounts = {
-    indexable:    overview?.indexability_counts?.indexable     ?? 0,
-    nonIndexable: overview?.indexability_counts?.non_indexable ?? 0,
-    external:     overview?.indexability_counts?.external      ?? 0,
-  };
-
-  // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <div className="flex h-screen overflow-hidden bg-[var(--background)] text-[var(--foreground)]">
+    <>
+      <style>{landingStyles}</style>
 
-      {/* ── Left Sidebar ─────────────────────────────────────────────────── */}
-      <aside className="flex w-48 shrink-0 flex-col border-r border-[var(--border)] bg-[var(--surface)]">
-        <div className="flex items-center gap-2 border-b border-[var(--border)] px-4 py-3.5">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-[var(--accent)]">
-            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
-            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
-          </svg>
-          <span className="text-sm font-bold tracking-tight text-[var(--accent)]">AI SEO TOOL</span>
+      {/* NAV */}
+      <nav className={`lp-nav${navScrolled ? " scrolled" : ""}`}>
+        <a href="#" className="lp-nav-logo" onClick={(e) => e.preventDefault()}>
+          <div className="lp-logo-icon">&#129302;</div>
+          <span>AI SEO Tool</span>
+        </a>
+        <div className="lp-nav-links">
+          <a href="#features">Features</a>
+          <a href="#how">How It Works</a>
+          <a href="#score">GEO Score</a>
+          <a href="#pricing">Pricing</a>
+          <a href="#faq">FAQ</a>
         </div>
-        <nav className="flex flex-col gap-0.5 p-2 pt-3">
-          <p className="mb-1 px-3 text-[10px] font-semibold uppercase tracking-widest text-[var(--muted)]">Main menu</p>
-          {(
-            [
-              { id: "dashboard", label: "Dashboard", icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg> },
-              { id: "crawl",     label: "Crawled Pages",    icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="4.22" y1="4.22" x2="7.05" y2="7.05"/><line x1="16.95" y1="16.95" x2="19.78" y2="19.78"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/><line x1="4.22" y1="19.78" x2="7.05" y2="16.95"/><line x1="16.95" y1="7.05" x2="19.78" y2="4.22"/></svg> },
-              { id: "audit",     label: "Technical Audit", icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg> },
-              { id: "geo",       label: "GEO Analysis", icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> },
-              { id: "insights",  label: "Insights",  icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg> },
-              { id: "history",   label: "History",   icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.95"/></svg> },
-              { id: "schedules", label: "Schedules", icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> },
-              { id: "competitors", label: "Competitors", icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="9" r="4"/><circle cx="17" cy="17" r="4"/><line x1="12.5" y1="12.5" x2="13.5" y2="13.5"/></svg> },
-            ] as { id: MainTab; label: string; icon: React.ReactNode }[]
-          ).map((item) => (
-            <button
-              key={item.id}
-              onClick={() => setMainTab(item.id)}
-              className={`flex items-center gap-2.5 rounded-md px-3 py-2 text-left text-sm transition-colors ${
-                mainTab === item.id
-                  ? "bg-[var(--accent)] font-medium text-white"
-                  : "text-[var(--muted)] hover:bg-[var(--surface-elevated)] hover:text-[var(--foreground)]"
-              }`}
-            >
-              <span className="shrink-0">{item.icon}</span>
-              <span className="truncate">{item.label}</span>
-            </button>
+        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+          <Link href="/login" style={{ fontSize: ".88rem", fontWeight: 600, color: "var(--lp-mid)", textDecoration: "none" }}>
+            Sign In
+          </Link>
+          <Link href="/signup" className="lp-nav-cta">
+            Free Audit &rarr;
+          </Link>
+        </div>
+      </nav>
+
+      {/* TICKER */}
+      <div className="lp-ticker-wrap">
+        <div className="lp-ticker">
+          <span>&#129302; ChatGPT Citation Readiness</span>
+          <span>&#128309; Claude AI Visibility</span>
+          <span>&#128995; Perplexity Ranking</span>
+          <span>&#128994; Gemini Search Signals</span>
+          <span>&#9889; Grok Authority Score</span>
+          <span>&#128375;&#65039; Full-Site BFS Crawl</span>
+          <span>&#128202; 8-Dimension GEO Score</span>
+          <span>&#127942; E-E-A-T Analysis</span>
+          <span>&#128269; Technical SEO Audit</span>
+          <span>&#128197; Scheduled Re-Audits</span>
+          {/* duplicate for seamless loop */}
+          <span>&#129302; ChatGPT Citation Readiness</span>
+          <span>&#128309; Claude AI Visibility</span>
+          <span>&#128995; Perplexity Ranking</span>
+          <span>&#128994; Gemini Search Signals</span>
+          <span>&#9889; Grok Authority Score</span>
+          <span>&#128375;&#65039; Full-Site BFS Crawl</span>
+          <span>&#128202; 8-Dimension GEO Score</span>
+          <span>&#127942; E-E-A-T Analysis</span>
+          <span>&#128269; Technical SEO Audit</span>
+          <span>&#128197; Scheduled Re-Audits</span>
+        </div>
+      </div>
+
+      {/* HERO */}
+      <section className="lp-hero" id="audit" style={{ position: "relative" }}>
+        <div className="lp-hero-badge">
+          <div className="lp-dot" />
+          The #1 AI Citation Readiness Platform
+        </div>
+        <h1>
+          Will AI Search Engines <span className="lp-gradient-text">Actually Cite</span>
+          <br />
+          Your Website?
+        </h1>
+        <p className="lp-hero-sub">
+          Crawl every page. Score your GEO readiness. Get ranked by ChatGPT, Claude, Perplexity, Gemini &amp; Grok
+          &mdash; before your competitors do.
+        </p>
+
+        <div className="lp-url-input-wrap">
+          <a
+            href="#"
+            className="lp-nav-cta"
+            style={{
+              display: "inline-block",
+              padding: "16px 40px",
+              fontSize: "1.05rem",
+              boxShadow: "0 4px 20px rgba(13,148,136,.35)",
+            }}
+            onClick={(e) => {
+              e.preventDefault();
+              handleRunAudit();
+            }}
+          >
+            Start GEO Audit &rarr;
+          </a>
+        </div>
+
+        <div className="lp-engines-strip">
+          <span>Scores visibility on:</span>
+          <div className="lp-engine-pill">
+            <span className="lp-ei">&#129302;</span> ChatGPT
+          </div>
+          <div className="lp-engine-pill">
+            <span className="lp-ei">&#128309;</span> Claude
+          </div>
+          <div className="lp-engine-pill">
+            <span className="lp-ei">&#128995;</span> Perplexity
+          </div>
+          <div className="lp-engine-pill">
+            <span className="lp-ei">&#128994;</span> Gemini
+          </div>
+          <div className="lp-engine-pill">
+            <span className="lp-ei">&#9889;</span> Grok
+          </div>
+        </div>
+      </section>
+
+      {/* SOCIAL PROOF */}
+      <div className="lp-social-proof">
+        <div className="lp-sp-item">
+          <div>
+            <div className="lp-sp-number">12,400+</div>
+            <div className="lp-sp-label">Sites Audited</div>
+          </div>
+        </div>
+        <div className="lp-sp-divider" />
+        <div className="lp-sp-item">
+          <div>
+            <div className="lp-sp-number">8 Dimensions</div>
+            <div className="lp-sp-label">GEO Scoring Criteria</div>
+          </div>
+        </div>
+        <div className="lp-sp-divider" />
+        <div className="lp-sp-item">
+          <div>
+            <div className="lp-sp-number">5 AI Engines</div>
+            <div className="lp-sp-label">Coverage per Audit</div>
+          </div>
+        </div>
+        <div className="lp-sp-divider" />
+        <div className="lp-sp-item">
+          <div>
+            <div className="lp-sp-number">50 Pages</div>
+            <div className="lp-sp-label">Concurrent Crawl</div>
+          </div>
+        </div>
+      </div>
+
+      {/* PROBLEM */}
+      <section className="lp-problem">
+        <div className="lp-section-label">THE PROBLEM</div>
+        <h2 style={{ maxWidth: 600 }}>
+          Traditional SEO no longer
+          <br />
+          guarantees AI visibility
+        </h2>
+        <p className="lp-section-sub">
+          Google rankings &ne; AI citation. A site scoring 90 on Google PageSpeed can score 20 for AI citation
+          readiness. These are fundamentally different problems.
+        </p>
+        <div className="lp-problem-grid">
+          {[
+            { icon: "\uD83D\uDD26", title: "AI Engines Can't Find You", desc: "Missing structured data, poor schema markup, and blocked crawlers mean AI engines simply skip your content \u2014 no matter how good it is." },
+            { icon: "\uD83C\uDFAF", title: "Content Isn't Citation-Ready", desc: "AI engines prefer factual density, clear authorship, and E-E-A-T signals. Most sites fail on at least 4 of the 8 GEO dimensions." },
+            { icon: "\uD83D\uDCC9", title: "Zero-Click Traffic is Rising", desc: "As AI answers replace blue links, only sites that AI cites retain visibility. Sites not in the AI index lose traffic silently." },
+            { icon: "\uD83D\uDD75\uFE0F", title: "No Diagnostic Tool Exists", desc: "Until now. Traditional SEO tools don't measure GEO readiness, E-E-A-T depth, or per-engine citation probability." },
+          ].map((item, i) => (
+            <div className="lp-problem-card" key={i}>
+              <div className="lp-problem-icon">{item.icon}</div>
+              <h3>{item.title}</h3>
+              <p>{item.desc}</p>
+            </div>
           ))}
-        </nav>
-        {user && (
-          <div className="mt-auto border-t border-[var(--border)] p-3">
-            <div className="flex items-center justify-between gap-2">
-              <div className="min-w-0 flex-1">
-                <div
-                  className="truncate text-xs font-semibold"
-                  style={{ color: "var(--foreground)" }}
-                  title={user.name}
-                >
-                  {user.name}
-                </div>
-                <div
-                  className="truncate text-[10px]"
-                  style={{ color: "var(--muted)" }}
-                  title={user.email}
-                >
-                  {user.email}
-                </div>
+        </div>
+      </section>
+
+      {/* HOW IT WORKS */}
+      <section className="lp-how" id="how">
+        <div className="lp-section-label">HOW IT WORKS</div>
+        <h2>
+          From URL to a complete
+          <br />
+          AI audit in seconds
+        </h2>
+        <p className="lp-section-sub">
+          Our BFS crawler, GEO pipeline, and AI probe engine do all the work. You just read the report.
+        </p>
+        <div className="lp-steps">
+          <div className="lp-step">
+            <div className="lp-step-num">1</div>
+            <h3>Enter Your URL</h3>
+            <p>Paste any website URL. Our crawler maps every page using smart sitemap sampling with 50 concurrent threads.</p>
+          </div>
+          <div className="lp-step-arrow">&rarr;</div>
+          <div className="lp-step">
+            <div className="lp-step-num">2</div>
+            <h3>Deep Crawl &amp; Analysis</h3>
+            <p>Technical SEO, structured data, E-E-A-T signals, content quality, and NLP analysis run simultaneously per page.</p>
+          </div>
+          <div className="lp-step-arrow">&rarr;</div>
+          <div className="lp-step">
+            <div className="lp-step-num">3</div>
+            <h3>GEO Score + Fixes</h3>
+            <p>Get your A&ndash;F grade per AI engine, per page, and a prioritized fix list: Critical &rarr; Important &rarr; Optional.</p>
+          </div>
+          <div className="lp-step-arrow">&rarr;</div>
+          <div className="lp-step">
+            <div className="lp-step-num">4</div>
+            <h3>Track Over Time</h3>
+            <p>Schedule daily, weekly, or monthly re-audits. Watch your GEO score trend up as you implement fixes.</p>
+          </div>
+        </div>
+      </section>
+
+      {/* FEATURES */}
+      <section className="lp-features" id="features">
+        <div className="lp-section-label">FEATURES</div>
+        <h2>
+          Everything AI search demands.
+          <br />
+          All in one audit.
+        </h2>
+        <p className="lp-section-sub">7-tab dashboard covering every dimension that matters for AI citation in 2025 and beyond.</p>
+        <div className="lp-features-grid">
+          {[
+            { icon: "\uD83D\uDD77\uFE0F", title: "Full-Site BFS Crawler", desc: "Breadth-first crawl with smart sitemap sampling, 50 concurrent threads streaming to Redis. No page left behind.", tag: "Spider Tab" },
+            { icon: "\uD83D\uDCD0", title: "Technical SEO Audit", desc: "HTTPS, sitemap, PageSpeed, broken links, canonicals, security headers, AI crawler access signals \u2014 all scored.", tag: "Technical Tab" },
+            { icon: "\uD83C\uDFC6", title: "8-Dimension GEO Score", desc: "Citation readiness across content quality, E-E-A-T, entity authority, schema, NLP intent, and snippet readiness.", tag: "GEO Tab" },
+            { icon: "\uD83E\uDD16", title: "Multi-Engine AI Probe", desc: "Simulates 5 AI engine personas \u2014 ChatGPT, Claude, Perplexity, Gemini, Grok \u2014 to predict citation probability per page.", tag: "GEO Tab" },
+            { icon: "\uD83D\uDCC8", title: "Competitor Tracking", desc: "Track up to 10 competitors' GEO scores side-by-side. See how your AI citation readiness compares and where you're falling behind.", tag: "Competitors Tab" },
+            { icon: "\uD83D\uDCC5", title: "Scheduled Re-Audits", desc: "Set daily, weekly, or monthly re-crawls via Celery Beat. Trend charts show GEO score improvement over time.", tag: "Schedules Tab" },
+            { icon: "\uD83D\uDCCA", title: "History & Comparison", desc: "Persistent audit history with side-by-side comparison. See exactly what changed between two audit runs.", tag: "History Tab" },
+            { icon: "\uD83D\uDD2C", title: "NLP Content Analysis", desc: "Claude-powered intent detection, query pattern mapping, snippet readiness scoring, and factual density analysis.", tag: "Insights Tab" },
+          ].map((item, i) => (
+            <div className="lp-feat-card" key={i}>
+              <div className="lp-feat-icon">{item.icon}</div>
+              <h3>{item.title}</h3>
+              <p>{item.desc}</p>
+              <span className="lp-feat-tag">{item.tag}</span>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* SCORE PREVIEW */}
+      <section className="lp-score-preview" id="score">
+        <div className="lp-section-label">LIVE REPORT PREVIEW</div>
+        <h2>
+          Your GEO score. Broken down
+          <br />
+          engine by engine.
+        </h2>
+        <p className="lp-section-sub">
+          Every audit produces a full-site GEO grade, per-page scores, engine breakdowns, and a fix list sorted by
+          impact.
+        </p>
+        <div className="lp-score-layout">
+          <div className="lp-score-card" ref={scoreCardRef}>
+            <div className="lp-score-header">
+              <div>
+                <div className="lp-score-site">example-site.com</div>
+                <div style={{ fontSize: ".75rem", color: "var(--lp-soft)" }}>Audited just now &middot; 142 pages</div>
               </div>
-              <button
-                type="button"
-                onClick={() => { void handleSignOut(); }}
-                title="Sign out"
-                aria-label="Sign out"
-                className="shrink-0 text-[var(--muted)] transition-colors hover:text-[var(--error)]"
-              >
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-                  <polyline points="16 17 21 12 16 7" />
-                  <line x1="21" y1="12" x2="9" y2="12" />
-                </svg>
-              </button>
+              <div className="lp-score-grade">B+</div>
             </div>
-          </div>
-        )}
-      </aside>
-
-      {/* ── Main area ─────────────────────────────────────────────────────── */}
-      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-
-        {/* ── Top header ────────────────────────────────────────────────── */}
-        <header className="flex shrink-0 items-center gap-3 border-b border-[var(--border)] bg-[var(--surface)] px-4 py-2">
-          <div className="flex shrink-0 items-center gap-1.5">
-            <svg
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            style={{ color: "var(--accent)" }}
-            >
-              <circle cx="12" cy="12" r="10" />
-              <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10" />
-              <path d="M12 2a15.3 15.3 0 0 0-4 10 15.3 15.3 0 0 0 4 10" />
-              <path d="M2 12h20" />
-            </svg>
-            <span className="text-sm font-semibold text-[var(--accent)]">Enter Website URL</span>
-          </div>
-          <div className="flex min-w-0 flex-1 items-center gap-2 rounded border border-[var(--border)] bg-[var(--surface-elevated)] px-3 py-1.5">
-            <span className="shrink-0 text-xs text-[var(--muted)]">URL:</span>
-            <input
-              type="url"
-              placeholder="https://example.com/"
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && !quotaExhausted && handleStart()}
-              disabled={quotaExhausted}
-              className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-[var(--muted)] disabled:opacity-50 disabled:cursor-not-allowed"
-            />
-            <button onClick={handleStart} disabled={quotaExhausted} className="shrink-0 text-[var(--muted)] transition-colors hover:text-[var(--foreground)] disabled:opacity-50 disabled:cursor-not-allowed">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-              </svg>
-            </button>
-          </div>
-          <div className="flex shrink-0 items-center gap-1.5">
-            <button
-              onClick={handleStart}
-              disabled={loading || isAnalyzing || quotaExhausted}
-              className="rounded bg-[var(--accent)] px-4 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-[var(--accent-hover)] disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {loading ? "Starting..." : "Start"}
-            </button>
-            <button disabled={quotaExhausted} className="flex items-center gap-1 rounded border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5 text-xs text-[var(--muted)] transition-colors hover:bg-[var(--surface-elevated)] disabled:opacity-50 disabled:cursor-not-allowed">
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 0-14.14 0"/><path d="M4.93 19.07a10 10 0 0 0 14.14 0"/>
-              </svg>
-              Config
-            </button>
-            <button onClick={handleClear} disabled={quotaExhausted} className="rounded border border-[var(--border)] px-2.5 py-1.5 text-xs text-[var(--muted)] transition-colors hover:opacity-80 disabled:opacity-50 disabled:cursor-not-allowed" style={{ backgroundColor: quotaExhausted ? undefined : "#DCFCE7" }}>
-              Clear
-            </button>
-            {site?.status === "completed" && (
-              <button className="rounded border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5 text-xs text-[var(--muted)] transition-colors hover:bg-[var(--surface-elevated)]">
-                Done
-              </button>
-            )}
-          </div>
-        </header>
-
-        {/* Error bar */}
-        {error && (
-          <div className="shrink-0 border-b border-[var(--error)] bg-[var(--error)]/10 px-4 py-2 text-sm text-[var(--error)]">
-            {error}
-          </div>
-        )}
-
-        {/* ── Tab content ───────────────────────────────────────────────── */}
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-
-          {/* Loading state — wait for auth + subscription before rendering tabs */}
-          {authLoading && (
-            <div className="flex flex-1 items-center justify-center">
-              <div className="h-4 w-4 animate-spin rounded-full border-2 border-[var(--border)] border-t-[var(--accent)]" />
-            </div>
-          )}
-
-          {/* ── Quota-exhausted gate for all tabs except history ── */}
-          {!authLoading && quotaExhausted && mainTab !== "history" && (
-            <div className="flex min-h-0 flex-1 flex-col items-center justify-center overflow-auto bg-[var(--background)] p-8">
-              <LockedFeature
-                title={subscription?.plan === "pro" ? "Monthly Audit Limit Reached" : "Audit Limit Reached"}
-                plan={subscription?.plan === "pro" ? "Agency" : "Pro"}
-              />
-              <p className="mt-4 text-xs text-[var(--muted)]">
-                Your past audits are still available in the <button onClick={() => setMainTab("history")} className="underline text-[var(--accent)]">History</button> tab.
-              </p>
-            </div>
-          )}
-
-          {/* ── DASHBOARD TAB ── */}
-          {!authLoading && mainTab === "dashboard" && !quotaExhausted && (
-            <div className="flex min-h-0 flex-1 flex-col overflow-auto">
-              {!site ? (
-                <div className="flex flex-1 items-center justify-center">
-                  <div className="space-y-3 text-center">
-                    <p className="text-2xl font-bold text-[var(--accent)]">AI SEO Tool</p>
-                    <p className="max-w-sm text-sm text-[var(--muted)]">
-                      Enter a URL above to crawl a website, run a technical audit, and get your AI Citation Score.
-                    </p>
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-3 p-4">
-
-                  {/* Row 1: 3 summary cards */}
-                  <div className="grid grid-cols-3 gap-3">
-
-                    {/* URLs Crawled */}
-                    <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4">
-                      <p className="mb-2 text-xs font-medium text-[var(--muted)]">URLs Crawled</p>
-                      <div className="flex items-end gap-2">
-                        <span className="text-2xl font-black tabular-nums">{(overview?.total_urls ?? 0).toLocaleString()}</span>
-                        <span className="mb-0.5 text-xs font-medium text-[var(--success)]">Total URLs</span>
-                      </div>
-                      <p className="mt-0.5 text-xs text-[var(--muted)]">{(pagesData?.total ?? 0).toLocaleString()} Crawled</p>
-                      <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-[var(--border)]">
-                        {site.status === "processing" ? (
-                          <div className="progress-indeterminate h-full w-1/3 rounded-full bg-[var(--accent)]" />
-                        ) : (
-                          <div className="h-full w-full rounded-full bg-[var(--accent)]" />
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Image SEO Issues */}
-                    <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4">
-                      <p className="mb-3 text-xs font-medium text-[var(--muted)]">Image SEO Issues</p>
-                      {overview ? (
-                        <div className="space-y-2.5">
-                          <div className="flex items-center justify-between">
-                            <span className="text-xl font-black tabular-nums">{overview.images_total.toLocaleString()}</span>
-                            <span className="text-xs text-[var(--muted)]">Total image</span>
-                          </div>
-                          <div className="flex items-center justify-between">
-                            <span className="text-base font-bold text-[var(--warning)]">{overview.images_missing_alt.toLocaleString()}</span>
-                            <span className="text-xs text-[var(--warning)]">Missing Alt Text</span>
-                          </div>
-                          <div className="flex items-center justify-between">
-                            <span className="text-base font-bold text-[var(--success)]">
-                              {(overview.images_optimized ?? 0).toLocaleString()}
-                            </span>
-                            <span className="text-xs text-[var(--success)]" title="Has alt text + modern format (WebP/AVIF), lazy loading, or explicit dimensions">Optimized Images ⓘ</span>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="flex h-16 items-center justify-center text-xs text-[var(--muted)]">Loading…</div>
-                      )}
-                    </div>
-
-                    {/* SEO Score */}
-                    <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4">
-                      <p className="mb-2 text-xs font-medium text-[var(--muted)]">Overall GEO Score</p>
-                      {geoScore != null ? (
-                        <>
-                          <div className="flex items-end gap-1">
-                            <span className="text-3xl font-black tabular-nums">{geoScore}</span>
-                            <span className="mb-1 text-sm text-[var(--muted)]">/100</span>
-                          </div>
-                          <p className={`text-sm font-medium ${
-                            geoScore >= 80 ? "text-[var(--success)]"
-                            : geoScore >= 60 ? "text-[var(--warning)]"
-                            : "text-red-500"
-                          }`}>
-                            Status: {geoScore >= 80 ? "Good" : geoScore >= 60 ? "Fair" : "Poor"}
-                          </p>
-                        </>
-                      ) : (
-                        <div className="flex flex-col gap-1">
-                          <div className="text-xl font-black text-[var(--muted)]">—/100</div>
-                          <div className="flex items-center gap-1.5 text-xs text-[var(--muted)]">
-                            {site.status === "completed" ? (
-                              <>
-                                <div className="h-2.5 w-2.5 animate-spin rounded-full border border-[var(--border)] border-t-[var(--accent)]" />
-                                Analyzing…
-                              </>
-                            ) : "Awaiting crawl"}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Row 2: Status code cards */}
-                  <div className="grid grid-cols-2 gap-3">
-
-                    {/* Status Codes donut */}
-                    <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4">
-                      <p className="mb-3 text-xs font-medium text-[var(--muted)]">Status Codes</p>
-                      {overview ? (() => {
-                        const sc = overview.status_counts;
-                        const ok    = sc?.ok        ?? 0;
-                        const r3xx  = sc?.redirect  ?? 0;
-                        const r4xx  = sc?.error_4xx ?? 0;
-                        const r5xx  = sc?.error_5xx ?? 0;
-                        const blocked = Math.max(0, overview.total_urls - ok - r3xx - r4xx - r5xx);
-                        const sliceDefs = [
-                          { label: "2xx Success",           value: ok,      color: "#10b981" },
-                          { label: "3xx Redirection",       value: r3xx,    color: "#f59e0b" },
-                          { label: "4xx Client Error",      value: r4xx,    color: "#f43f5e" },
-                          { label: "5xx Server Error",      value: r5xx,    color: "#dc2626" },
-                          { label: "Blocked by robots.txt", value: blocked, color: "#94a3b8" },
-                        ].filter((s) => s.value > 0);
-                        return (
-                          <div className="flex items-center gap-4">
-                            <div className="relative shrink-0">
-                              <DonutChart slices={sliceDefs} size={110} />
-                              <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                                <span className="text-base font-black tabular-nums">{overview.total_urls.toLocaleString()}</span>
-                              </div>
-                            </div>
-                            <div className="flex-1 space-y-1.5 text-xs">
-                              {sliceDefs.map((s) => (
-                                <div key={s.label} className="flex items-center justify-between">
-                                  <div className="flex items-center gap-1.5">
-                                    <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: s.color }} />
-                                    <span className="text-[var(--muted)]">{s.label}</span>
-                                  </div>
-                                  <span className="font-semibold" style={{ color: s.color }}>{s.value.toLocaleString()}</span>
-                                </div>
-                              ))}
-                            </div>
-                            {(r3xx > 0 || r4xx > 0) && (
-                              <div className="shrink-0 space-y-2 border-l border-[var(--border)] pl-3 text-xs">
-                                {r3xx > 0 && <div><p className="font-medium text-[var(--warning)]">3xx Redirection</p><p className="font-bold text-[var(--warning)]">{r3xx}</p></div>}
-                                {r4xx > 0 && <div><p className="font-medium text-red-500">4xx Client Error</p><p className="font-bold text-red-500">{r4xx}</p></div>}
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })() : <div className="flex h-20 items-center justify-center text-xs text-[var(--muted)]">Loading…</div>}
-                    </div>
-
-                    {/* Indexability ring */}
-                    <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4">
-                      <p className="mb-3 text-xs font-medium text-[var(--muted)]">Indexability</p>
-                      {overview?.indexability_counts ? (() => {
-                        const idxSlices = [
-                          { label: "Indexable",     value: indexabilityCounts.indexable,    color: "#10b981" },
-                          { label: "Non-Indexable", value: indexabilityCounts.nonIndexable, color: "#f43f5e" },
-                          { label: "External",      value: indexabilityCounts.external,     color: "#f59e0b" },
-                        ].filter((s) => s.label === "External" || s.value > 0);
-                        const idxTotal = idxSlices.reduce((acc, s) => acc + s.value, 0);
-                        return (
-                          <div className="flex items-center gap-3">
-                            <DonutChart slices={idxSlices} size={110} />
-                            <div className="flex-1 space-y-1.5 text-xs">
-                              {idxSlices.map((s) => (
-                                <div key={s.label} className="flex items-center justify-between">
-                                  <div className="flex items-center gap-1.5">
-                                    <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: s.color }} />
-                                    <span className="text-[var(--muted)]">{s.label}</span>
-                                  </div>
-                                  <span className="font-semibold" style={{ color: s.color }}>
-                                    {idxTotal > 0 ? Math.round((s.value / idxTotal) * 100) : 0}% → {s.value.toLocaleString()}
-                                  </span>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        );
-                      })() : <div className="flex h-20 items-center justify-center text-xs text-[var(--muted)]">Loading…</div>}
-                    </div>
-                  </div>
-
-                  {/* Row 3: All URL table */}
-                  <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)]">
-                    <div className="flex items-center justify-between border-b border-[var(--border)] px-4 py-2.5">
-                      <p className="text-sm font-semibold">All URL</p>
-                      <div className="flex items-center gap-2" ref={dropdownRef}>
-                        <div className="flex items-center gap-1.5 rounded border border-[var(--border)] bg-[var(--surface-elevated)] px-2 py-1">
-                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                          <input type="text" placeholder="Search URLs" value={search} onChange={(e) => setSearch(e.target.value)}
-                            className="w-32 bg-transparent text-xs outline-none placeholder:text-[var(--muted)]" />
-                        </div>
-                        {/* Export button */}
-                        <div className="relative">
-                          <button
-                            onClick={() => setOpenDropdown(openDropdown === "export" ? null : "export")}
-                            className="flex items-center gap-1 rounded border border-[var(--border)] bg-[var(--surface-elevated)] px-2 py-1 text-xs text-[var(--muted)] transition-colors hover:text-[var(--foreground)]"
-                          >
-                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                            Export <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
-                          </button>
-                          {openDropdown === "export" && (
-                            <div className="absolute right-0 top-full z-50 mt-1 overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface)] shadow-lg" style={{ minWidth: 190 }}>
-                              <button
-                                onClick={() => { downloadCSV(filteredDashboardPages, "crawl-export.csv"); setOpenDropdown(null); }}
-                                className="w-full px-3 py-2 text-left text-xs text-[var(--foreground)] transition-colors hover:bg-[var(--surface-elevated)]"
-                              >
-                                Export current page
-                              </button>
-                              <button
-                                onClick={handleExportAll}
-                                disabled={exportingAll}
-                                className="w-full px-3 py-2 text-left text-xs text-[var(--foreground)] transition-colors hover:bg-[var(--surface-elevated)] disabled:opacity-50"
-                              >
-                                {exportingAll ? "Exporting…" : "Export all pages"}
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                        {/* Filter button */}
-                        <div className="relative">
-                          <button
-                            onClick={() => setOpenDropdown(openDropdown === "filter" ? null : "filter")}
-                            className="flex items-center gap-1 rounded border border-[var(--border)] bg-[var(--surface-elevated)] px-2 py-1 text-xs text-[var(--muted)] transition-colors hover:text-[var(--foreground)]"
-                          >
-                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
-                            Filter
-                            {activeFilterCount > 0 && (
-                              <span className="ml-0.5 rounded-full bg-[var(--accent)] px-1.5 py-0.5 text-[9px] font-bold text-white">
-                                {activeFilterCount}
-                              </span>
-                            )}
-                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
-                          </button>
-                          {openDropdown === "filter" && (
-                            <div className="absolute right-0 top-full z-50 mt-1 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3 shadow-lg" style={{ minWidth: 220 }}>
-                              <div className="mb-2 flex items-center justify-between">
-                                <span className="text-[10px] font-semibold uppercase tracking-wide text-[var(--muted)]">Filters</span>
-                                {activeFilterCount > 0 && (
-                                  <button
-                                    onClick={() => setColFilters({ statusGroup: [], indexability: [], hasCanonical: null })}
-                                    className="text-[10px] text-[var(--accent)] hover:underline"
-                                  >
-                                    Clear all
-                                  </button>
-                                )}
-                              </div>
-                              {/* Status Code */}
-                              <div className="mb-3">
-                                <p className="mb-1.5 text-[10px] font-medium text-[var(--foreground)]">Status Code</p>
-                                <div className="flex flex-wrap gap-1">
-                                  {["2xx", "3xx", "4xx", "5xx"].map(g => (
-                                    <button
-                                      key={g}
-                                      onClick={() => setColFilters(f => ({
-                                        ...f,
-                                        statusGroup: f.statusGroup.includes(g)
-                                          ? f.statusGroup.filter(x => x !== g)
-                                          : [...f.statusGroup, g],
-                                      }))}
-                                      className="rounded px-2 py-0.5 text-[10px] font-medium border transition-colors"
-                                      style={colFilters.statusGroup.includes(g)
-                                        ? { background: "var(--accent-light)", color: "var(--accent)", borderColor: "var(--accent)" }
-                                        : { background: "transparent", color: "var(--muted)", borderColor: "var(--border)" }}
-                                    >
-                                      {g}
-                                    </button>
-                                  ))}
-                                </div>
-                              </div>
-                              {/* Indexability */}
-                              <div className="mb-3">
-                                <p className="mb-1.5 text-[10px] font-medium text-[var(--foreground)]">Indexability</p>
-                                <div className="flex flex-col gap-1">
-                                  {["Indexable", "Non-Indexable", "Redirected"].map(v => (
-                                    <button
-                                      key={v}
-                                      onClick={() => setColFilters(f => ({
-                                        ...f,
-                                        indexability: f.indexability.includes(v)
-                                          ? f.indexability.filter(x => x !== v)
-                                          : [...f.indexability, v],
-                                      }))}
-                                      className="flex items-center gap-2 rounded px-2 py-1 text-left text-[10px] transition-colors hover:bg-[var(--surface-elevated)]"
-                                      style={{ color: colFilters.indexability.includes(v) ? "var(--accent)" : "var(--foreground)" }}
-                                    >
-                                      <span className="flex h-3 w-3 items-center justify-center rounded border" style={{ borderColor: colFilters.indexability.includes(v) ? "var(--accent)" : "var(--border)", background: colFilters.indexability.includes(v) ? "var(--accent)" : "transparent" }}>
-                                        {colFilters.indexability.includes(v) && <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3"><polyline points="20 6 9 17 4 12"/></svg>}
-                                      </span>
-                                      {v}
-                                    </button>
-                                  ))}
-                                </div>
-                              </div>
-                              {/* Has Canonical */}
-                              <div>
-                                <p className="mb-1.5 text-[10px] font-medium text-[var(--foreground)]">Has Canonical</p>
-                                <div className="flex gap-1">
-                                  {([null, true, false] as const).map((val) => {
-                                    const label = val === null ? "Any" : val ? "Yes" : "No";
-                                    const active = colFilters.hasCanonical === val;
-                                    return (
-                                      <button
-                                        key={label}
-                                        onClick={() => setColFilters(f => ({ ...f, hasCanonical: val }))}
-                                        className="rounded px-2 py-0.5 text-[10px] font-medium border transition-colors"
-                                        style={active
-                                          ? { background: "var(--accent-light)", color: "var(--accent)", borderColor: "var(--accent)" }
-                                          : { background: "transparent", color: "var(--muted)", borderColor: "var(--border)" }}
-                                      >
-                                        {label}
-                                      </button>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="overflow-auto" style={{ maxHeight: "300px" }}>
-                      <table className="w-full border-collapse text-xs" style={{ minWidth: "900px" }}>
-                        <thead className="sticky top-0 z-10 bg-[var(--surface-elevated)]">
-                          <tr>
-                            {["Address", "Type", "Content Type", "Status Code", "Status", "Indexability", "Title"].map((h) => (
-                              <th key={h} className="border-b border-[var(--border)] px-3 py-2 text-left font-medium text-[var(--muted)]">{h}</th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {site.status === "processing" && (!pagesData || pagesData.pages.length === 0) && (
-                            <tr><td colSpan={7} className="px-3 py-8 text-center">
-                              <div className="flex items-center justify-center gap-2 text-[var(--muted)]">
-                                <div className="h-4 w-4 animate-spin rounded-full border-2 border-[var(--border)] border-t-[var(--accent)]" />
-                                Discovering URLs…
-                              </div>
-                            </td></tr>
-                          )}
-                          {filteredDashboardPages.map((page, i) => (
-                            <tr key={`${i}-${page.address}`}
-                              onClick={() => { setSelectedPage(page); setMainTab("crawl"); }}
-                              className="cursor-pointer border-b border-[var(--border)]/50 transition-colors hover:bg-[var(--surface-elevated)]">
-                              <td className="max-w-[260px] truncate px-3 py-2 text-[var(--accent)]" title={page.address}>{page.address}</td>
-                              <td className="px-3 py-2 text-[var(--muted)]">{page.type ?? "—"}</td>
-                              <td className="px-3 py-2 text-[var(--muted)]">{page.content_type ? page.content_type.split(";")[0] : "—"}</td>
-                              <td className="px-3 py-2">
-                                {page.status_code != null ? (
-                                  <span className={`inline-block rounded px-2 py-0.5 text-[10px] font-semibold ${
-                                    page.status_code < 300 ? "bg-[var(--success)]/15 text-[var(--success)]"
-                                    : page.status_code < 400 ? "bg-[var(--warning)]/15 text-[var(--warning)]"
-                                    : "bg-red-500/15 text-red-400"
-                                  }`}>{page.status_code}</span>
-                                ) : "—"}
-                              </td>
-                              <td className="px-3 py-2 text-[var(--muted)]">{page.status ?? "—"}</td>
-                              <td className="px-3 py-2 text-[var(--muted)]">{page.indexability ?? "—"}</td>
-                              <td className="max-w-[200px] truncate px-3 py-2" title={page.title ?? ""}>{page.title ?? "—"}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-
-                </div>
-              )}
-            </div>
-          )}
-
-        {/* ── CRAWL TAB ── */}
-        {mainTab === "crawl" && !quotaExhausted && (
-          <div className="flex min-h-0 flex-1">
-            {/* Main table */}
-            <div className="flex min-w-0 flex-1 flex-col bg-[var(--surface)]">
-              {crawlActive && (
-                <>
-                  <div className="flex shrink-0 items-center gap-2 border-b border-[var(--border)] bg-[var(--surface-elevated)] px-3 py-2">
-                    {/* Type tabs */}
-                    <div className="flex gap-1">
-                      {(["all", "internal", "external"] as const).map((tab) => (
-                        <button
-                          key={tab}
-                          onClick={() => { setTypeTab(tab); setPageNum(0); }}
-                          className={`rounded-md px-3 py-1 text-xs capitalize transition-colors ${
-                            typeTab === tab
-                              ? "bg-[var(--accent-light)] text-[var(--accent)] font-medium"
-                              : "text-[var(--muted)] hover:text-[var(--foreground)]"
-                          }`}
-                        >
-                          {tab}
-                        </button>
-                      ))}
-                    </div>
-                    <input
-                      type="text"
-                      placeholder="Search URLs…"
-                      value={search}
-                      onChange={(e) => { setSearch(e.target.value); setPageNum(0); }}
-                      className="flex-1 rounded border border-[var(--border)] bg-[var(--surface)] px-2 py-1.5 text-xs outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]"
-                    />
-                    <span className="shrink-0 text-xs text-[var(--muted)]">
-                      {pagesData?.total ?? 0} URL{(pagesData?.total ?? 0) !== 1 ? "s" : ""}
-                      {site?.status === "processing" && " (updating…)"}
+            <div className="lp-score-bars">
+              {[
+                { label: "Content Quality", score: 82 },
+                { label: "E-E-A-T Signals", score: 71 },
+                { label: "Structured Data", score: 55 },
+                { label: "Entity Authority", score: 90 },
+                { label: "Technical Health", score: 76 },
+              ].map((bar, i) => (
+                <div className="lp-score-row" key={i}>
+                  <div className="lp-score-row-top">
+                    <span>{bar.label}</span>
+                    <span style={{ color: "var(--lp-teal)" }}>
+                      {bar.score}/100
                     </span>
                   </div>
-                  {/* Inventory banner — shown for large sites using Two-Phase strategy */}
-                  {site?.inventory_total && site.inventory_total >= 100 && (
-                    <div className="shrink-0 flex items-center gap-3 border-b border-[var(--border)] bg-[var(--accent-light)] px-3 py-1.5 text-[10px] text-[var(--accent)]">
-                      <span className="font-semibold">
-                        Sitemap: {site.inventory_total.toLocaleString()} URLs found
-                      </span>
-                      {site.inventory_sample_size && (
-                        <span>· Analyzing representative sample of {site.inventory_sample_size.toLocaleString()} pages</span>
-                      )}
-                      {site.inventory_sections && Object.keys(site.inventory_sections).length > 0 && (
-                        <span>
-                          ·{" "}
-                          {Object.entries(site.inventory_sections)
-                            .slice(0, 4)
-                            .map(([s, n]) => `/${s} (${n.toLocaleString()})`)
-                            .join(" · ")}
-                        </span>
-                      )}
-                    </div>
-                  )}
-                  <div className="min-h-0 flex-1 overflow-auto">
-                    <table className="w-full border-collapse text-sm" style={{ minWidth: "1600px" }}>
-                      <thead className="sticky top-0 z-10 border-b border-[var(--border)] bg-[var(--surface-elevated)] shadow-[0_1px_0_0_var(--border)]">
-                        <tr>
-                          <th className="w-12 px-2 py-2 text-left text-xs font-medium text-[var(--muted)]">#</th>
-                          <th className="min-w-[220px] px-2 py-2 text-left text-xs font-medium text-[var(--muted)]">Address</th>
-                          <th className="w-20 px-2 py-2 text-left text-xs font-medium text-[var(--muted)]">Type</th>
-                          <th className="w-20 px-2 py-2 text-left text-xs font-medium text-[var(--muted)]">Status</th>
-                          <th className="w-24 px-2 py-2 text-left text-xs font-medium text-[var(--muted)]">Indexability</th>
-                          <th className="min-w-[120px] px-2 py-2 text-left text-xs font-medium text-[var(--muted)]">Title</th>
-                          <th className="min-w-[100px] px-2 py-2 text-left text-xs font-medium text-[var(--muted)]">Meta Desc</th>
-                          <th className="min-w-[100px] px-2 py-2 text-left text-xs font-medium text-[var(--muted)]">H1</th>
-                          <th className="min-w-[180px] px-2 py-2 text-left text-xs font-medium text-[var(--muted)]">Canonical</th>
-                          <th className="w-14 px-2 py-2 text-left text-xs font-medium text-[var(--muted)]">Depth</th>
-                          <th className="w-20 px-2 py-2 text-left text-xs font-medium text-[var(--muted)]">Resp. Time</th>
-                          <th className="min-w-[180px] px-2 py-2 text-left text-xs font-medium text-[var(--muted)]">Redirect URL</th>
-                          <th className="min-w-[80px] px-2 py-2 text-left text-xs font-medium text-[var(--muted)]">Readability</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {site?.status === "processing" && pagesData?.pages?.length === 0 && (
-                          <tr>
-                            <td colSpan={14} className="h-[300px]">
-                              <div className="flex items-center justify-center gap-3">
-                                <div className="h-8 w-8 animate-spin rounded-full border-4 border-[var(--border)] border-t-[var(--accent)]" />
-                                <span className="text-sm text-[var(--muted)]">Discovering URLs…</span>
-                              </div>
-                            </td>
-                          </tr>
-                        )}
-                        {(pagesData?.pages ?? []).filter(page => {
-                          const ct = page.content_type ?? "";
-                          return !ct.startsWith("image/") && !ct.includes("css") && !ct.includes("javascript") && !ct.includes("font");
-                        }).map((page, i) => (
-                          <tr
-                            key={`${page.id}-${page.address}`}
-                            onClick={() => setSelectedPage(page)}
-                            className={`cursor-pointer border-b border-[var(--border)]/50 hover:bg-[var(--surface-elevated)] transition-colors ${
-                              selectedPage?.id === page.id && selectedPage?.address === page.address
-                                ? "bg-[var(--accent-light)]"
-                                : ""
-                            }`}
-                          >
-                            <td className="px-2 py-2 text-[var(--muted)]">{i + 1}</td>
-                            <td className="min-w-[220px] max-w-[360px] truncate px-2 py-2" title={page.address}>
-                              {page.address}
-                            </td>
-                            <td className="px-2 py-2 text-[var(--muted)]">{page.type ?? "—"}</td>
-                            <td className="px-2 py-2">
-                              {page.status_code != null ? (
-                                <span className={`inline-block rounded px-2 py-0.5 text-xs font-semibold ${
-                                  page.status_code < 300
-                                    ? "bg-[var(--success)]/15 text-[var(--success)]"
-                                    : page.status_code < 400
-                                    ? "bg-[var(--warning)]/15 text-[var(--warning)]"
-                                    : "bg-red-500/15 text-red-400"
-                                }`}>
-                                  {page.status_code}
-                                </span>
-                              ) : "—"}
-                            </td>
-                            <td className="px-2 py-2 text-[var(--muted)]">{page.indexability ?? "—"}</td>
-                            <td className="min-w-[120px] max-w-[200px] truncate px-2 py-2" title={page.title ?? ""}>
-                              {page.title ?? "—"}
-                            </td>
-                            <td className="min-w-[100px] max-w-[180px] truncate px-2 py-2 text-[var(--muted)]" title={page.meta_descp ?? ""}>
-                              {page.meta_descp ?? "—"}
-                            </td>
-                            <td className="min-w-[100px] max-w-[160px] truncate px-2 py-2" title={page.h1 ?? ""}>
-                              {page.h1 ?? "—"}
-                            </td>
-                            <td className="min-w-[180px] max-w-[280px] truncate px-2 py-2 text-[var(--muted)]" title={page.canonical ?? ""}>
-                              {page.canonical ?? "—"}
-                            </td>
-                            <td className="px-2 py-2 text-[var(--muted)]">{page.crawl_depth ?? "—"}</td>
-                            <td className="px-2 py-2 text-[var(--muted)]">{page.response_time ?? "—"}</td>
-                            <td className="min-w-[180px] max-w-[280px] truncate px-2 py-2 text-[var(--muted)]" title={page.redirect_url ?? ""}>
-                              {page.redirect_url ?? "—"}
-                            </td>
-                            <td className="min-w-[80px] px-2 py-2 text-[var(--muted)]">{page.readability ?? "—"}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                  {/* Pagination controls */}
-                  {(pagesData?.total ?? 0) > PAGE_SIZE && (
-                    <div className="flex shrink-0 items-center justify-between border-t border-[var(--border)] bg-[var(--surface-elevated)] px-3 py-2">
-                      <button
-                        onClick={() => setPageNum((p) => Math.max(0, p - 1))}
-                        disabled={pageNum === 0}
-                        className="rounded border border-[var(--border)] px-2.5 py-1 text-xs text-[var(--muted)] transition-colors hover:bg-[var(--surface)] disabled:opacity-40"
-                      >
-                        ← Prev
-                      </button>
-                      <span className="text-xs text-[var(--muted)]">
-                        Page {pageNum + 1} of {Math.ceil((pagesData?.total ?? 0) / PAGE_SIZE)}
-                        {" "}· {(pagesData?.total ?? 0).toLocaleString()} total
-                      </span>
-                      <button
-                        onClick={() => setPageNum((p) => p + 1)}
-                        disabled={(pageNum + 1) * PAGE_SIZE >= (pagesData?.total ?? 0)}
-                        className="rounded border border-[var(--border)] px-2.5 py-1 text-xs text-[var(--muted)] transition-colors hover:bg-[var(--surface)] disabled:opacity-40"
-                      >
-                        Next →
-                      </button>
-                    </div>
-                  )}
-                </>
-              )}
-              {site && !crawlActive && (
-                <div className="flex flex-1 items-center justify-center text-[var(--muted)]">
-                  {site.status === "queued" ? "Starting crawl…" : "Crawling…"}
-                </div>
-              )}
-              {!site && (
-                <div className="flex flex-1 items-center justify-center">
-                  <div className="text-center space-y-3">
-                    <p className="text-2xl font-bold text-[var(--accent)]">AI SEO Tool</p>
-                    <p className="text-[var(--muted)] text-sm max-w-sm">
-                      Enter a URL above to crawl a website, run a technical audit, and get your AI Citation Score.
-                    </p>
+                  <div className="lp-score-bar-bg">
+                    <div
+                      className="lp-score-bar-fill"
+                      style={{ width: barsAnimated ? `${bar.score}%` : "0%" }}
+                    />
                   </div>
                 </div>
-              )}
+              ))}
+            </div>
+            <div className="lp-engine-scores">
+              {[
+                { icon: "\uD83E\uDD16", name: "ChatGPT", grade: "B" },
+                { icon: "\uD83D\uDD35", name: "Claude", grade: "B+" },
+                { icon: "\uD83D\uDFE3", name: "Perplexity", grade: "A\u2212" },
+                { icon: "\uD83D\uDFE2", name: "Gemini", grade: "C+" },
+                { icon: "\u26A1", name: "Grok", grade: "B\u2212" },
+              ].map((eng, i) => (
+                <div className="lp-eng-badge" key={i}>
+                  <span className="lp-eng-name">
+                    {eng.icon} {eng.name}
+                  </span>
+                  <span className="lp-eng-score">{eng.grade}</span>
+                </div>
+              ))}
             </div>
           </div>
-        )}
-
-        {/* ── AUDIT TAB ── */}
-        {mainTab === "audit" && !quotaExhausted && (
-          <div className="flex min-h-0 flex-1 flex-col bg-[var(--background)]">
-            {!site || site.status !== "completed" ? (
-              <div className="flex flex-1 items-center justify-center text-[var(--muted)]">
-                Complete a crawl to view the technical audit.
-              </div>
-            ) : !audit || audit.audit_status === "pending" || audit.audit_status === "running" ? (
-              <div className="flex flex-1 items-center justify-center">
-                <Spinner label="Running technical audit… (PageSpeed Insights may take 30–60s)" />
-              </div>
-            ) : audit.audit_status === "failed" || !audit.audit ? (
-              <div className="flex flex-1 items-center justify-center text-[var(--error)]">
-                Audit failed. Please try again.
-              </div>
-            ) : (
-              <AuditFullPanel audit={audit.audit} />
-            )}
-          </div>
-        )}
-
-        {/* ── INSIGHTS TAB ── */}
-        {mainTab === "insights" && !quotaExhausted && (
-          <div className="flex min-h-0 flex-1 flex-col overflow-auto bg-[var(--background)] p-4">
-            {isFree ? (
-              <LockedFeature title="Insights" />
-            ) : !site || site.status !== "completed" ? (
-              <div className="flex flex-1 items-center justify-center text-[var(--muted)]">
-                Complete a crawl to view Insights.
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-                {/* Checklist */}
-                <div className="rounded-xl border border-[var(--border)] bg-white shadow-sm">
-                  <div className="border-b border-[var(--border)] bg-[var(--surface-elevated)] px-4 py-3 rounded-t-xl">
-                    <h2 className="text-sm font-semibold text-[var(--foreground)]">SEO Checklist</h2>
-                    <p className="text-[10px] text-[var(--muted)]">Track your fixes — state saved locally</p>
-                  </div>
-                  <div className="p-4">
-                    {geo && (geo.schema || geo.eeat || geo.content || geo.nlp) ? (
-                      <ChecklistPanel geo={geo} siteId={siteId!} />
-                    ) : (
-                      <div className="flex items-center gap-2 py-6 text-xs text-[var(--muted)]">
-                        <div className="h-3 w-3 animate-spin rounded-full border-2 border-[var(--border)] border-t-[var(--accent)]" />
-                        Waiting for GEO analysis…
-                      </div>
-                    )}
-                  </div>
+          <div className="lp-score-copy">
+            <h3>Understand exactly where you stand with every AI engine</h3>
+            <p>
+              Our 8-dimension GEO pipeline doesn&apos;t just give you a score &mdash; it tells you precisely what&apos;s
+              holding each AI engine back from citing your content, ranked by impact.
+            </p>
+            <div className="lp-check-list">
+              {[
+                "Per-page A\u2013F grades across 5 scoring categories",
+                "Engine-specific citation probability breakdowns",
+                "Prioritized fix list: Critical \u2192 Important \u2192 Optional",
+                "Trend charts for GEO score improvement over time",
+                "Side-by-side audit comparisons in History tab",
+                "CSV export of all per-page scores",
+              ].map((item, i) => (
+                <div className="lp-check-item" key={i}>
+                  <span className="lp-check">✓</span>
+                  <span>{item}</span>
                 </div>
-
-                {/* Site Structure */}
-                <div className="rounded-xl border border-[var(--border)] bg-white shadow-sm">
-                  <div className="border-b border-[var(--border)] bg-[var(--surface-elevated)] px-4 py-3 rounded-t-xl">
-                    <h2 className="text-sm font-semibold text-[var(--foreground)]">Site Structure</h2>
-                    <p className="text-[10px] text-[var(--muted)]">URL path hierarchy from crawled pages</p>
-                  </div>
-                  <div className="p-4">
-                    <SiteStructurePanel pages={pagesData?.pages ?? []} siteUrl={site.url} queryPatterns={geo?.nlp?.query_patterns} />
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ── HISTORY TAB ── */}
-        {mainTab === "history" && (
-          <HistoryTab initialDomain={site?.url ? new URL(site.url).hostname.replace(/^www\./, "") : ""} />
-        )}
-
-        {/* ── SCHEDULES TAB ── */}
-        {mainTab === "schedules" && !quotaExhausted && (
-          isFree ? (
-            <div className="flex min-h-0 flex-1 flex-col overflow-auto bg-[var(--background)] p-4">
-              <LockedFeature title="Scheduled Re-audits" />
+              ))}
             </div>
-          ) : (
-            <SchedulesTab initialDomain={site?.url ? new URL(site.url).hostname.replace(/^www\./, "") : ""} />
-          )
-        )}
-
-        {/* ── COMPETITORS TAB ── */}
-        {mainTab === "competitors" && (
-          <div className="flex min-h-0 flex-1 flex-col overflow-auto bg-[var(--background)]">
-            <CompetitorsTab />
           </div>
-        )}
+        </div>
+      </section>
 
-        {/* ── GEO TAB ── */}
-        {mainTab === "geo" && !quotaExhausted && (
-          <div className="flex min-h-0 flex-1 flex-col bg-[var(--background)]">
-            {!site || site.status !== "completed" ? (
-              <div className="flex flex-1 items-center justify-center text-[var(--muted)]">
-                Complete a crawl to view the GEO analysis.
-              </div>
-            ) : !geo ? (
-              <div className="flex flex-1 items-center justify-center">
-                <Spinner label="Starting GEO analysis…" />
-              </div>
-            ) : (
-              <GeoTab geo={geo} siteId={siteId!} siteUrl={site?.url ?? ""} pages={pagesData?.pages ?? []} isFree={isFree} plan={subscription?.plan} />
-            )}
+      {/* COMPETITOR TRACKING */}
+      <section className="lp-competitor-section">
+        <div className="lp-section-label">COMPETITOR TRACKING</div>
+        <h2>
+          Know exactly where you stand
+          <br />
+          against your competitors
+        </h2>
+        <p className="lp-section-sub">
+          Track up to 10 competitors and compare GEO scores across every AI engine. Spot gaps, steal strategies, and
+          stay ahead.
+        </p>
+        <div className="lp-competitor-layout">
+          <div className="lp-competitor-copy">
+            <h3>Benchmark your AI visibility against the competition</h3>
+            <p>
+              Traditional SEO tools show you keyword overlap. AI SEO Tool shows you who AI engines are actually citing
+              &mdash; and why they&apos;re choosing your competitors over you.
+            </p>
+            <p>
+              Compare scores across all 8 GEO dimensions, track competitor improvements over time, and get specific
+              recommendations on what to fix to overtake them in AI search results.
+            </p>
+            <div className="lp-check-list">
+              {[
+                "Side-by-side GEO score comparison across all 5 AI engines",
+                "Per-dimension breakdown showing where competitors outperform you",
+                "Automated alerts when a competitor's GEO score changes",
+                "Actionable recommendations to close the gap",
+              ].map((item, i) => (
+                <div className="lp-check-item" key={i}>
+                  <span className="lp-check">✓</span>
+                  <span>{item}</span>
+                </div>
+              ))}
+            </div>
           </div>
-        )}
+          <div className="lp-competitor-demo">
+            <div style={{ fontSize: ".78rem", color: "var(--lp-soft)", fontWeight: 600, marginBottom: 16 }}>
+              GEO SCORE COMPARISON
+            </div>
+            {[
+              { site: "yoursite.com", width: "72%", grade: "B+", color: "var(--lp-teal)" },
+              { site: "competitor1.com", width: "85%", grade: "A\u2212", color: "var(--lp-green)" },
+              { site: "competitor2.com", width: "58%", grade: "C+", color: "#f59e0b" },
+              { site: "competitor3.com", width: "44%", grade: "D", color: "#ef4444" },
+            ].map((row, i) => (
+              <div className="lp-comp-row" key={i}>
+                <span className="lp-comp-site">{row.site}</span>
+                <div className="lp-comp-bar-bg">
+                  <div className="lp-comp-bar-fill" style={{ width: row.width }} />
+                </div>
+                <span className="lp-comp-score" style={{ color: row.color }}>
+                  {row.grade}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
 
+      {/* RECOMMENDATIONS */}
+      <section className="lp-recs">
+        <div className="lp-section-label">PRIORITIZED FIXES</div>
+        <h2>
+          Not just scores &mdash; actionable
+          <br />
+          fixes ranked by impact
+        </h2>
+        <p className="lp-section-sub">Every audit ends with a ranked fix list. Start with Critical, work down to Optional.</p>
+        <div className="lp-recs-tabs">
+          <button
+            className={`lp-rec-tab critical${activeRecTab === "critical" ? " active" : ""}`}
+            onClick={() => setActiveRecTab("critical")}
+          >
+            &#128308; Critical
+          </button>
+          <button
+            className={`lp-rec-tab important${activeRecTab === "important" ? " active" : ""}`}
+            onClick={() => setActiveRecTab("important")}
+          >
+            &#128993; Important
+          </button>
+          <button
+            className={`lp-rec-tab optional${activeRecTab === "optional" ? " active" : ""}`}
+            onClick={() => setActiveRecTab("optional")}
+          >
+            &#128994; Optional
+          </button>
         </div>
 
-      {/* ── URL detail panel (bottom, crawl tab only) ─────────────────── */}
-      {mainTab === "crawl" && crawlActive && !quotaExhausted && (
-        <div
-          className="flex shrink-0 flex-col border-t border-[var(--border)] bg-[var(--surface)]"
-          style={{ maxHeight: "240px" }}
-        >
-          <div className="flex shrink-0 items-center gap-2 border-b border-[var(--border)] bg-[var(--surface-elevated)] px-3 py-2">
-            <span className="text-xs font-medium text-[var(--muted)]">URL details</span>
-            {selectedPage && (
-              <input
-                type="text"
-                placeholder="Filter details…"
-                value={detailSearch}
-                onChange={(e) => setDetailSearch(e.target.value)}
-                className="ml-2 max-w-xs flex-1 rounded border border-[var(--border)] bg-[var(--surface)] px-2 py-1 text-xs outline-none focus:border-[var(--accent)]"
-              />
-            )}
-            {selectedPage && (
-              <button
-                onClick={() => { setSelectedPage(null); setDetailSearch(""); }}
-                className="ml-auto text-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
-                title="Close"
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                  <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
-                </svg>
+        <div className={`lp-recs-panel${activeRecTab === "critical" ? " active" : ""}`}>
+          {[
+            { title: "Add JSON-LD Organization Schema to homepage", desc: "No structured schema detected. AI engines require machine-readable identity signals to confidently cite your brand. Estimated GEO impact: +18 pts." },
+            { title: "Block lifted: allow GPTBot and ClaudeBot in robots.txt", desc: "AI crawlers are currently blocked from 34 pages. This is the single biggest reason ChatGPT and Claude won't cite your content. Estimated GEO impact: +22 pts." },
+            { title: "Add author bylines + credentials to 12 key pages", desc: "E-E-A-T analysis detected no author information on your top-traffic pages. Perplexity and Gemini heavily weight authorship signals." },
+          ].map((item, i) => (
+            <div className="lp-rec-item" key={i}>
+              <div className="lp-rec-badge badge-critical">Critical</div>
+              <div className="lp-rec-text">
+                <h4>{item.title}</h4>
+                <p>{item.desc}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className={`lp-recs-panel${activeRecTab === "important" ? " active" : ""}`}>
+          {[
+            { title: "Add FAQ schema to 8 long-form articles", desc: "Snippet readiness is low. FAQ structured data increases AI snippet extraction probability by ~40% for question-based queries." },
+            { title: "Improve factual density on 5 thin pages", desc: "Pages under 400 words with no statistics, citations, or named entities are routinely skipped by AI citation pipelines." },
+            { title: "Fix 3 broken canonical tags", desc: "Duplicate content signals from broken canonicals confuse AI crawlers about which version of a page to cite." },
+          ].map((item, i) => (
+            <div className="lp-rec-item" key={i}>
+              <div className="lp-rec-badge badge-important">Important</div>
+              <div className="lp-rec-text">
+                <h4>{item.title}</h4>
+                <p>{item.desc}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className={`lp-recs-panel${activeRecTab === "optional" ? " active" : ""}`}>
+          {[
+            { title: "Add sameAs links to Wikipedia and Wikidata", desc: "Entity authority signals via sameAs schema improve Gemini and Grok citation probability for brand-name queries." },
+            { title: "Enable HSTS and Content-Security-Policy headers", desc: "Security headers contribute to technical trust signals scored by AI engines, particularly Perplexity's domain authority model." },
+            { title: "Schedule weekly re-audits to track GEO trend", desc: "Sites that monitor GEO score weekly improve 2.3\u00d7 faster than those who audit once and stop. Set up automation in the Schedules tab." },
+          ].map((item, i) => (
+            <div className="lp-rec-item" key={i}>
+              <div className="lp-rec-badge badge-optional">Optional</div>
+              <div className="lp-rec-text">
+                <h4>{item.title}</h4>
+                <p>{item.desc}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* TESTIMONIALS */}
+      <section className="lp-testimonials">
+        <div className="lp-section-label">WHAT USERS SAY</div>
+        <h2>
+          Real results from real
+          <br />
+          website owners
+        </h2>
+        <div className="lp-testi-grid">
+          {[
+            {
+              text: "\u201CWithin 2 weeks of fixing the Critical items flagged by AI SEO Tool, we started appearing in Perplexity answers for our core keywords. This is not your typical SEO tool.\u201D",
+              initials: "SR",
+              name: "Sarah R.",
+              role: "Head of Content, B2B SaaS",
+            },
+            {
+              text: "\u201CThe per-engine breakdown is a game changer. Knowing that Claude scores our site differently than ChatGPT lets us prioritize exactly where to fix for each audience.\u201D",
+              initials: "DK",
+              name: "Daniel K.",
+              role: "Founder, Digital Agency",
+            },
+            {
+              text: "\u201CI discovered GPTBot was blocked on 40 pages \u2014 something no traditional SEO tool caught. Fixed in 10 minutes. Traffic from AI-referred sessions up 60% in 30 days.\u201D",
+              initials: "MP",
+              name: "Maya P.",
+              role: "SEO Consultant",
+            },
+          ].map((t, i) => (
+            <div className="lp-testi-card" key={i}>
+              <div className="lp-testi-stars">★★★★★</div>
+              <p className="lp-testi-text">{t.text}</p>
+              <div className="lp-testi-author">
+                <div className="lp-testi-avatar">{t.initials}</div>
+                <div>
+                  <div className="lp-testi-name">{t.name}</div>
+                  <div className="lp-testi-role">{t.role}</div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* PRICING */}
+      <section className="lp-pricing" id="pricing">
+        <div style={{ textAlign: "center" }}>
+          <div className="lp-section-label">PRICING</div>
+          <h2>
+            Simple plans that scale
+            <br />
+            with your needs
+          </h2>
+          <p className="lp-section-sub" style={{ margin: "0 auto" }}>
+            Start free. Upgrade when you need more audits, competitor tracking, and white-label reports.
+          </p>
+        </div>
+        <div className="lp-pricing-grid">
+          <div className="lp-price-card">
+            <div className="lp-price-name">Free</div>
+            <div className="lp-price-amount">1 audit / month</div>
+            <ul className="lp-price-list">
+              <li><span className="lp-pi">✓</span><span>Top-level GEO score</span></li>
+              <li><span className="lp-pi">✓</span><span>Technical SEO summary</span></li>
+              <li><span className="lp-pi">✓</span><span>No scheduled re-audits</span></li>
+              <li className="disabled"><span className="lp-pi">✗</span><span>No per-page breakdown</span></li>
+              <li className="disabled"><span className="lp-pi">✗</span><span>No competitor tracking</span></li>
+            </ul>
+            <Link href="/signup" className="lp-price-btn">Get Started Free</Link>
+          </div>
+          <div className="lp-price-card featured">
+            <div className="lp-price-name">Pro</div>
+            <div className="lp-price-amount">10 audits / month</div>
+            <ul className="lp-price-list">
+              <li><span className="lp-pi">✓</span><span>Full per-page GEO score</span></li>
+              <li><span className="lp-pi">✓</span><span>Technical SEO summary</span></li>
+              <li><span className="lp-pi">✓</span><span>Actionable suggestions</span></li>
+              <li><span className="lp-pi">✓</span><span>Scheduled re-audits</span></li>
+              <li><span className="lp-pi">✓</span><span>Track up to 3 competitors</span></li>
+            </ul>
+            <Link href="/signup" className="lp-price-btn primary">Upgrade to Pro</Link>
+          </div>
+          <div className="lp-price-card">
+            <div className="lp-price-name">Agency</div>
+            <div className="lp-price-amount">Unlimited audits</div>
+            <ul className="lp-price-list">
+              <li><span className="lp-pi">✓</span><span>Full per-page GEO scores</span></li>
+              <li><span className="lp-pi">✓</span><span>Actionable suggestions</span></li>
+              <li><span className="lp-pi">✓</span><span>Scheduled re-audits</span></li>
+              <li><span className="lp-pi">✓</span><span>Track up to 10 competitors</span></li>
+              <li><span className="lp-pi">✓</span><span>White-label PDF + CSV reports</span></li>
+            </ul>
+            <Link href="#" className="lp-price-btn">Contact Sales</Link>
+          </div>
+        </div>
+      </section>
+
+      {/* FAQ */}
+      <section className="lp-faq" id="faq">
+        <div style={{ textAlign: "center" }}>
+          <div className="lp-section-label">FAQ</div>
+          <h2>Frequently asked questions</h2>
+        </div>
+        <div className="lp-faq-wrap">
+          {[
+            {
+              q: "What is a GEO score?",
+              a: "GEO (Generative Engine Optimization) score measures how likely AI-powered search engines are to find, understand, and cite your website in their responses. It\u2019s different from traditional SEO \u2014 a site can rank #1 on Google while scoring an F for AI citation readiness.",
+            },
+            {
+              q: "Which AI engines do you cover?",
+              a: "Every audit scores citation readiness for ChatGPT, Claude, Perplexity AI, Google Gemini, and Grok. Each engine has different weighting for factors like schema, E-E-A-T, content density, and crawler access.",
+            },
+            {
+              q: "How deep does the crawler go?",
+              a: "We use a breadth-first crawl with smart sitemap sampling. The crawler runs 50 concurrent threads and streams results to Redis in real time, covering every public-facing page on your site regardless of size.",
+            },
+            {
+              q: "Is my data stored or shared?",
+              a: "Audit results are stored persistently in a private SQLite database so you can view history and trends. Your data is never shared with third parties. You can export or delete your audit history at any time.",
+            },
+            {
+              q: "Can I schedule recurring audits?",
+              a: "Yes. The Schedules tab lets you set up daily, weekly, or monthly re-audits using Celery Beat. You\u2019ll get trend charts showing how your GEO score evolves as you implement fixes \u2014 so improvement is measurable and ongoing.",
+            },
+          ].map((item, i) => (
+            <div className={`lp-faq-item${openFaqIndex === i ? " open" : ""}`} key={i}>
+              <button className="lp-faq-q" onClick={() => toggleFaq(i)}>
+                {item.q} <span className="lp-faq-icon">+</span>
               </button>
-            )}
+              <div className="lp-faq-a">
+                <p>{item.a}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* FOOTER */}
+      <footer className="lp-footer">
+        <div className="lp-footer-top">
+          <div className="lp-footer-brand">
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: 8,
+                  background: "linear-gradient(135deg,#0d9488,#16a34a)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: 16,
+                }}
+              >
+                &#129302;
+              </div>
+              <span style={{ fontWeight: 800, fontSize: ".97rem", color: "#fff" }}>AI SEO Tool</span>
+            </div>
+            <p>The only platform that tells you exactly why AI engines aren&apos;t citing your site &mdash; and how to fix it.</p>
           </div>
-          <div className="min-h-0 flex-1 overflow-auto p-3">
-            {selectedPage ? (
-              <table className="w-full min-w-[400px] text-xs">
-                <tbody>
-                  {filteredDetailRows.map(([key, val]) => (
-                    <tr key={key} className="border-b border-[var(--border)]/50">
-                      <td className="w-40 shrink-0 py-1 pr-4 text-[var(--muted)] align-top">{key}</td>
-                      <td className="min-w-0 break-all py-1">{String(val)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            ) : (
-              <p className="text-xs text-[var(--muted)]">Select a row above to view details.</p>
-            )}
+          <div className="lp-footer-col">
+            <h4>Product</h4>
+            <a href="#">GEO Score</a>
+            <a href="#">Technical Audit</a>
+            <a href="#">E-E-A-T Analysis</a>
+            <a href="#">Competitor Tracking</a>
+            <a href="#">Scheduled Audits</a>
+          </div>
+          <div className="lp-footer-col">
+            <h4>Resources</h4>
+            <a href="#">GEO Guide 2025</a>
+            <a href="#">AI SEO Blog</a>
+            <a href="#">Schema Templates</a>
+            <a href="#">Changelog</a>
+          </div>
+          <div className="lp-footer-col">
+            <h4>Company</h4>
+            <a href="#">About</a>
+            <a href="#">Privacy Policy</a>
+            <a href="#">Terms of Service</a>
+            <a href="#">Contact</a>
           </div>
         </div>
-      )}
-
-      {/* ── Status bar ──────────────────────────────────────────────────── */}
-      <footer className="flex shrink-0 items-center border-t border-[var(--border)] bg-[var(--surface-elevated)]">
-        <div className="flex flex-1 items-center gap-3 px-4 py-1.5 text-xs text-[var(--muted)]">
-          {site ? (
-            <>
-              <span className="capitalize">{site.status}</span>
-              {site.robots_allowed === false && (
-                <span className="text-amber-600">· Crawling disallowed by robots.txt</span>
-              )}
-              {pagesData && (
-                <span>
-                  · {pagesData.total} URL{pagesData.total !== 1 ? "s" : ""} crawled
-                </span>
-              )}
-              {audit?.audit_status === "completed" && <span>· Audit complete</span>}
-              {geo?.geo_status === "completed" && geo.score && (
-                <span className="font-medium text-[var(--accent)]">
-                  · GEO Score: {geo.score.overall_score}/100 ({geo.score.grade})
-                </span>
-              )}
-              {geo?.geo_status === "running" && <span>· GEO analysis running…</span>}
-            </>
-          ) : (
-            "Ready — enter a URL to start"
-          )}
+        <div className="lp-footer-bottom">
+          <span>&copy; 2025 AI SEO Tool. Built for the AI-first web.</span>
+          <span>GEO &middot; Generative Engine Optimization</span>
         </div>
       </footer>
-      </div>
-    </div>
+    </>
   );
 }
+
+/* ─── ALL CSS (prefixed with lp- to avoid collisions with app globals) ─── */
+const landingStyles = `
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600&display=swap');
+
+  :root {
+    --lp-teal:       #0d9488;
+    --lp-teal-light: #14b8a6;
+    --lp-teal-pale:  #ccfbf1;
+    --lp-teal-mid:   #5eead4;
+    --lp-green:      #16a34a;
+    --lp-green-light:#22c55e;
+    --lp-dark:       #0f172a;
+    --lp-dark-2:     #1e293b;
+    --lp-mid:        #475569;
+    --lp-soft:       #94a3b8;
+    --lp-bg:         #f8fafc;
+    --lp-white:      #ffffff;
+    --lp-border:     #e2e8f0;
+    --lp-radius:     14px;
+    --lp-shadow-sm:  0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
+    --lp-shadow-md:  0 4px 16px rgba(0,0,0,.08);
+    --lp-shadow-lg:  0 20px 60px rgba(0,0,0,.12);
+  }
+
+  /* Reset body for landing page */
+  body {
+    font-family: 'Inter', sans-serif !important;
+    background: var(--lp-bg) !important;
+    color: var(--lp-dark) !important;
+    line-height: 1.6;
+    overflow-x: hidden;
+    margin: 0; padding: 0;
+  }
+  html { scroll-behavior: smooth; }
+
+  /* ── NAV ── */
+  .lp-nav {
+    position: sticky; top: 0; z-index: 100;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 5%; height: 68px;
+    background: rgba(255,255,255,.85);
+    backdrop-filter: blur(14px);
+    border-bottom: 1px solid var(--lp-border);
+    transition: box-shadow .2s;
+  }
+  .lp-nav.scrolled { box-shadow: var(--lp-shadow-md); }
+  .lp-nav-logo { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+  .lp-logo-icon {
+    width: 36px; height: 36px; border-radius: 9px;
+    background: linear-gradient(135deg, var(--lp-teal), var(--lp-green));
+    display: flex; align-items: center; justify-content: center; font-size: 18px;
+  }
+  .lp-nav-logo span { font-weight: 800; font-size: 1.05rem; color: var(--lp-dark); letter-spacing: -.3px; }
+  .lp-nav-links { display: flex; align-items: center; gap: 28px; }
+  .lp-nav-links a { font-size: .88rem; font-weight: 500; color: var(--lp-mid); text-decoration: none; transition: color .15s; }
+  .lp-nav-links a:hover { color: var(--lp-teal); }
+  .lp-nav-cta {
+    background: linear-gradient(135deg, var(--lp-teal), var(--lp-green));
+    color: #fff !important; padding: 9px 22px; border-radius: 50px;
+    font-size: .88rem; font-weight: 600; text-decoration: none;
+    transition: transform .15s, box-shadow .15s;
+    box-shadow: 0 2px 10px rgba(13,148,136,.3);
+  }
+  .lp-nav-cta:hover { transform: translateY(-1px); box-shadow: 0 4px 20px rgba(13,148,136,.4); }
+
+  /* ── TICKER ── */
+  .lp-ticker-wrap { overflow: hidden; background: linear-gradient(90deg, var(--lp-teal), var(--lp-green)); padding: 11px 0; }
+  .lp-ticker { display: flex; gap: 0; white-space: nowrap; animation: lp-ticker 28s linear infinite; }
+  .lp-ticker span { color: rgba(255,255,255,.9); font-size: .8rem; font-weight: 600; padding: 0 32px; border-right: 1px solid rgba(255,255,255,.2); }
+  @keyframes lp-ticker { from{transform:translateX(0)} to{transform:translateX(-50%)} }
+
+  /* ── HERO ── */
+  .lp-hero {
+    padding: 110px 5% 90px;
+    text-align: center;
+    background: linear-gradient(180deg, #ecfdf5 0%, var(--lp-bg) 100%);
+    position: relative; overflow: hidden;
+  }
+  .lp-hero-badge {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: var(--lp-teal-pale); color: var(--lp-teal); border: 1px solid #99f6e4;
+    padding: 6px 16px; border-radius: 50px; font-size: .82rem; font-weight: 600;
+    margin-bottom: 28px; animation: lp-fadeUp .5s ease both;
+  }
+  .lp-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--lp-teal-light); animation: lp-pulse 2s infinite; }
+  @keyframes lp-pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.5;transform:scale(1.4)} }
+  @keyframes lp-fadeUp { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
+
+  .lp-hero h1 {
+    font-size: clamp(2.2rem, 5vw, 3.6rem);
+    font-weight: 900; line-height: 1.1; letter-spacing: -1.5px;
+    color: var(--lp-dark); margin-bottom: 22px;
+    animation: lp-fadeUp .55s .1s ease both;
+  }
+  .lp-gradient-text {
+    background: linear-gradient(135deg, var(--lp-teal), var(--lp-green-light));
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+  }
+  .lp-hero-sub {
+    font-size: 1.15rem; color: var(--lp-mid); max-width: 620px; margin: 0 auto 44px;
+    font-weight: 400; animation: lp-fadeUp .55s .2s ease both;
+  }
+  .lp-url-input-wrap {
+    max-width: 600px; margin: 0 auto 18px;
+    animation: lp-fadeUp .55s .3s ease both;
+  }
+
+  /* Engines strip */
+  .lp-engines-strip {
+    display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 10px;
+    margin-top: 50px; animation: lp-fadeUp .55s .5s ease both;
+  }
+  .lp-engines-strip > span { font-size: .78rem; color: var(--lp-soft); font-weight: 500; margin-right: 6px; }
+  .lp-engine-pill {
+    display: flex; align-items: center; gap: 6px;
+    background: #fff; border: 1px solid var(--lp-border); border-radius: 50px;
+    padding: 7px 14px; font-size: .8rem; font-weight: 600; color: var(--lp-mid);
+    box-shadow: var(--lp-shadow-sm);
+  }
+  .lp-ei { font-size: 16px; }
+
+  /* ── SOCIAL PROOF ── */
+  .lp-social-proof {
+    background: #fff; border-top: 1px solid var(--lp-border); border-bottom: 1px solid var(--lp-border);
+    padding: 20px 5%; display: flex; align-items: center; justify-content: center;
+    flex-wrap: wrap; gap: 40px;
+  }
+  .lp-sp-item { display: flex; align-items: center; gap: 10px; }
+  .lp-sp-number { font-size: 1.5rem; font-weight: 800; color: var(--lp-dark); }
+  .lp-sp-label { font-size: .8rem; color: var(--lp-mid); font-weight: 500; }
+  .lp-sp-divider { width: 1px; height: 32px; background: var(--lp-border); }
+
+  /* ── SECTIONS ── */
+  .lp-problem, .lp-how, .lp-features, .lp-score-preview, .lp-competitor-section,
+  .lp-recs, .lp-testimonials, .lp-pricing, .lp-faq, .lp-cta-banner { padding: 96px 5%; }
+
+  .lp-section-label {
+    display: inline-block;
+    background: var(--lp-teal-pale); color: var(--lp-teal);
+    font-size: .75rem; font-weight: 700; letter-spacing: 1px; text-transform: uppercase;
+    padding: 5px 14px; border-radius: 50px; margin-bottom: 14px;
+  }
+  .lp-problem h2, .lp-how h2, .lp-features h2, .lp-score-preview h2,
+  .lp-competitor-section h2, .lp-recs h2, .lp-testimonials h2, .lp-pricing h2, .lp-faq h2 {
+    font-size: clamp(1.7rem, 3.5vw, 2.5rem);
+    font-weight: 800; letter-spacing: -1px; line-height: 1.15; margin-bottom: 16px;
+  }
+  .lp-section-sub { font-size: 1.05rem; color: var(--lp-mid); max-width: 560px; }
+
+  /* ── PROBLEM ── */
+  .lp-problem { background: var(--lp-dark); color: #fff; }
+  .lp-problem h2 { color: #fff; }
+  .lp-problem .lp-section-label { background: rgba(255,255,255,.08); color: var(--lp-teal-mid); border: 1px solid rgba(94,234,212,.2); }
+  .lp-problem .lp-section-sub { color: #94a3b8; }
+  .lp-problem-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 20px; margin-top: 52px;
+  }
+  .lp-problem-card {
+    background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08);
+    border-radius: var(--lp-radius); padding: 28px 24px;
+    transition: background .2s, transform .2s;
+  }
+  .lp-problem-card:hover { background: rgba(255,255,255,.07); transform: translateY(-2px); }
+  .lp-problem-icon { font-size: 28px; margin-bottom: 14px; }
+  .lp-problem-card h3 { font-size: 1rem; font-weight: 700; color: #e2e8f0; margin-bottom: 8px; }
+  .lp-problem-card p { font-size: .87rem; color: #64748b; line-height: 1.65; }
+
+  /* ── HOW IT WORKS ── */
+  .lp-how { background: var(--lp-bg); text-align: center; }
+  .lp-how h2, .lp-how .lp-section-sub { margin-left: auto; margin-right: auto; }
+  .lp-how .lp-section-sub { margin-bottom: 60px; }
+  .lp-steps { display: flex; align-items: flex-start; justify-content: center; flex-wrap: wrap; gap: 0; }
+  .lp-step { flex: 1; min-width: 200px; max-width: 260px; padding: 20px; position: relative; }
+  .lp-step-num {
+    width: 52px; height: 52px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--lp-teal), var(--lp-green));
+    color: #fff; font-weight: 800; font-size: 1.1rem;
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 18px; box-shadow: 0 4px 16px rgba(13,148,136,.3);
+  }
+  .lp-step h3 { font-size: 1rem; font-weight: 700; margin-bottom: 8px; }
+  .lp-step p { font-size: .86rem; color: var(--lp-mid); }
+  .lp-step-arrow { display: flex; align-items: center; padding-top: 26px; color: var(--lp-teal-mid); font-size: 1.4rem; }
+
+  /* ── FEATURES ── */
+  .lp-features { background: #fff; }
+  .lp-features-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 22px; margin-top: 56px;
+  }
+  .lp-feat-card {
+    border: 1px solid var(--lp-border); border-radius: var(--lp-radius);
+    padding: 28px 26px; transition: box-shadow .2s, border-color .2s, transform .2s;
+    cursor: default;
+  }
+  .lp-feat-card:hover {
+    box-shadow: 0 8px 32px rgba(13,148,136,.1);
+    border-color: #99f6e4; transform: translateY(-3px);
+  }
+  .lp-feat-icon {
+    width: 46px; height: 46px; border-radius: 11px;
+    background: var(--lp-teal-pale); display: flex; align-items: center;
+    justify-content: center; font-size: 22px; margin-bottom: 16px;
+  }
+  .lp-feat-card h3 { font-size: .97rem; font-weight: 700; margin-bottom: 8px; }
+  .lp-feat-card p { font-size: .86rem; color: var(--lp-mid); line-height: 1.65; }
+  .lp-feat-tag {
+    display: inline-block; margin-top: 14px;
+    background: var(--lp-teal-pale); color: var(--lp-teal);
+    font-size: .72rem; font-weight: 600; padding: 3px 10px; border-radius: 50px;
+  }
+
+  /* ── SCORE PREVIEW ── */
+  .lp-score-preview { background: linear-gradient(160deg, #ecfdf5, #f0fdf4); }
+  .lp-score-layout {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 60px; align-items: center; margin-top: 56px;
+  }
+  @media(max-width:768px){ .lp-score-layout { grid-template-columns: 1fr; } }
+  .lp-score-card {
+    background: #fff; border: 1px solid var(--lp-border);
+    border-radius: 20px; padding: 36px; box-shadow: var(--lp-shadow-lg);
+  }
+  .lp-score-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 28px; }
+  .lp-score-site { font-size: .8rem; color: var(--lp-mid); font-family: 'JetBrains Mono', monospace; }
+  .lp-score-grade {
+    font-size: 3.5rem; font-weight: 900; line-height: 1;
+    background: linear-gradient(135deg, var(--lp-teal), var(--lp-green));
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+  }
+  .lp-score-bars { display: flex; flex-direction: column; gap: 14px; }
+  .lp-score-row { display: flex; flex-direction: column; gap: 6px; }
+  .lp-score-row-top { display: flex; justify-content: space-between; font-size: .83rem; font-weight: 600; }
+  .lp-score-bar-bg { background: var(--lp-border); border-radius: 50px; height: 8px; overflow: hidden; }
+  .lp-score-bar-fill {
+    height: 100%; border-radius: 50px;
+    background: linear-gradient(90deg, var(--lp-teal), var(--lp-green));
+    transition: width 1.2s cubic-bezier(.4,0,.2,1);
+  }
+  .lp-engine-scores { margin-top: 24px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .lp-eng-badge {
+    background: var(--lp-bg); border: 1px solid var(--lp-border);
+    border-radius: 10px; padding: 10px 14px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .lp-eng-name { font-size: .78rem; font-weight: 600; color: var(--lp-mid); }
+  .lp-eng-score { font-size: .9rem; font-weight: 800; color: var(--lp-teal); }
+  .lp-score-copy h3 { font-size: 1.4rem; font-weight: 800; margin-bottom: 14px; }
+  .lp-score-copy p { color: var(--lp-mid); margin-bottom: 20px; font-size: .95rem; }
+  .lp-check-list { display: flex; flex-direction: column; gap: 10px; }
+  .lp-check-item { display: flex; align-items: flex-start; gap: 10px; font-size: .88rem; color: var(--lp-mid); }
+  .lp-check { color: var(--lp-teal); font-size: 1rem; margin-top: 1px; flex-shrink: 0; }
+
+  /* ── COMPETITOR ── */
+  .lp-competitor-section { background: #fff; }
+  .lp-competitor-layout {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 60px; align-items: center; margin-top: 56px;
+  }
+  @media(max-width:768px){ .lp-competitor-layout { grid-template-columns: 1fr; } }
+  .lp-competitor-copy h3 { font-size: 1.4rem; font-weight: 800; margin-bottom: 14px; }
+  .lp-competitor-copy p { color: var(--lp-mid); margin-bottom: 20px; font-size: .95rem; line-height: 1.7; }
+  .lp-competitor-demo {
+    background: var(--lp-bg); border: 1px solid var(--lp-border); border-radius: 20px;
+    padding: 28px; box-shadow: var(--lp-shadow-md);
+  }
+  .lp-comp-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 0; border-bottom: 1px solid var(--lp-border);
+  }
+  .lp-comp-row:last-child { border-bottom: none; }
+  .lp-comp-site { font-size: .85rem; font-weight: 600; color: var(--lp-dark); }
+  .lp-comp-score { font-size: .9rem; font-weight: 800; }
+  .lp-comp-bar-bg { flex: 1; margin: 0 16px; background: var(--lp-border); border-radius: 50px; height: 6px; overflow: hidden; }
+  .lp-comp-bar-fill { height: 100%; border-radius: 50px; background: linear-gradient(90deg, var(--lp-teal), var(--lp-green)); }
+
+  /* ── RECOMMENDATIONS ── */
+  .lp-recs { background: #fff; }
+  .lp-recs-tabs {
+    display: flex; gap: 8px; margin-top: 44px; margin-bottom: 32px; flex-wrap: wrap;
+  }
+  .lp-rec-tab {
+    padding: 8px 20px; border-radius: 50px; font-size: .84rem; font-weight: 600;
+    cursor: pointer; border: 2px solid var(--lp-border); background: #fff; color: var(--lp-mid);
+    transition: all .15s; font-family: 'Inter', sans-serif;
+  }
+  .lp-rec-tab.active { border-color: var(--lp-teal); background: var(--lp-teal-pale); color: var(--lp-teal); }
+  .lp-rec-tab.critical.active { border-color: #ef4444; background: #fef2f2; color: #ef4444; }
+  .lp-rec-tab.important.active { border-color: #f59e0b; background: #fffbeb; color: #d97706; }
+  .lp-rec-tab.optional.active { border-color: var(--lp-teal); background: var(--lp-teal-pale); color: var(--lp-teal); }
+  .lp-recs-panel { display: none; flex-direction: column; gap: 14px; }
+  .lp-recs-panel.active { display: flex; }
+  .lp-rec-item {
+    display: flex; align-items: flex-start; gap: 14px;
+    border: 1px solid var(--lp-border); border-radius: 12px; padding: 18px 20px;
+    transition: box-shadow .15s;
+  }
+  .lp-rec-item:hover { box-shadow: var(--lp-shadow-md); }
+  .lp-rec-badge {
+    flex-shrink: 0; padding: 4px 10px; border-radius: 50px; font-size: .72rem; font-weight: 700;
+  }
+  .badge-critical { background: #fef2f2; color: #ef4444; }
+  .badge-important { background: #fffbeb; color: #d97706; }
+  .badge-optional { background: var(--lp-teal-pale); color: var(--lp-teal); }
+  .lp-rec-text h4 { font-size: .9rem; font-weight: 700; margin-bottom: 4px; }
+  .lp-rec-text p { font-size: .82rem; color: var(--lp-mid); }
+
+  /* ── TESTIMONIALS ── */
+  .lp-testimonials { background: var(--lp-bg); }
+  .lp-testi-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 20px; margin-top: 52px;
+  }
+  .lp-testi-card {
+    background: #fff; border: 1px solid var(--lp-border); border-radius: var(--lp-radius);
+    padding: 28px; transition: box-shadow .2s;
+  }
+  .lp-testi-card:hover { box-shadow: var(--lp-shadow-md); }
+  .lp-testi-stars { color: #f59e0b; font-size: .9rem; margin-bottom: 14px; letter-spacing: 2px; }
+  .lp-testi-text { font-size: .9rem; color: var(--lp-dark); line-height: 1.7; margin-bottom: 18px; font-style: italic; }
+  .lp-testi-author { display: flex; align-items: center; gap: 12px; }
+  .lp-testi-avatar {
+    width: 40px; height: 40px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--lp-teal), var(--lp-green));
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800; color: #fff; font-size: .9rem;
+  }
+  .lp-testi-name { font-size: .85rem; font-weight: 700; color: var(--lp-dark); }
+  .lp-testi-role { font-size: .76rem; color: var(--lp-soft); }
+
+  /* ── PRICING ── */
+  .lp-pricing { background: var(--lp-bg); }
+  .lp-pricing-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 24px; margin-top: 56px; max-width: 960px; margin-left: auto; margin-right: auto;
+  }
+  .lp-price-card {
+    background: #fff; border: 1px solid var(--lp-border); border-radius: var(--lp-radius);
+    padding: 36px 30px; transition: box-shadow .2s, transform .2s;
+  }
+  .lp-price-card:hover { box-shadow: var(--lp-shadow-md); transform: translateY(-3px); }
+  .lp-price-card.featured {
+    border-color: var(--lp-teal); position: relative;
+    box-shadow: 0 8px 32px rgba(13,148,136,.15);
+  }
+  .lp-price-card.featured::before {
+    content: 'Most Popular'; position: absolute; top: -13px; left: 50%; transform: translateX(-50%);
+    background: linear-gradient(135deg, var(--lp-teal), var(--lp-green)); color: #fff;
+    font-size: .72rem; font-weight: 700; padding: 4px 16px; border-radius: 50px;
+  }
+  .lp-price-name { font-size: 1.1rem; font-weight: 800; margin-bottom: 4px; }
+  .lp-price-amount { font-size: .95rem; color: var(--lp-teal); font-weight: 700; margin-bottom: 20px; }
+  .lp-price-list { list-style: none; display: flex; flex-direction: column; gap: 10px; margin-bottom: 28px; padding: 0; }
+  .lp-price-list li { font-size: .86rem; color: var(--lp-mid); display: flex; align-items: flex-start; gap: 8px; }
+  .lp-pi { color: var(--lp-teal); flex-shrink: 0; }
+  .lp-price-list li.disabled { color: var(--lp-soft); }
+  .lp-price-list li.disabled .lp-pi { color: var(--lp-soft); }
+  .lp-price-btn {
+    display: block; width: 100%; text-align: center; padding: 12px; border-radius: 50px;
+    font-size: .9rem; font-weight: 700; text-decoration: none; transition: all .15s;
+    border: 2px solid var(--lp-teal); color: var(--lp-teal); background: #fff;
+  }
+  .lp-price-btn:hover { background: var(--lp-teal-pale); }
+  .lp-price-btn.primary {
+    background: linear-gradient(135deg, var(--lp-teal), var(--lp-green)); color: #fff; border-color: transparent;
+    box-shadow: 0 2px 10px rgba(13,148,136,.3);
+  }
+  .lp-price-btn.primary:hover { opacity: .9; transform: translateY(-1px); }
+
+  /* ── FAQ ── */
+  .lp-faq { background: #fff; }
+  .lp-faq-wrap { max-width: 720px; margin: 52px auto 0; }
+  .lp-faq-item { border-bottom: 1px solid var(--lp-border); }
+  .lp-faq-q {
+    width: 100%; background: none; border: none; cursor: pointer;
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 20px 0; text-align: left;
+    font-family: 'Inter', sans-serif; font-size: .95rem; font-weight: 600; color: var(--lp-dark);
+  }
+  .lp-faq-icon { font-size: 1.2rem; color: var(--lp-teal); transition: transform .2s; flex-shrink: 0; }
+  .lp-faq-item.open .lp-faq-icon { transform: rotate(45deg); }
+  .lp-faq-a {
+    overflow: hidden; max-height: 0; transition: max-height .3s ease;
+    font-size: .88rem; color: var(--lp-mid); line-height: 1.7;
+  }
+  .lp-faq-a p { padding-bottom: 18px; }
+  .lp-faq-item.open .lp-faq-a { max-height: 200px; }
+
+  /* ── CTA BANNER ── */
+  .lp-cta-banner {
+    background: linear-gradient(135deg, var(--lp-dark) 0%, #0d2d26 100%);
+    padding: 96px 5%; text-align: center; position: relative; overflow: hidden;
+  }
+  .lp-cta-banner::before {
+    content: ''; position: absolute; inset: 0;
+    background: radial-gradient(ellipse 60% 60% at 50% 0%, rgba(13,148,136,.25), transparent);
+  }
+  .lp-cta-banner h2 { color: #fff; position: relative;
+    font-size: clamp(1.7rem, 3.5vw, 2.5rem);
+    font-weight: 800; letter-spacing: -1px; line-height: 1.15; margin-bottom: 16px;
+  }
+  .lp-cta-banner .lp-section-sub { color: #94a3b8; margin: 14px auto 44px; position: relative; }
+  .lp-cta-url-wrap { max-width: 560px; margin: 0 auto; position: relative; }
+  .lp-cta-url-row {
+    display: flex; background: rgba(255,255,255,.07);
+    border: 2px solid rgba(255,255,255,.12);
+    border-radius: 60px; overflow: hidden;
+  }
+  .lp-cta-url-row:focus-within { border-color: var(--lp-teal-mid); }
+  .lp-cta-url-row input {
+    flex: 1; border: none; outline: none; padding: 16px 22px;
+    font-size: .95rem; font-family: 'Inter', sans-serif;
+    color: #fff; background: transparent;
+  }
+  .lp-cta-url-row input::placeholder { color: rgba(255,255,255,.35); }
+  .lp-cta-url-row button {
+    background: linear-gradient(135deg, var(--lp-teal), var(--lp-green));
+    color: #fff; border: none; padding: 0 28px;
+    font-size: .93rem; font-weight: 700; cursor: pointer;
+    transition: opacity .15s; white-space: nowrap;
+  }
+  .lp-cta-url-row button:hover { opacity: .9; }
+  .lp-cta-note { font-size: .78rem; color: rgba(255,255,255,.35); margin-top: 12px; position: relative; }
+
+  /* ── FOOTER ── */
+  .lp-footer {
+    background: var(--lp-dark); color: #64748b;
+    padding: 52px 5% 32px;
+  }
+  .lp-footer-top { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 40px; margin-bottom: 48px; }
+  .lp-footer-brand p { font-size: .84rem; margin-top: 12px; max-width: 240px; line-height: 1.65; }
+  .lp-footer-col h4 { font-size: .82rem; font-weight: 700; color: #e2e8f0; text-transform: uppercase; letter-spacing: .8px; margin-bottom: 16px; }
+  .lp-footer-col a { display: block; font-size: .84rem; color: #64748b; text-decoration: none; margin-bottom: 9px; transition: color .15s; }
+  .lp-footer-col a:hover { color: var(--lp-teal-mid); }
+  .lp-footer-bottom { border-top: 1px solid rgba(255,255,255,.06); padding-top: 24px; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 10px; font-size: .78rem; }
+
+  /* ── RESPONSIVE ── */
+  @media(max-width:700px){
+    .lp-nav-links { display: none; }
+    .lp-steps { flex-direction: column; align-items: center; }
+    .lp-step-arrow { display: none; }
+    .lp-footer-top { flex-direction: column; }
+  }
+`;
