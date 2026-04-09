@@ -1,66 +1,287 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { selectFreePlan, createCheckoutSession, fetchSubscription } from "../lib/api";
 
-const FREE_FEATURES = [
-  "1 audit (lifetime)",
-  "Top-level GEO score",
-  "Technical health summary",
-  "No scheduled re-audits",
-  "No per-page breakdown",
+const planStyles = `
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+
+  body {
+    font-family: 'Inter', sans-serif !important;
+    margin: 0; padding: 0; overflow: hidden;
+  }
+
+  .plan-wrap {
+    height: 100vh;
+    overflow: hidden;
+    background: #f0f9f8;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 24px 20px;
+    position: relative;
+  }
+  .plan-wrap::before {
+    content: '';
+    position: absolute; inset: 0; pointer-events: none;
+    background:
+      radial-gradient(ellipse at 15% 15%, rgba(13,148,136,.10) 0%, transparent 50%),
+      radial-gradient(ellipse at 85% 80%, rgba(22,163,74,.07) 0%, transparent 50%);
+  }
+
+  /* ── HEADER ── */
+  .plan-header {
+    position: relative; z-index: 1;
+    display: flex; flex-direction: column; align-items: center;
+    text-align: center; margin-bottom: 20px;
+  }
+  .plan-logo {
+    display: flex; align-items: center; gap: 9px;
+    text-decoration: none; margin-bottom: 14px;
+  }
+  .plan-logo-icon {
+    width: 34px; height: 34px; border-radius: 9px;
+    background: linear-gradient(135deg, #0d9488, #16a34a);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 17px; box-shadow: 0 4px 14px rgba(13,148,136,.4);
+    flex-shrink: 0;
+  }
+  .plan-logo span { font-weight: 800; font-size: 1rem; color: #0f172a; letter-spacing: -.3px; }
+
+  .plan-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: rgba(13,148,136,.1); border: 1px solid rgba(13,148,136,.22);
+    color: #0d9488; font-size: .68rem; font-weight: 700; letter-spacing: .5px;
+    text-transform: uppercase; padding: 4px 12px; border-radius: 50px;
+    margin-bottom: 12px;
+  }
+  .plan-badge-dot {
+    width: 5px; height: 5px; border-radius: 50%;
+    background: #0d9488; animation: pp 2s infinite;
+  }
+  @keyframes pp { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.5;transform:scale(1.4)} }
+
+  .plan-title {
+    font-size: clamp(1.55rem, 2.8vw, 2rem);
+    font-weight: 900; line-height: 1.15; letter-spacing: -0.8px;
+    color: #0f172a; margin: 0 0 8px;
+  }
+  .plan-title .hl {
+    background: linear-gradient(135deg, #0d9488, #16a34a);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+  }
+  .plan-sub { font-size: .82rem; color: #64748b; line-height: 1.55; max-width: 440px; margin: 0; }
+
+  /* ── GRID ── */
+  .plan-grid {
+    position: relative; z-index: 1;
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    gap: 14px; width: 100%; max-width: 900px;
+  }
+
+  .plan-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px; padding: 22px 20px;
+    display: flex; flex-direction: column;
+    box-shadow: 0 2px 8px rgba(0,0,0,.05);
+    transition: transform .2s, box-shadow .2s, border-color .2s;
+  }
+  .plan-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 12px 28px rgba(0,0,0,.09);
+    border-color: #cbd5e1;
+  }
+  .plan-card.featured {
+    background: #ffffff;
+    border: 1.5px solid #0d9488;
+    box-shadow: 0 0 0 3px rgba(13,148,136,.08), 0 12px 28px rgba(13,148,136,.12);
+    position: relative;
+  }
+  .plan-card.featured:hover {
+    border-color: #0d9488;
+    box-shadow: 0 0 0 3px rgba(13,148,136,.12), 0 18px 36px rgba(13,148,136,.16);
+  }
+
+  .popular-badge {
+    position: absolute; top: -12px; left: 50%; transform: translateX(-50%);
+    background: linear-gradient(135deg, #0d9488, #16a34a);
+    color: #fff; font-size: .66rem; font-weight: 800; letter-spacing: .5px;
+    text-transform: uppercase; padding: 3px 14px; border-radius: 50px;
+    white-space: nowrap; box-shadow: 0 3px 10px rgba(13,148,136,.4);
+  }
+
+  .card-tier {
+    font-size: .68rem; font-weight: 700; letter-spacing: .8px;
+    text-transform: uppercase; margin-bottom: 8px; color: #94a3b8;
+  }
+  .featured .card-tier { color: #0d9488; }
+
+  .card-price {
+    display: flex; align-items: baseline; gap: 3px; margin-bottom: 6px;
+  }
+  .card-price-num { font-size: 2.2rem; font-weight: 900; letter-spacing: -1px; color: #0f172a; }
+  .card-price-per { font-size: .78rem; color: #94a3b8; font-weight: 500; }
+
+  .card-desc {
+    font-size: .78rem; color: #64748b; line-height: 1.5;
+    margin-bottom: 14px; min-height: 36px;
+  }
+
+  .card-divider { height: 1px; background: #f1f5f9; margin-bottom: 14px; }
+  .featured .card-divider { background: rgba(13,148,136,.12); }
+
+  /* ── FEATURES ── */
+  .card-features {
+    list-style: none; padding: 0; margin: 0 0 18px;
+    display: flex; flex-direction: column; gap: 8px;
+    flex: 1;
+  }
+  .card-feature { display: flex; align-items: center; gap: 8px; font-size: .79rem; }
+  .card-feature.available { color: #334155; }
+  .card-feature.unavailable { color: #94a3b8; }
+
+  .feat-icon {
+    width: 16px; height: 16px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .feat-icon.check {
+    background: #e6faf8; border: 1px solid #99e6de;
+  }
+  .feat-icon.cross {
+    background: #f1f5f9; border: 1px solid #e2e8f0;
+  }
+  .featured .feat-icon.check {
+    background: #ccfbf1; border-color: #5eead4;
+  }
+
+  /* ── BUTTONS ── */
+  .card-btn {
+    width: 100%; padding: 11px 16px;
+    border-radius: 50px; font-size: .85rem; font-weight: 700;
+    font-family: 'Inter', sans-serif; cursor: pointer;
+    transition: transform .15s, box-shadow .15s, background .15s;
+    border: none; outline: none; letter-spacing: .1px;
+  }
+  .card-btn:disabled { opacity: .45; cursor: not-allowed; transform: none !important; }
+  .card-btn:focus-visible { outline: 2px solid #14b8a6; outline-offset: 3px; }
+
+  .card-btn-ghost {
+    background: #f8fafc;
+    border: 1.5px solid #e2e8f0 !important;
+    color: #334155;
+  }
+  .card-btn-ghost:hover:not(:disabled) { background: #f1f5f9; transform: translateY(-1px); }
+
+  .card-btn-primary {
+    background: linear-gradient(135deg, #0d9488, #16a34a);
+    color: #fff; box-shadow: 0 4px 18px rgba(13,148,136,.38);
+  }
+  .card-btn-primary:hover:not(:disabled) {
+    transform: translateY(-2px); box-shadow: 0 7px 24px rgba(13,148,136,.48);
+  }
+  .card-btn-primary:active:not(:disabled) { transform: translateY(0); }
+
+  /* ── GUARANTEE ── */
+  .plan-guarantee {
+    position: relative; z-index: 1;
+    margin-top: 14px;
+    display: flex; align-items: center; justify-content: center; gap: 20px; flex-wrap: wrap;
+  }
+  .guarantee-item { display: flex; align-items: center; gap: 6px; font-size: .73rem; color: #94a3b8; }
+  .guarantee-dot { width: 4px; height: 4px; border-radius: 50%; background: #0d9488; flex-shrink: 0; }
+
+  /* ── ERROR ── */
+  .plan-error {
+    position: relative; z-index: 1; margin-top: 14px;
+    background: rgba(220,38,38,.13); border: 1px solid rgba(248,113,113,.28);
+    border-radius: 9px; padding: 10px 16px; font-size: .8rem; color: #fca5a5;
+    display: flex; align-items: center; gap: 8px; max-width: 440px; text-align: center;
+  }
+
+  /* ── LOADING ── */
+  .plan-loading {
+    height: 100vh; overflow: hidden;
+    background: #f0f9f8;
+    display: flex; align-items: center; justify-content: center;
+    flex-direction: column; gap: 10px; font-family: 'Inter', sans-serif;
+  }
+  .plan-spinner {
+    width: 32px; height: 32px; border-radius: 50%;
+    border: 3px solid rgba(13,148,136,.18); border-top-color: #0d9488;
+    animation: spin .8s linear infinite; margin-bottom: 4px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .plan-loading-title { font-size: .9rem; font-weight: 600; color: #0f172a; margin: 0; }
+  .plan-loading-sub { font-size: .78rem; color: #64748b; margin: 0; }
+
+  /* ── FOOTER ── */
+  .plan-footer {
+    position: relative; z-index: 1; margin-top: 12px;
+    font-size: .72rem; color: #94a3b8; text-align: center;
+  }
+  .plan-footer a { color: #0d9488; text-decoration: none; }
+  .plan-footer a:hover { text-decoration: underline; }
+
+  @media (max-width: 820px) {
+    body { overflow: auto; }
+    .plan-wrap { height: auto; min-height: 100vh; overflow: visible; padding: 36px 16px 48px; }
+    .plan-grid { grid-template-columns: 1fr; max-width: 380px; }
+  }
+`;
+
+type Feature = { label: string; available: boolean };
+
+const FREE_FEATURES: Feature[] = [
+  { label: "1 audit (lifetime)",         available: true  },
+  { label: "Top-level GEO score",        available: true  },
+  { label: "Technical health summary",   available: true  },
+  { label: "Scheduled re-audits",        available: false },
+  { label: "Per-page GEO breakdown",     available: false },
 ];
 
-const PRO_FEATURES = [
-  "10 audits per month",
-  "Full per-page GEO scores",
-  "Actionable suggestions",
-  "Scheduled re-audits",
-  "Standard-branded reports",
+const PRO_FEATURES: Feature[] = [
+  { label: "10 audits per month",        available: true },
+  { label: "Full per-page GEO scores",   available: true },
+  { label: "Actionable AI suggestions",  available: true },
+  { label: "Scheduled re-audits",        available: true },
+  { label: "Standard-branded reports",   available: true },
 ];
 
-const AGENCY_FEATURES = [
-  "Unlimited audits",
-  "Full per-page GEO scores",
-  "Actionable suggestions",
-  "Scheduled re-audits",
-  "White-label PDF reports",
+const AGENCY_FEATURES: Feature[] = [
+  { label: "Unlimited audits",           available: true },
+  { label: "Full per-page GEO scores",   available: true },
+  { label: "Actionable AI suggestions",  available: true },
+  { label: "Scheduled re-audits",        available: true },
+  { label: "White-label PDF reports",    available: true },
 ];
 
-function CheckIcon({ color }: { color: string }) {
+function CheckIcon({ accent }: { accent: boolean }) {
   return (
-    <svg
-      width="14"
-      height="14"
-      viewBox="0 0 14 14"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      style={{ flexShrink: 0 }}
-    >
-      <path
-        d="M2.5 7L5.5 10L11.5 4"
-        stroke={color}
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
+    <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
+      <path d="M1.5 4L3 5.5L6.5 2" stroke={accent ? "#0d9488" : "#0d9488"} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
 
-function FeatureList({ features, accent }: { features: string[]; accent: boolean }) {
-  const color = accent ? "var(--accent)" : "var(--muted)";
+function CrossIcon() {
   return (
-    <ul className="space-y-2 mb-6">
-      {features.map((f) => (
-        <li key={f} className="flex items-center gap-2">
-          <CheckIcon color={color} />
-          <span className="text-xs" style={{ color: "var(--foreground)" }}>
-            {f}
-          </span>
-        </li>
-      ))}
-    </ul>
+    <svg width="7" height="7" viewBox="0 0 7 7" fill="none">
+      <path d="M1.5 1.5L5.5 5.5M5.5 1.5L1.5 5.5" stroke="#94a3b8" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function FeatureItem({ feature, accent }: { feature: Feature; accent: boolean }) {
+  return (
+    <li className={`card-feature ${feature.available ? "available" : "unavailable"}`}>
+      <div className={`feat-icon ${feature.available ? "check" : "cross"}`}>
+        {feature.available ? <CheckIcon accent={accent} /> : <CrossIcon />}
+      </div>
+      {feature.label}
+    </li>
   );
 }
 
@@ -88,9 +309,7 @@ export default function SelectPlanPage() {
         if (attempts < 5) {
           setTimeout(poll, 1000);
         } else {
-          setError(
-            "Payment confirmed but subscription not yet active. Please refresh in a moment."
-          );
+          setError("Payment confirmed but subscription not yet active. Please refresh in a moment.");
           setChecking(false);
         }
       };
@@ -98,8 +317,6 @@ export default function SelectPlanPage() {
       return;
     }
 
-    // status === "cancelled" → silent return, show plan cards again
-    // default: check if user already has an active subscription
     fetchSubscription()
       .then((sub) => {
         if (sub && sub.status === "active") {
@@ -118,9 +335,7 @@ export default function SelectPlanPage() {
       await selectFreePlan();
       window.location.href = "/dashboard";
     } catch {
-      setError(
-        "Something went wrong. Please try again. If the problem persists, contact support."
-      );
+      setError("Something went wrong. Please try again.");
       setLoading(null);
     }
   };
@@ -137,212 +352,124 @@ export default function SelectPlanPage() {
     }
   };
 
-  if (checking && isSuccess) {
-    return (
-      <main
-        className="flex min-h-screen items-center justify-center"
-        style={{ background: "var(--background)" }}
-      >
-        <div className="text-center">
-          <h1
-            className="text-sm font-semibold"
-            style={{ color: "var(--foreground)" }}
-          >
-            Payment confirmed
-          </h1>
-          <p className="text-xs mt-1" style={{ color: "var(--muted)" }}>
-            Setting up your account — you&apos;ll be redirected in a moment.
-          </p>
-        </div>
-      </main>
-    );
-  }
-
   if (checking) {
     return (
-      <main
-        className="flex min-h-screen items-center justify-center"
-        style={{ background: "var(--background)" }}
-      >
-        <p className="text-xs" style={{ color: "var(--muted)" }}>
-          Loading...
-        </p>
-      </main>
+      <>
+        <style>{planStyles}</style>
+        <div className="plan-loading">
+          <div className="plan-spinner" />
+          {isSuccess ? (
+            <>
+              <p className="plan-loading-title">Payment confirmed</p>
+              <p className="plan-loading-sub">Setting up your account — redirecting shortly…</p>
+            </>
+          ) : (
+            <p className="plan-loading-sub">Loading…</p>
+          )}
+        </div>
+      </>
     );
   }
 
   const isLoading = loading !== null;
 
   return (
-    <main
-      className="flex min-h-screen items-center justify-center py-12"
-      style={{ background: "var(--background)" }}
-    >
-      <div className="w-full max-w-4xl px-4">
-        {/* Brand header */}
-        <div className="flex flex-col items-center mb-8">
-          <div className="flex items-center gap-2 mb-3">
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="text-[var(--accent)]"
-            >
-              <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
-              <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
-            </svg>
-            <span className="text-sm font-bold" style={{ color: "var(--accent)" }}>
-              AI SEO TOOL
-            </span>
-          </div>
-          <h1 className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>
+    <>
+      <style>{planStyles}</style>
+      <div className="plan-wrap">
+
+        <header className="plan-header">
+          <Link href="/" className="plan-logo">
+            <div className="plan-logo-icon">&#129302;</div>
+            <span>AI SEO Tool</span>
+          </Link>
+          <div className="plan-badge">
+            <div className="plan-badge-dot" />
             Choose your plan
+          </div>
+          <h1 className="plan-title">
+            Unlock your site&apos;s <span className="hl">AI citation potential</span>
           </h1>
-          <p className="text-xs mt-1" style={{ color: "var(--muted)" }}>
-            Select the plan that fits your needs. You can upgrade at any time.
+          <p className="plan-sub">
+            Start free, scale when you&apos;re ready — all plans include GEO analysis
+            across ChatGPT, Claude, Perplexity, Gemini &amp; Grok.
           </p>
+        </header>
+
+        <div className={`plan-grid${isLoading ? " pointer-events-none" : ""}`}>
+
+          {/* Free */}
+          <div className="plan-card">
+            <p className="card-tier">Free</p>
+            <div className="card-price">
+              <span className="card-price-num">$0</span>
+              <span className="card-price-per">/month</span>
+            </div>
+            <p className="card-desc">Get your first audit and see your top-level GEO score.</p>
+            <div className="card-divider" />
+            <ul className="card-features">
+              {FREE_FEATURES.map((f) => <FeatureItem key={f.label} feature={f} accent={false} />)}
+            </ul>
+            <button onClick={handleFree} disabled={isLoading} className="card-btn card-btn-ghost">
+              {loading === "free" ? "Setting up…" : "Get Started Free"}
+            </button>
+          </div>
+
+          {/* Pro */}
+          <div className="plan-card featured">
+            <div className="popular-badge">&#11088; Most Popular</div>
+            <p className="card-tier">Pro</p>
+            <div className="card-price">
+              <span className="card-price-num">$29</span>
+              <span className="card-price-per">/month</span>
+            </div>
+            <p className="card-desc">Full audit reports with actionable AI-powered recommendations.</p>
+            <div className="card-divider" />
+            <ul className="card-features">
+              {PRO_FEATURES.map((f) => <FeatureItem key={f.label} feature={f} accent={true} />)}
+            </ul>
+            <button onClick={() => handlePaid("pro")} disabled={isLoading} className="card-btn card-btn-primary">
+              {loading === "pro" ? "Redirecting to checkout…" : "Start Pro →"}
+            </button>
+          </div>
+
+          {/* Agency */}
+          <div className="plan-card">
+            <p className="card-tier">Agency</p>
+            <div className="card-price">
+              <span className="card-price-num">$99</span>
+              <span className="card-price-per">/month</span>
+            </div>
+            <p className="card-desc">Unlimited audits and white-label reports for client work.</p>
+            <div className="card-divider" />
+            <ul className="card-features">
+              {AGENCY_FEATURES.map((f) => <FeatureItem key={f.label} feature={f} accent={false} />)}
+            </ul>
+            <button onClick={() => handlePaid("agency")} disabled={isLoading} className="card-btn card-btn-ghost">
+              {loading === "agency" ? "Redirecting to checkout…" : "Start Agency →"}
+            </button>
+          </div>
+
         </div>
 
-        {/* Plan card grid */}
-        <div
-          className={`grid grid-cols-1 md:grid-cols-3 gap-8${isLoading ? " pointer-events-none" : ""}`}
-        >
-          {/* Free card */}
-          <div
-            className="rounded-lg p-6 flex flex-col"
-            style={{
-              background: "var(--surface)",
-              border: "1px solid var(--border)",
-            }}
-          >
-            <p className="text-base font-semibold mb-2" style={{ color: "var(--foreground)" }}>
-              Free
-            </p>
-            <div className="flex items-baseline gap-1 mb-2">
-              <span className="text-3xl font-semibold" style={{ color: "var(--foreground)" }}>
-                $0
-              </span>
-              <span className="text-xs" style={{ color: "var(--muted)" }}>
-                /month
-              </span>
-            </div>
-            <p className="text-xs mb-4" style={{ color: "var(--muted)" }}>
-              Get started and see your top-level SEO score.
-            </p>
-            <FeatureList features={FREE_FEATURES} accent={false} />
-            <button
-              onClick={handleFree}
-              disabled={isLoading}
-              className="w-full rounded min-h-[44px] text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-[var(--accent)] disabled:opacity-50 disabled:cursor-not-allowed"
-              style={{
-                background: "var(--surface-elevated)",
-                border: "1px solid var(--border)",
-                color: "var(--foreground)",
-              }}
-            >
-              {loading === "free" ? "Setting up your account..." : "Get Started Free"}
-            </button>
-          </div>
-
-          {/* Pro card */}
-          <div
-            className="rounded-lg p-6 flex flex-col"
-            style={{
-              background: "var(--surface)",
-              border: "2px solid var(--accent)",
-            }}
-          >
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-base font-semibold" style={{ color: "var(--foreground)" }}>
-                Pro
-              </p>
-              <span
-                className="text-xs font-semibold rounded-full px-2 py-0.5"
-                style={{ color: "var(--warning)", background: "#fefce8" }}
-              >
-                Most Popular
-              </span>
-            </div>
-            <div className="flex items-baseline gap-1 mb-2">
-              <span className="text-3xl font-semibold" style={{ color: "var(--foreground)" }}>
-                $29
-              </span>
-              <span className="text-xs" style={{ color: "var(--muted)" }}>
-                /month
-              </span>
-            </div>
-            <p className="text-xs mb-4" style={{ color: "var(--muted)" }}>
-              Full audit reports with actionable recommendations.
-            </p>
-            <FeatureList features={PRO_FEATURES} accent={true} />
-            <button
-              onClick={() => handlePaid("pro")}
-              disabled={isLoading}
-              className="w-full rounded min-h-[44px] text-xs font-semibold text-white focus:outline-none focus:ring-1 focus:ring-[var(--accent)] disabled:opacity-50 disabled:cursor-not-allowed"
-              style={{
-                background: "var(--accent)",
-              }}
-              onMouseEnter={(e) =>
-                ((e.currentTarget as HTMLButtonElement).style.background = "var(--accent-hover)")
-              }
-              onMouseLeave={(e) =>
-                ((e.currentTarget as HTMLButtonElement).style.background = "var(--accent)")
-              }
-            >
-              {loading === "pro" ? "Redirecting to checkout..." : "Start Pro"}
-            </button>
-          </div>
-
-          {/* Agency card */}
-          <div
-            className="rounded-lg p-6 flex flex-col"
-            style={{
-              background: "var(--surface)",
-              border: "1px solid var(--border)",
-            }}
-          >
-            <p className="text-base font-semibold mb-2" style={{ color: "var(--foreground)" }}>
-              Agency
-            </p>
-            <div className="flex items-baseline gap-1 mb-2">
-              <span className="text-3xl font-semibold" style={{ color: "var(--foreground)" }}>
-                $99
-              </span>
-              <span className="text-xs" style={{ color: "var(--muted)" }}>
-                /month
-              </span>
-            </div>
-            <p className="text-xs mb-4" style={{ color: "var(--muted)" }}>
-              Unlimited audits and white-label reports for client work.
-            </p>
-            <FeatureList features={AGENCY_FEATURES} accent={true} />
-            <button
-              onClick={() => handlePaid("agency")}
-              disabled={isLoading}
-              className="w-full rounded min-h-[44px] text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-[var(--accent)] disabled:opacity-50 disabled:cursor-not-allowed"
-              style={{
-                background: "var(--surface-elevated)",
-                border: "1px solid var(--border)",
-                color: "var(--foreground)",
-              }}
-            >
-              {loading === "agency" ? "Redirecting to checkout..." : "Start Agency"}
-            </button>
-          </div>
+        <div className="plan-guarantee">
+          <div className="guarantee-item"><div className="guarantee-dot" />Cancel anytime</div>
+          <div className="guarantee-item"><div className="guarantee-dot" />No hidden fees</div>
+          <div className="guarantee-item"><div className="guarantee-dot" />Upgrade instantly</div>
         </div>
 
-        {/* Inline error */}
         {error && (
-          <p role="alert" className="text-xs mt-4 text-center" style={{ color: "var(--error)" }}>
-            {error}
-          </p>
+          <div role="alert" className="plan-error">
+            <span>&#9888;&#65039;</span>
+            <span>{error}</span>
+          </div>
         )}
+
+        <footer className="plan-footer">
+          &copy; 2025 AI SEO Tool &middot; <a href="#">Privacy</a> &middot; <a href="#">Terms</a>
+        </footer>
+
       </div>
-    </main>
+    </>
   );
 }

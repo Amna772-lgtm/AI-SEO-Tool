@@ -151,17 +151,13 @@ export default function LandingPage() {
 
         <div className="lp-url-input-wrap">
           <a
-            href="#"
+            href="/signup"
             className="lp-nav-cta"
             style={{
               display: "inline-block",
               padding: "16px 40px",
               fontSize: "1.05rem",
               boxShadow: "0 4px 20px rgba(13,148,136,.35)",
-            }}
-            onClick={(e) => {
-              e.preventDefault();
-              handleRunAudit();
             }}
           >
             Start GEO Audit &rarr;
@@ -602,6 +598,7 @@ export default function LandingPage() {
         <div className="lp-pricing-grid">
           <div className="lp-price-card">
             <div className="lp-price-name">Free</div>
+            <div className="lp-price-cost">$0<span>/month</span></div>
             <div className="lp-price-amount">1 audit / month</div>
             <ul className="lp-price-list">
               <li><span className="lp-pi">✓</span><span>Top-level GEO score</span></li>
@@ -614,6 +611,7 @@ export default function LandingPage() {
           </div>
           <div className="lp-price-card featured">
             <div className="lp-price-name">Pro</div>
+            <div className="lp-price-cost">$29<span>/month</span></div>
             <div className="lp-price-amount">10 audits / month</div>
             <ul className="lp-price-list">
               <li><span className="lp-pi">✓</span><span>Full per-page GEO score</span></li>
@@ -626,6 +624,7 @@ export default function LandingPage() {
           </div>
           <div className="lp-price-card">
             <div className="lp-price-name">Agency</div>
+            <div className="lp-price-cost">$99<span>/month</span></div>
             <div className="lp-price-amount">Unlimited audits</div>
             <ul className="lp-price-list">
               <li><span className="lp-pi">✓</span><span>Full per-page GEO scores</span></li>
@@ -1087,6 +1086,8 @@ const landingStyles = `
     font-size: .72rem; font-weight: 700; padding: 4px 16px; border-radius: 50px;
   }
   .lp-price-name { font-size: 1.1rem; font-weight: 800; margin-bottom: 4px; }
+  .lp-price-cost { font-size: 2.2rem; font-weight: 900; color: var(--lp-text); line-height: 1; margin: 8px 0 2px; }
+  .lp-price-cost span { font-size: .95rem; font-weight: 500; color: var(--lp-mid); }
   .lp-price-amount { font-size: .95rem; color: var(--lp-teal); font-weight: 700; margin-bottom: 20px; }
   .lp-price-list { list-style: none; display: flex; flex-direction: column; gap: 10px; margin-bottom: 28px; padding: 0; }
   .lp-price-list li { font-size: .86rem; color: var(--lp-mid); display: flex; align-items: flex-start; gap: 8px; }
