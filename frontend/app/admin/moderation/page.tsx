@@ -156,9 +156,13 @@ export default function AdminModeration() {
 
   async function handleDeleteAnalysis() {
     if (!deleteTarget) return;
-    await adminDeleteAnalysis(deleteTarget.id).catch(() => {});
-    setDeleteTarget(null);
-    loadAnalyses();
+    try {
+      await adminDeleteAnalysis(deleteTarget.id);
+      setDeleteTarget(null);
+      loadAnalyses();
+    } catch {
+      setDeleteTarget(null);
+    }
   }
 
   async function handleBanDomain() {

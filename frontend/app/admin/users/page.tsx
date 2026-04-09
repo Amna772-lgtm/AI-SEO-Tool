@@ -11,6 +11,23 @@ import {
   AdminUserRow,
 } from "../../lib/api";
 
+// ── RoleBadge ─────────────────────────────────────────────────────────────────
+
+function RoleBadge({ isAdmin }: { isAdmin: number }) {
+  if (isAdmin) {
+    return (
+      <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold bg-amber-100 text-amber-700">
+        admin
+      </span>
+    );
+  }
+  return (
+    <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold bg-[var(--surface-elevated)] text-[var(--muted)]">
+      user
+    </span>
+  );
+}
+
 // ── PlanBadge ─────────────────────────────────────────────────────────────────
 
 function PlanBadge({ plan }: { plan: string | null }) {
@@ -289,8 +306,9 @@ export default function AdminUsers() {
                 <thead className="bg-[var(--surface-elevated)] text-[var(--muted)] uppercase tracking-wide">
                   <tr>
                     <th scope="col" className="px-4 py-2 border-b border-[var(--border)] text-left font-semibold">#</th>
-                    <th scope="col" className="px-4 py-2 border-b border-[var(--border)] text-left font-semibold">Email</th>
                     <th scope="col" className="px-4 py-2 border-b border-[var(--border)] text-left font-semibold">Name</th>
+                    <th scope="col" className="px-4 py-2 border-b border-[var(--border)] text-left font-semibold">Email</th>
+                    <th scope="col" className="px-4 py-2 border-b border-[var(--border)] text-left font-semibold">Role</th>
                     <th scope="col" className="px-4 py-2 border-b border-[var(--border)] text-left font-semibold">Plan</th>
                     <th scope="col" className="px-4 py-2 border-b border-[var(--border)] text-left font-semibold">Signup Date</th>
                     <th scope="col" className="px-4 py-2 border-b border-[var(--border)] text-left font-semibold">Audits</th>
@@ -313,96 +331,101 @@ export default function AdminUsers() {
                         <td className="px-4 py-2 border-b border-[var(--border)] text-[var(--muted)]">
                           {rowNum}
                         </td>
-                        <td className="px-4 py-2 border-b border-[var(--border)] font-mono text-[var(--foreground)]">
-                          {user.email}
-                        </td>
                         <td className="px-4 py-2 border-b border-[var(--border)] text-[var(--foreground)]">
                           {user.name || "--"}
                         </td>
+                        <td className="px-4 py-2 border-b border-[var(--border)] font-mono text-[var(--foreground)]">
+                          {user.email}
+                        </td>
                         <td className="px-4 py-2 border-b border-[var(--border)]">
-                          <PlanBadge plan={user.plan} />
+                          <RoleBadge isAdmin={user.is_admin} />
+                        </td>
+                        <td className="px-4 py-2 border-b border-[var(--border)]">
+                          {user.is_admin ? null : <PlanBadge plan={user.plan} />}
                         </td>
                         <td className="px-4 py-2 border-b border-[var(--border)] text-[var(--muted)]">
-                          {formatDate(user.created_at)}
+                          {user.is_admin ? null : formatDate(user.created_at)}
                         </td>
                         <td className="px-4 py-2 border-b border-[var(--border)] text-[var(--muted)]">
-                          {user.audit_count}
+                          {user.is_admin ? null : user.audit_count}
                         </td>
                         <td className="px-4 py-2 border-b border-[var(--border)]">
-                          <StatusBadge disabled={user.is_disabled} />
+                          {user.is_admin ? null : <StatusBadge disabled={user.is_disabled} />}
                         </td>
                         <td className="px-4 py-2 border-b border-[var(--border)]">
-                          <div className="flex items-center gap-2">
-                            {/* Plan change dropdown */}
-                            <div className="relative flex items-center">
-                              {isPlanLoading && (
-                                <span className="absolute -left-4">
-                                  <Spinner />
-                                </span>
-                              )}
-                              <select
-                                value={user.plan ?? "free"}
-                                onChange={(e) => handlePlanChange(user.id, e.target.value)}
-                                disabled={isPlanLoading}
-                                aria-label={`Change plan for ${user.email}`}
-                                className="rounded border border-[var(--border)] px-2 py-1 text-[10px] bg-[var(--surface)] text-[var(--foreground)] focus:outline-none focus:border-[var(--accent)] disabled:opacity-50"
-                              >
-                                <option value="free">free</option>
-                                <option value="pro">pro</option>
-                                <option value="agency">agency</option>
-                              </select>
-                            </div>
-
-                            {/* Disable / Enable button */}
-                            {isToggleLoading ? (
-                              <Spinner />
-                            ) : user.is_disabled ? (
-                              <button
-                                onClick={() => handleEnable(user.id)}
-                                aria-label={`Enable ${user.email}`}
-                                className="text-[var(--accent)] hover:underline text-[10px] font-medium"
-                              >
-                                Enable
-                              </button>
-                            ) : (
-                              <button
-                                onClick={() => handleDisable(user.id)}
-                                aria-label={`Disable ${user.email}`}
-                                className="text-[var(--muted)] hover:text-[var(--warning)] text-[10px] font-medium"
-                              >
-                                Disable
-                              </button>
-                            )}
-
-                            {/* Delete button */}
-                            {isDeleteLoading ? (
-                              <Spinner />
-                            ) : (
-                              <button
-                                onClick={() => setDeleteTarget(user)}
-                                aria-label={`Delete ${user.email}`}
-                                className="text-[var(--muted)] hover:text-[var(--error)] transition-colors"
-                              >
-                                <svg
-                                  xmlns="http://www.w3.org/2000/svg"
-                                  width="12"
-                                  height="12"
-                                  viewBox="0 0 24 24"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  strokeWidth="2"
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  aria-hidden="true"
+                          {user.is_admin ? null : (
+                            <div className="flex items-center gap-2">
+                              {/* Plan change dropdown */}
+                              <div className="relative flex items-center">
+                                {isPlanLoading && (
+                                  <span className="absolute -left-4">
+                                    <Spinner />
+                                  </span>
+                                )}
+                                <select
+                                  value={user.plan ?? "free"}
+                                  onChange={(e) => handlePlanChange(user.id, e.target.value)}
+                                  disabled={isPlanLoading}
+                                  aria-label={`Change plan for ${user.email}`}
+                                  className="rounded border border-[var(--border)] px-2 py-1 text-[10px] bg-[var(--surface)] text-[var(--foreground)] focus:outline-none focus:border-[var(--accent)] disabled:opacity-50"
                                 >
-                                  <polyline points="3 6 5 6 21 6" />
-                                  <path d="M19 6l-1 14H6L5 6" />
-                                  <path d="M10 11v6M14 11v6" />
-                                  <path d="M9 6V4h6v2" />
-                                </svg>
-                              </button>
-                            )}
-                          </div>
+                                  <option value="free">free</option>
+                                  <option value="pro">pro</option>
+                                  <option value="agency">agency</option>
+                                </select>
+                              </div>
+
+                              {/* Disable / Enable button */}
+                              {isToggleLoading ? (
+                                <Spinner />
+                              ) : user.is_disabled ? (
+                                <button
+                                  onClick={() => handleEnable(user.id)}
+                                  aria-label={`Enable ${user.email}`}
+                                  className="text-[var(--accent)] hover:underline text-[10px] font-medium"
+                                >
+                                  Enable
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => handleDisable(user.id)}
+                                  aria-label={`Disable ${user.email}`}
+                                  className="text-[var(--muted)] hover:text-[var(--warning)] text-[10px] font-medium"
+                                >
+                                  Disable
+                                </button>
+                              )}
+
+                              {/* Delete button */}
+                              {isDeleteLoading ? (
+                                <Spinner />
+                              ) : (
+                                <button
+                                  onClick={() => setDeleteTarget(user)}
+                                  aria-label={`Delete ${user.email}`}
+                                  className="text-[var(--muted)] hover:text-[var(--error)] transition-colors"
+                                >
+                                  <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    width="12"
+                                    height="12"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="2"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    aria-hidden="true"
+                                  >
+                                    <polyline points="3 6 5 6 21 6" />
+                                    <path d="M19 6l-1 14H6L5 6" />
+                                    <path d="M10 11v6M14 11v6" />
+                                    <path d="M9 6V4h6v2" />
+                                  </svg>
+                                </button>
+                              )}
+                            </div>
+                          )}
                         </td>
                       </tr>
                     );

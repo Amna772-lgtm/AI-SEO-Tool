@@ -1019,11 +1019,19 @@ export async function updateAdminSetting(key: string, value: string): Promise<vo
 
 export async function fetchAdminAnalyses(params?: {
   search?: string;
+  date_from?: string;
+  date_to?: string;
+  score_min?: number;
+  score_max?: number;
   skip?: number;
   limit?: number;
 }): Promise<AdminAnalysesResponse> {
   const qs = new URLSearchParams();
   if (params?.search) qs.set("search", params.search);
+  if (params?.date_from) qs.set("date_from", params.date_from);
+  if (params?.date_to) qs.set("date_to", params.date_to);
+  if (params?.score_min != null) qs.set("score_min", String(params.score_min));
+  if (params?.score_max != null) qs.set("score_max", String(params.score_max));
   if (params?.skip != null) qs.set("skip", String(params.skip));
   if (params?.limit != null) qs.set("limit", String(params.limit));
   const q = qs.toString();
@@ -1079,6 +1087,30 @@ export async function adminRemoveQuotaOverride(userId: string): Promise<void> {
     method: "DELETE",
   });
   if (!res.ok) throw new Error("Failed to remove quota override");
+}
+
+export interface AdminJob {
+  task_id: string;
+  name: string;
+  state: "active" | "pending";
+  worker: string | null;
+  started_at: string | null;
+}
+
+export async function fetchAdminJobs(): Promise<{ jobs: AdminJob[] }> {
+  const res = await apiFetch(`${API_BASE}/admin/system/jobs`);
+  if (!res.ok) throw new Error("Failed to fetch jobs");
+  return res.json();
+}
+
+export async function adminRetryJob(taskId: string): Promise<void> {
+  const res = await apiFetch(`${API_BASE}/admin/system/jobs/${taskId}/retry`, { method: "POST" });
+  if (!res.ok) throw new Error("Failed to retry job");
+}
+
+export async function adminCancelJob(taskId: string): Promise<void> {
+  const res = await apiFetch(`${API_BASE}/admin/system/jobs/${taskId}/cancel`, { method: "POST" });
+  if (!res.ok) throw new Error("Failed to cancel job");
 }
 
 // Helper: extract the 6 radar axes from a HistoryRecord. Pitfall 1: entity is NOT in score_breakdown.

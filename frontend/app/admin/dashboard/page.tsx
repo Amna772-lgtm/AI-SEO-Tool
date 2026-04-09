@@ -79,7 +79,7 @@ function AdminTrendChart({
     .map(([x, y], i) => `${i === 0 ? "M" : "L"} ${x.toFixed(1)} ${y.toFixed(1)}`)
     .join(" ");
 
-  const gridYs = [0, 0.25, 0.5, 0.75, 1].map((f) => Math.round(f * maxCount));
+  const gridYs = [...new Set([0, 0.25, 0.5, 0.75, 1].map((f) => Math.round(f * maxCount)))];
   const labelStep = data.length <= 8 ? 1 : Math.ceil(data.length / 8);
 
   return (
