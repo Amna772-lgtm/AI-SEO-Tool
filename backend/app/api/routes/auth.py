@@ -15,7 +15,7 @@ from app.dependencies.auth import (
     get_current_user,
 )
 from app.schemas.auth import SigninRequest, SignupRequest, UserOut
-from app.store.history_store import create_user, get_user_by_email, get_admin_setting
+from app.store.history_store import create_user, get_user_by_email
 
 router = APIRouter()
 
@@ -36,11 +36,6 @@ def _set_auth_cookie(response: Response, token: str) -> None:
 
 @router.post("/signup", response_model=UserOut, status_code=status.HTTP_201_CREATED)
 def signup(body: SignupRequest, response: Response) -> dict[str, Any]:
-    if get_admin_setting("feature_new_signups") == "false":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="New signups are temporarily paused.",
-        )
     if get_user_by_email(body.email):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -79,14 +74,9 @@ def signin(body: SigninRequest, response: Response) -> dict[str, Any]:
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password. Please try again.",
         )
-    if user.get("is_disabled"):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="This account has been disabled. Contact support.",
-        )
     token = create_access_token(user["id"])
     _set_auth_cookie(response, token)
-    return {"id": user["id"], "email": user["email"], "name": user["name"], "is_admin": bool(user.get("is_admin"))}
+    return {"id": user["id"], "email": user["email"], "name": user["name"]}
 
 
 @router.post("/logout")
@@ -109,5 +99,4 @@ def me(current_user: dict[str, Any] = Depends(get_current_user)) -> dict[str, An
         "id": current_user["id"],
         "email": current_user["email"],
         "name": current_user["name"],
-        "is_admin": bool(current_user.get("is_admin", False)),
     }

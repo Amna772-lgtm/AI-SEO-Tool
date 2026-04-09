@@ -664,6 +664,19 @@ export default function Home() {
             </button>
           ))}
         </nav>
+        {user?.is_admin && (
+          <div className="px-2 pb-1">
+            <a
+              href="/admin/dashboard"
+              className="flex items-center gap-2 rounded-md px-3 py-2 text-sm text-[var(--muted)] hover:bg-[var(--surface-elevated)] hover:text-[var(--foreground)] border-t border-[var(--border)] mt-2 pt-2"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+              </svg>
+              Admin Panel
+            </a>
+          </div>
+        )}
         {user && (
           <div className="mt-auto border-t border-[var(--border)] p-3">
             <div className="flex items-center justify-between gap-2">

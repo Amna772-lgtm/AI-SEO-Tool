@@ -289,7 +289,7 @@ export default function LandingPage() {
           <br />
           All in one audit.
         </h2>
-        <p className="lp-section-sub">7-tab dashboard covering every dimension that matters for AI citation in 2026 and beyond.</p>
+        <p className="lp-section-sub">7-tab dashboard covering every dimension that matters for AI citation in 2025 and beyond.</p>
         <div className="lp-features-grid">
           {[
             { icon: "\uD83D\uDD77\uFE0F", title: "Full-Site BFS Crawler", desc: "Breadth-first crawl with smart sitemap sampling, 50 concurrent threads streaming to Redis. No page left behind.", tag: "Spider Tab" },
@@ -712,7 +712,7 @@ export default function LandingPage() {
           </div>
           <div className="lp-footer-col">
             <h4>Resources</h4>
-            <a href="#">GEO Guide 2026</a>
+            <a href="#">GEO Guide 2025</a>
             <a href="#">AI SEO Blog</a>
             <a href="#">Schema Templates</a>
             <a href="#">Changelog</a>
@@ -726,7 +726,7 @@ export default function LandingPage() {
           </div>
         </div>
         <div className="lp-footer-bottom">
-          <span>&copy; 2026 AI SEO Tool. Built for the AI-first web.</span>
+          <span>&copy; 2025 AI SEO Tool. Built for the AI-first web.</span>
           <span>GEO &middot; Generative Engine Optimization</span>
         </div>
       </footer>
