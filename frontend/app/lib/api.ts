@@ -650,6 +650,7 @@ export interface AuthUser {
   id: string;
   email: string;
   name: string;
+  is_admin?: boolean;
 }
 
 export async function signIn(email: string, password: string): Promise<AuthUser> {
@@ -876,4 +877,282 @@ export function extractRadarDimensions(record: HistoryRecord): RadarDimensions {
     entity:          Number(entityScore) || 0,
     technical:       bd?.technical?.raw ?? 0,
   };
+}
+
+// ============================================================
+// Admin API Types & Functions (Phase 08)
+// ============================================================
+
+export interface AdminCeleryHealth {
+  worker_online: boolean;
+  active_tasks: number;
+  pending_tasks: number;
+}
+
+export interface AdminSystemHealth {
+  celery: AdminCeleryHealth;
+  redis_memory_mb: number;
+  failed_jobs: number;
+}
+
+export interface AdminUserMetrics {
+  total: number;
+  new_7d: number;
+  new_30d: number;
+}
+
+export interface AdminAuditMetrics {
+  total_audits: number;
+  audits_7d: number;
+  avg_score: number | null;
+}
+
+export interface AdminRevenueMetrics {
+  mrr: number;
+  active_paid: number;
+}
+
+export interface AdminTrendPoint {
+  date: string;
+  count: number;
+}
+
+export interface AdminUser {
+  id: string;
+  email: string;
+  name: string;
+  plan: string;
+  status: "active" | "disabled";
+  created_at: string;
+  audit_count: number;
+}
+
+export interface AdminUsersResponse {
+  users: AdminUser[];
+  total: number;
+  skip: number;
+  limit: number;
+}
+
+export interface AdminAnalysis {
+  id: string;
+  url: string;
+  domain: string;
+  user_email: string | null;
+  analyzed_at: string;
+  overall_score: number | null;
+  grade: string | null;
+}
+
+export interface AdminAnalysesResponse {
+  analyses: AdminAnalysis[];
+  total: number;
+  skip: number;
+  limit: number;
+}
+
+export interface BannedDomain {
+  domain: string;
+  reason: string | null;
+  banned_at: string;
+}
+
+export interface QuotaOverride {
+  user_id: string;
+  user_email: string;
+  plan: string;
+  override_quota: number;
+}
+
+export interface AdminJob {
+  task_id: string;
+  name: string;
+  state: "active" | "pending";
+  worker: string;
+  started_at: string | null;
+}
+
+// ── Admin Dashboard ───────────────────────────────────────────────────────────
+
+export async function fetchAdminDashboard(): Promise<{
+  users: AdminUserMetrics;
+  audits: AdminAuditMetrics;
+  revenue: AdminRevenueMetrics;
+  system: AdminSystemHealth;
+  signup_trend: AdminTrendPoint[];
+  audit_trend: AdminTrendPoint[];
+}> {
+  const res = await apiFetch(`${API_BASE}/admin/dashboard`);
+  if (!res.ok) throw new Error(`Admin dashboard fetch failed: ${res.status}`);
+  return res.json();
+}
+
+// ── Admin System ──────────────────────────────────────────────────────────────
+
+export async function fetchAdminSystemHealth(): Promise<AdminSystemHealth> {
+  const res = await apiFetch(`${API_BASE}/admin/system/health`);
+  if (!res.ok) throw new Error(`System health fetch failed: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchAdminSettings(): Promise<Record<string, string>> {
+  const res = await apiFetch(`${API_BASE}/admin/system/settings`);
+  if (!res.ok) throw new Error(`Settings fetch failed: ${res.status}`);
+  return res.json();
+}
+
+export async function updateAdminSetting(key: string, value: string): Promise<void> {
+  const res = await apiFetch(`${API_BASE}/admin/system/settings/${encodeURIComponent(key)}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ value }),
+  });
+  if (!res.ok) throw new Error(`Setting update failed: ${res.status}`);
+}
+
+export async function fetchAdminJobs(): Promise<{ jobs: AdminJob[] }> {
+  const res = await apiFetch(`${API_BASE}/admin/system/jobs`);
+  if (!res.ok) throw new Error(`Jobs fetch failed: ${res.status}`);
+  return res.json();
+}
+
+export async function adminRetryJob(taskId: string): Promise<void> {
+  const res = await apiFetch(`${API_BASE}/admin/system/jobs/${encodeURIComponent(taskId)}/retry`, {
+    method: "POST",
+  });
+  if (!res.ok) throw new Error(`Retry job failed: ${res.status}`);
+}
+
+export async function adminCancelJob(taskId: string): Promise<void> {
+  const res = await apiFetch(`${API_BASE}/admin/system/jobs/${encodeURIComponent(taskId)}/cancel`, {
+    method: "POST",
+  });
+  if (!res.ok) throw new Error(`Cancel job failed: ${res.status}`);
+}
+
+// ── Admin Users ───────────────────────────────────────────────────────────────
+
+export async function fetchAdminUsers(params?: {
+  search?: string;
+  plan?: string;
+  status?: string;
+  skip?: number;
+  limit?: number;
+}): Promise<AdminUsersResponse> {
+  const query = new URLSearchParams();
+  if (params?.search) query.set("search", params.search);
+  if (params?.plan) query.set("plan", params.plan);
+  if (params?.status) query.set("status", params.status);
+  if (params?.skip != null) query.set("skip", String(params.skip));
+  if (params?.limit != null) query.set("limit", String(params.limit));
+  const res = await apiFetch(`${API_BASE}/admin/users?${query.toString()}`);
+  if (!res.ok) throw new Error(`Admin users fetch failed: ${res.status}`);
+  return res.json();
+}
+
+export async function adminUpdateUserPlan(userId: string, plan: string): Promise<void> {
+  const res = await apiFetch(`${API_BASE}/admin/users/${encodeURIComponent(userId)}/plan`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ plan }),
+  });
+  if (!res.ok) throw new Error(`Update plan failed: ${res.status}`);
+}
+
+export async function adminDisableUser(userId: string): Promise<void> {
+  const res = await apiFetch(`${API_BASE}/admin/users/${encodeURIComponent(userId)}/disable`, {
+    method: "POST",
+  });
+  if (!res.ok) throw new Error(`Disable user failed: ${res.status}`);
+}
+
+export async function adminEnableUser(userId: string): Promise<void> {
+  const res = await apiFetch(`${API_BASE}/admin/users/${encodeURIComponent(userId)}/enable`, {
+    method: "POST",
+  });
+  if (!res.ok) throw new Error(`Enable user failed: ${res.status}`);
+}
+
+export async function adminDeleteUser(userId: string): Promise<void> {
+  const res = await apiFetch(`${API_BASE}/admin/users/${encodeURIComponent(userId)}`, {
+    method: "DELETE",
+  });
+  if (!res.ok && res.status !== 204) throw new Error(`Delete user failed: ${res.status}`);
+}
+
+// ── Admin Moderation ──────────────────────────────────────────────────────────
+
+export async function fetchAdminAnalyses(params?: {
+  search?: string;
+  date_from?: string;
+  date_to?: string;
+  score_min?: number;
+  score_max?: number;
+  skip?: number;
+  limit?: number;
+}): Promise<AdminAnalysesResponse> {
+  const query = new URLSearchParams();
+  if (params?.search) query.set("search", params.search);
+  if (params?.date_from) query.set("date_from", params.date_from);
+  if (params?.date_to) query.set("date_to", params.date_to);
+  if (params?.score_min !== undefined) query.set("score_min", String(params.score_min));
+  if (params?.score_max !== undefined) query.set("score_max", String(params.score_max));
+  if (params?.skip != null) query.set("skip", String(params.skip));
+  if (params?.limit != null) query.set("limit", String(params.limit));
+  const res = await apiFetch(`${API_BASE}/admin/moderation/audits?${query.toString()}`);
+  if (!res.ok) throw new Error(`Admin analyses fetch failed: ${res.status}`);
+  return res.json();
+}
+
+export async function adminDeleteAnalysis(analysisId: string): Promise<void> {
+  const res = await apiFetch(`${API_BASE}/admin/moderation/audits/${encodeURIComponent(analysisId)}`, {
+    method: "DELETE",
+  });
+  if (!res.ok && res.status !== 204) throw new Error(`Delete analysis failed: ${res.status}`);
+}
+
+export async function fetchBannedDomains(): Promise<BannedDomain[]> {
+  const res = await apiFetch(`${API_BASE}/admin/moderation/banned-domains`);
+  if (!res.ok) throw new Error(`Banned domains fetch failed: ${res.status}`);
+  return res.json();
+}
+
+export async function adminBanDomain(domain: string, reason?: string): Promise<void> {
+  const res = await apiFetch(`${API_BASE}/admin/moderation/banned-domains`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ domain, reason }),
+  });
+  if (!res.ok) throw new Error(`Ban domain failed: ${res.status}`);
+}
+
+export async function adminUnbanDomain(domain: string): Promise<void> {
+  const res = await apiFetch(
+    `${API_BASE}/admin/moderation/banned-domains/${encodeURIComponent(domain)}`,
+    { method: "DELETE" }
+  );
+  if (!res.ok && res.status !== 204) throw new Error(`Unban domain failed: ${res.status}`);
+}
+
+export async function fetchQuotaOverrides(): Promise<QuotaOverride[]> {
+  const res = await apiFetch(`${API_BASE}/admin/moderation/quota-overrides`);
+  if (!res.ok) throw new Error(`Quota overrides fetch failed: ${res.status}`);
+  return res.json();
+}
+
+export async function adminSetQuotaOverride(userId: string, quota: number): Promise<void> {
+  const res = await apiFetch(`${API_BASE}/admin/moderation/quota-overrides`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ user_id: userId, quota }),
+  });
+  if (!res.ok) throw new Error(`Set quota override failed: ${res.status}`);
+}
+
+export async function adminRemoveQuotaOverride(userId: string): Promise<void> {
+  const res = await apiFetch(
+    `${API_BASE}/admin/moderation/quota-overrides/${encodeURIComponent(userId)}`,
+    { method: "DELETE" }
+  );
+  if (!res.ok && res.status !== 204) throw new Error(`Remove quota override failed: ${res.status}`);
 }
