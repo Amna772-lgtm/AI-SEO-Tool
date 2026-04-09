@@ -17,9 +17,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   if (loading || !user?.is_admin) return null;
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[var(--background)] text-[var(--foreground)]">
+    <div className="flex h-screen overflow-hidden text-[var(--foreground)]" style={{ background: "var(--background)" }}>
       <AdminSidebar />
-      <main className="flex-1 overflow-auto p-6">{children}</main>
+      <main className="flex-1 overflow-auto p-8">{children}</main>
     </div>
   );
 }

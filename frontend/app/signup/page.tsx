@@ -317,7 +317,7 @@ export default function SignupPage() {
           </div>
 
           <div className="auth-left-footer">
-            &copy; 2025 AI SEO Tool &middot; <a href="#">Privacy</a> &middot; <a href="#">Terms</a>
+            &copy; 2026 AI SEO Tool &middot; <a href="#">Privacy</a> &middot; <a href="#">Terms</a>
           </div>
         </div>
 

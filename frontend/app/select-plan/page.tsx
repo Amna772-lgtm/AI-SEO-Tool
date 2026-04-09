@@ -466,7 +466,7 @@ export default function SelectPlanPage() {
         )}
 
         <footer className="plan-footer">
-          &copy; 2025 AI SEO Tool &middot; <a href="#">Privacy</a> &middot; <a href="#">Terms</a>
+          &copy; 2026 AI SEO Tool &middot; <a href="#">Privacy</a> &middot; <a href="#">Terms</a>
         </footer>
 
       </div>
