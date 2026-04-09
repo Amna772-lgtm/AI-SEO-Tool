@@ -56,6 +56,18 @@ def get_current_user(access_token: str | None = Cookie(default=None)) -> dict[st
     return user
 
 
+def get_admin_user(
+    current_user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    """Require admin role. Raises 403 if authenticated user is not an admin."""
+    if not current_user.get("is_admin"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required",
+        )
+    return current_user
+
+
 def get_current_subscription(
     current_user: dict[str, Any] = Depends(get_current_user),
 ) -> dict[str, Any]:
