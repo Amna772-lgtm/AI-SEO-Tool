@@ -39,7 +39,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const u = await fetchCurrentUser();
         if (!cancelled) {
           setUser(u);
-          if (u) {
+          if (u && !u.is_admin) {
             try {
               const sub = await fetchSubscription();
               if (!cancelled) setSubscription(sub);
