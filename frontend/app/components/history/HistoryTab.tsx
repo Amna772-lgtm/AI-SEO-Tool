@@ -342,9 +342,11 @@ function CompareView({ records, onBack }: { records: [HistoryRecord, HistoryReco
 // ── Main HistoryTab ───────────────────────────────────────────────────────────
 
 export function HistoryTab({ initialDomain }: Props) {
+  const PAGE_SIZE = 10;
   const [domain, setDomain] = useState(initialDomain ?? "");
   const [items, setItems] = useState<HistoryItem[]>([]);
   const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -352,11 +354,11 @@ export function HistoryTab({ initialDomain }: Props) {
   const [view, setView] = useState<"list" | "compare">("list");
   const [comparing, setComparing] = useState(false);
 
-  const loadHistory = useCallback(async (d: string) => {
+  const loadHistory = useCallback(async (d: string, pg: number = 0) => {
     setLoading(true);
     setError(null);
     try {
-      const res = await getHistory({ domain: d || undefined, limit: 50 });
+      const res = await getHistory({ domain: d || undefined, limit: PAGE_SIZE, offset: pg * PAGE_SIZE });
       setItems(res.items);
       setTotal(res.total);
     } catch {
@@ -367,11 +369,12 @@ export function HistoryTab({ initialDomain }: Props) {
   }, []);
 
   useEffect(() => {
-    loadHistory(domain);
+    loadHistory(domain, 0);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    const t = setTimeout(() => loadHistory(domain), 400);
+    setPage(0);
+    const t = setTimeout(() => loadHistory(domain, 0), 400);
     return () => clearTimeout(t);
   }, [domain, loadHistory]);
 
@@ -404,8 +407,11 @@ export function HistoryTab({ initialDomain }: Props) {
     try {
       await deleteHistoryRecord(id);
       setSelectedIds(prev => prev.filter(x => x !== id));
-      setItems(prev => prev.filter(i => i.id !== id));
-      setTotal(prev => Math.max(0, prev - 1));
+      const newTotal = Math.max(0, total - 1);
+      const maxPage = Math.max(0, Math.ceil(newTotal / PAGE_SIZE) - 1);
+      const newPage = Math.min(page, maxPage);
+      setPage(newPage);
+      loadHistory(domain, newPage);
     } catch {
       setError("Failed to delete record.");
     }
@@ -558,10 +564,30 @@ export function HistoryTab({ initialDomain }: Props) {
               onDelete={() => handleDelete(item.id)}
             />
           ))}
-          {total > items.length && (
-            <p className="pt-2 text-center text-xs" style={{ color: "var(--muted)" }}>
-              Showing {items.length} of {total} analyses
-            </p>
+          {total > PAGE_SIZE && (
+            <div className="flex items-center justify-between pt-2">
+              <span className="text-xs" style={{ color: "var(--muted)" }}>
+                Showing {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, total)} of {total} analyses
+              </span>
+              <div className="flex gap-2">
+                <button
+                  disabled={page === 0}
+                  onClick={() => { const pg = page - 1; setPage(pg); loadHistory(domain, pg); }}
+                  className="rounded-lg px-3 py-1.5 text-xs font-medium disabled:opacity-40"
+                  style={{ border: "1px solid var(--border)", color: "var(--foreground)", background: "transparent" }}
+                >
+                  ← Previous
+                </button>
+                <button
+                  disabled={(page + 1) * PAGE_SIZE >= total}
+                  onClick={() => { const pg = page + 1; setPage(pg); loadHistory(domain, pg); }}
+                  className="rounded-lg px-3 py-1.5 text-xs font-medium disabled:opacity-40"
+                  style={{ border: "1px solid var(--border)", color: "var(--foreground)", background: "transparent" }}
+                >
+                  Next →
+                </button>
+              </div>
+            </div>
           )}
         </div>
       )}

@@ -255,13 +255,21 @@ def _get_system_health() -> dict[str, Any]:
 
 
 @router.get("/dashboard")
-def admin_dashboard() -> dict[str, Any]:
+def admin_dashboard(
+    audit_days: int = Query(default=30, ge=7, le=90),
+    audit_group_by: str = Query(default="day", pattern="^(day|week)$"),
+    audit_plan: str | None = Query(default=None),
+    audit_score_min: int | None = Query(default=None, ge=0, le=100),
+    audit_score_max: int | None = Query(default=None, ge=0, le=100),
+    revenue_days: int = Query(default=30, ge=7, le=90),
+) -> dict[str, Any]:
     """Return aggregated analytics: user metrics, audit metrics, revenue, system health, trends."""
     from app.store.history_store import (
         get_admin_user_metrics,
         get_audit_metrics,
         get_audit_trend,
         get_revenue_metrics,
+        get_revenue_trend,
         get_signup_trend,
     )
 
@@ -269,7 +277,14 @@ def admin_dashboard() -> dict[str, Any]:
     audits = get_audit_metrics()
     revenue = get_revenue_metrics()
     signup_trend = get_signup_trend(30)
-    audit_trend = get_audit_trend(30)
+    audit_trend = get_audit_trend(
+        days=audit_days,
+        group_by=audit_group_by,
+        plan_filter=audit_plan,
+        score_min=audit_score_min,
+        score_max=audit_score_max,
+    )
+    revenue_trend = get_revenue_trend(revenue_days)
     system = _get_system_health()
 
     return {
@@ -279,6 +294,7 @@ def admin_dashboard() -> dict[str, Any]:
         "system": system,
         "signup_trend": signup_trend,
         "audit_trend": audit_trend,
+        "revenue_trend": revenue_trend,
     }
 
 

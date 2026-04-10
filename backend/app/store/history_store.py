@@ -1166,17 +1166,77 @@ def get_revenue_metrics() -> dict[str, Any]:
         conn.close()
 
 
-def get_audit_trend(days: int = 30) -> list[dict[str, Any]]:
-    """Return per-day audit counts for the last N days."""
+def get_audit_trend(
+    days: int = 30,
+    group_by: str = "day",
+    plan_filter: str | None = None,
+    score_min: int | None = None,
+    score_max: int | None = None,
+) -> list[dict[str, Any]]:
+    """Return per-day or per-week audit counts for the last N days with optional filters."""
     conn = _connect()
     try:
-        rows = conn.execute(
-            "SELECT DATE(analyzed_at) as date, COUNT(*) as count "
-            "FROM analyses WHERE analyzed_at >= DATE('now', ? || ' days') "
-            "GROUP BY DATE(analyzed_at) ORDER BY date ASC",
-            (f"-{days}",),
-        ).fetchall()
+        date_expr = (
+            "DATE(a.analyzed_at)"
+            if group_by == "day"
+            else "strftime('%Y-W%W', a.analyzed_at)"
+        )
+        params: list[Any] = [f"-{days}"]
+        joins = ""
+        where_extras = ""
+
+        if plan_filter:
+            joins = (
+                " JOIN users u ON a.user_id = u.id"
+                " JOIN subscriptions s ON u.id = s.user_id"
+            )
+            where_extras += " AND s.plan = ?"
+            params.append(plan_filter)
+
+        if score_min is not None:
+            where_extras += " AND a.overall_score >= ?"
+            params.append(score_min)
+
+        if score_max is not None:
+            where_extras += " AND a.overall_score <= ?"
+            params.append(score_max)
+
+        sql = (
+            f"SELECT {date_expr} as date, COUNT(*) as count "
+            f"FROM analyses a{joins} "
+            f"WHERE a.analyzed_at >= DATE('now', ? || ' days'){where_extras} "
+            f"GROUP BY {date_expr} ORDER BY date ASC"
+        )
+        rows = conn.execute(sql, params).fetchall()
         return [{"date": row["date"], "count": row["count"]} for row in rows]
+    finally:
+        conn.close()
+
+
+def get_revenue_trend(days: int = 30) -> list[dict[str, Any]]:
+    """Return per-day cumulative MRR for the last N days.
+
+    For each date in the range, counts active paid subscriptions created on or
+    before that date and multiplies by PLAN_PRICES to get MRR.
+    """
+    from datetime import date, timedelta
+
+    conn = _connect()
+    try:
+        today = date.today()
+        result = []
+        for i in range(days - 1, -1, -1):
+            d = today - timedelta(days=i)
+            d_str = d.isoformat()
+            rows = conn.execute(
+                "SELECT plan, COUNT(*) as count FROM subscriptions "
+                "WHERE status = 'active' AND plan != 'free' "
+                "AND DATE(created_at) <= ? GROUP BY plan",
+                (d_str,),
+            ).fetchall()
+            mrr = sum(PLAN_PRICES.get(r["plan"], 0) * r["count"] for r in rows)
+            result.append({"date": d_str, "mrr": mrr})
+        return result
     finally:
         conn.close()
 

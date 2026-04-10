@@ -925,6 +925,11 @@ export interface AdminTrendPoint {
   count: number;
 }
 
+export interface AdminRevenueTrendPoint {
+  date: string;
+  mrr: number;
+}
+
 export interface BannedDomain {
   domain: string;
   reason: string | null;
@@ -983,15 +988,31 @@ export async function adminDeleteUser(userId: string): Promise<void> {
   if (!res.ok) throw new Error("Failed to delete user");
 }
 
-export async function fetchAdminDashboard(): Promise<{
+export async function fetchAdminDashboard(params?: {
+  audit_days?: number;
+  audit_group_by?: "day" | "week";
+  audit_plan?: string;
+  audit_score_min?: number;
+  audit_score_max?: number;
+  revenue_days?: number;
+}): Promise<{
   users: AdminUserMetrics;
   audits: AdminAuditMetrics;
   revenue: AdminRevenueMetrics;
   system: AdminSystemHealth;
   signup_trend: AdminTrendPoint[];
   audit_trend: AdminTrendPoint[];
+  revenue_trend: AdminRevenueTrendPoint[];
 }> {
-  const res = await apiFetch(`${API_BASE}/admin/dashboard`);
+  const qs = new URLSearchParams();
+  if (params?.audit_days != null) qs.set("audit_days", String(params.audit_days));
+  if (params?.audit_group_by) qs.set("audit_group_by", params.audit_group_by);
+  if (params?.audit_plan) qs.set("audit_plan", params.audit_plan);
+  if (params?.audit_score_min != null) qs.set("audit_score_min", String(params.audit_score_min));
+  if (params?.audit_score_max != null) qs.set("audit_score_max", String(params.audit_score_max));
+  if (params?.revenue_days != null) qs.set("revenue_days", String(params.revenue_days));
+  const q = qs.toString();
+  const res = await apiFetch(`${API_BASE}/admin/dashboard${q ? `?${q}` : ""}`);
   if (!res.ok) throw new Error("Failed to fetch dashboard");
   return res.json();
 }

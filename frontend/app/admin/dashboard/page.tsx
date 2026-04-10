@@ -8,6 +8,7 @@ import {
   AdminRevenueMetrics,
   AdminSystemHealth,
   AdminTrendPoint,
+  AdminRevenueTrendPoint,
 } from "../../lib/api";
 
 // ── StatCard ─────────────────────────────────────────────────────────────────
@@ -161,6 +162,157 @@ function ChartSkeleton({ title }: { title: string }) {
   );
 }
 
+// ── RevenueBarChart ───────────────────────────────────────────────────────────
+
+function RevenueBarChart({ data, title }: { data: AdminRevenueTrendPoint[]; title: string }) {
+  const plotW = CHART_W - CHART_PADDING.left - CHART_PADDING.right;
+  const plotH = CHART_H - CHART_PADDING.top - CHART_PADDING.bottom;
+
+  if (!data || data.length === 0) {
+    return (
+      <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 min-h-[160px] flex flex-col" style={{ boxShadow: "0 1px 3px rgba(0,0,0,.06)" }}>
+        <div className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)] mb-2">{title}</div>
+        <div className="flex-1 flex items-center justify-center">
+          <span className="text-xs text-[var(--muted)]">No data</span>
+        </div>
+      </div>
+    );
+  }
+
+  const maxMrr = Math.max(...data.map((d) => d.mrr), 1);
+  const barW = Math.max(2, plotW / data.length - 2);
+  const xScale = (i: number) => (i / data.length) * plotW + barW / 2;
+  const yScale = (mrr: number) => plotH - (mrr / maxMrr) * plotH;
+  const gridYs = [...new Set([0, 0.25, 0.5, 0.75, 1].map((f) => Math.round(f * maxMrr)))];
+  const labelStep = data.length <= 8 ? 1 : Math.ceil(data.length / 8);
+
+  return (
+    <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 min-h-[160px]" style={{ boxShadow: "0 1px 3px rgba(0,0,0,.06)" }}>
+      <div className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)] mb-2">{title}</div>
+      <svg width="100%" viewBox={`0 0 ${CHART_W} ${CHART_H}`} style={{ overflow: "visible" }} aria-label={`${title} bar chart`}>
+        <defs>
+          <linearGradient id="rev-bar-grad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#16a34a" />
+            <stop offset="100%" stopColor="#16a34a" stopOpacity="0.5" />
+          </linearGradient>
+        </defs>
+        <g transform={`translate(${CHART_PADDING.left},${CHART_PADDING.top})`}>
+          {gridYs.map((val) => {
+            const y = yScale(val);
+            return (
+              <g key={val}>
+                <line x1={0} y1={y} x2={plotW} y2={y} stroke="var(--border)" strokeWidth={1} strokeDasharray={val === 0 ? "0" : "4 3"} />
+                <text x={-6} y={y + 4} textAnchor="end" fontSize={10} fill="var(--muted)">${val}</text>
+              </g>
+            );
+          })}
+          {data.map((d, i) => {
+            const x = xScale(i);
+            const y = yScale(d.mrr);
+            const h = plotH - y;
+            return (
+              <g key={i}>
+                <rect x={x - barW / 2} y={y} width={barW} height={Math.max(h, 1)} fill="url(#rev-bar-grad)" rx={2}>
+                  <title>{`${d.date}: $${d.mrr}`}</title>
+                </rect>
+                {(i % labelStep === 0 || i === data.length - 1) && (
+                  <text x={x} y={plotH + 18} textAnchor="middle" fontSize={10} fill="var(--muted)">
+                    {formatChartDate(d.date)}
+                  </text>
+                )}
+              </g>
+            );
+          })}
+        </g>
+      </svg>
+    </div>
+  );
+}
+
+// ── PlanDonutChart ────────────────────────────────────────────────────────────
+
+const PLAN_COLORS: Record<string, string> = {
+  free: "#0d9488",
+  pro: "#6366f1",
+  agency: "#f59e0b",
+};
+
+function PlanDonutChart({
+  distribution,
+  activePaid,
+  title,
+}: {
+  distribution: Record<string, number>;
+  activePaid: number;
+  title: string;
+}) {
+  const entries = Object.entries(distribution).filter(([, v]) => v > 0);
+  const total = entries.reduce((s, [, v]) => s + v, 0) || 1;
+
+  const SIZE = 160;
+  const cx = SIZE / 2;
+  const cy = SIZE / 2;
+  const R = 60;
+  const r = 38;
+
+  let angle = -Math.PI / 2;
+  const slices = entries.map(([plan, count]) => {
+    const sweep = (count / total) * 2 * Math.PI;
+    const startAngle = angle;
+    angle += sweep;
+    return { plan, count, startAngle, sweep };
+  });
+
+  const arcPath = (sa: number, sweep: number) => {
+    const ea = sa + sweep;
+    const x1 = cx + R * Math.cos(sa);
+    const y1 = cy + R * Math.sin(sa);
+    const x2 = cx + R * Math.cos(ea);
+    const y2 = cy + R * Math.sin(ea);
+    const ix1 = cx + r * Math.cos(ea);
+    const iy1 = cy + r * Math.sin(ea);
+    const ix2 = cx + r * Math.cos(sa);
+    const iy2 = cy + r * Math.sin(sa);
+    const large = sweep > Math.PI ? 1 : 0;
+    return `M ${x1} ${y1} A ${R} ${R} 0 ${large} 1 ${x2} ${y2} L ${ix1} ${iy1} A ${r} ${r} 0 ${large} 0 ${ix2} ${iy2} Z`;
+  };
+
+  return (
+    <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4" style={{ boxShadow: "0 1px 3px rgba(0,0,0,.06)" }}>
+      <div className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)] mb-3">{title}</div>
+      {total === 0 || entries.length === 0 ? (
+        <div className="flex items-center justify-center h-28 text-xs text-[var(--muted)]">No data</div>
+      ) : (
+        <div className="flex items-center gap-6">
+          <svg width={SIZE} height={SIZE} viewBox={`0 0 ${SIZE} ${SIZE}`} style={{ flexShrink: 0 }}>
+            {slices.map(({ plan, startAngle, sweep }) => (
+              <path
+                key={plan}
+                d={arcPath(startAngle, sweep)}
+                fill={PLAN_COLORS[plan] ?? "#94a3b8"}
+                opacity={0.9}
+              >
+                <title>{`${plan}: ${distribution[plan]}`}</title>
+              </path>
+            ))}
+            <text x={cx} y={cy - 6} textAnchor="middle" fontSize={18} fontWeight={800} fill="#0f172a">{activePaid}</text>
+            <text x={cx} y={cy + 10} textAnchor="middle" fontSize={9} fill="#64748b">paid users</text>
+          </svg>
+          <div className="flex flex-col gap-2">
+            {entries.map(([plan, count]) => (
+              <div key={plan} className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: PLAN_COLORS[plan] ?? "#94a3b8" }} />
+                <span className="text-xs capitalize font-medium text-[var(--muted)]">{plan}</span>
+                <span className="text-xs font-bold tabular-nums ml-auto pl-3" style={{ color: "#0f172a" }}>{count}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Page ─────────────────────────────────────────────────────────────────────
 
 type DashboardData = {
@@ -168,20 +320,38 @@ type DashboardData = {
   audits: AdminAuditMetrics;
   revenue: AdminRevenueMetrics;
   system: AdminSystemHealth;
-  signup_trend: AdminTrendPoint[];
   audit_trend: AdminTrendPoint[];
+  revenue_trend: AdminRevenueTrendPoint[];
 };
 
 export default function AdminDashboard() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Audit Volume filters
+  const [auditDays, setAuditDays] = useState<7 | 30 | 90>(30);
+  const [auditGroupBy, setAuditGroupBy] = useState<"day" | "week">("day");
+  const [auditPlan, setAuditPlan] = useState<"" | "free" | "pro" | "agency">("");
+  const [auditScoreMin, setAuditScoreMin] = useState("");
+  const [auditScoreMax, setAuditScoreMax] = useState("");
+
   useEffect(() => {
-    fetchAdminDashboard()
+    setLoading(true);
+    const params: Parameters<typeof fetchAdminDashboard>[0] = {
+      audit_days: auditDays,
+      audit_group_by: auditGroupBy,
+    };
+    if (auditPlan) params.audit_plan = auditPlan;
+    const minN = parseInt(auditScoreMin);
+    const maxN = parseInt(auditScoreMax);
+    if (!isNaN(minN)) params.audit_score_min = minN;
+    if (!isNaN(maxN)) params.audit_score_max = maxN;
+
+    fetchAdminDashboard(params)
       .then(setData)
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, []);
+  }, [auditDays, auditGroupBy, auditPlan, auditScoreMin, auditScoreMax]);
 
   const queueDepth = data
     ? data.system.celery.active_tasks + data.system.celery.pending_tasks
@@ -239,15 +409,95 @@ export default function AdminDashboard() {
         )}
       </div>
 
-      {/* Trend charts row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+      {/* Revenue section */}
+      <div className="mb-2">
+        <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)] mb-3">Revenue</p>
+      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
         {loading ? (
-          <><ChartSkeleton title="Signup Trend" /><ChartSkeleton title="Audit Volume" /></>
+          <><ChartSkeleton title="MRR Trend" /><ChartSkeleton title="Plan Distribution" /></>
         ) : (
           <>
-            <AdminTrendChart data={data?.signup_trend ?? []} title="Signup Trend" color="#0d9488" />
-            <AdminTrendChart data={data?.audit_trend ?? []} title="Audit Volume" color="#6366f1" />
+            <RevenueBarChart data={data?.revenue_trend ?? []} title="MRR Trend" />
+            <PlanDonutChart
+              distribution={data?.revenue.plan_distribution ?? {}}
+              activePaid={data?.revenue.active_paid ?? 0}
+              title="Plan Distribution"
+            />
           </>
+        )}
+      </div>
+
+      {/* Audit Volume with filters */}
+      <div className="mb-4">
+        <div className="flex flex-wrap items-center gap-2 mb-2">
+          {/* Time range */}
+          <div className="flex rounded-lg border border-[var(--border)] overflow-hidden">
+            {([7, 30, 90] as const).map((d) => (
+              <button
+                key={d}
+                onClick={() => setAuditDays(d)}
+                className="px-3 py-1 text-xs font-semibold transition-colors"
+                style={{
+                  background: auditDays === d ? "#6366f1" : "transparent",
+                  color: auditDays === d ? "#fff" : "var(--muted)",
+                }}
+              >
+                {d}d
+              </button>
+            ))}
+          </div>
+          {/* Group by */}
+          <div className="flex rounded-lg border border-[var(--border)] overflow-hidden">
+            {(["day", "week"] as const).map((g) => (
+              <button
+                key={g}
+                onClick={() => setAuditGroupBy(g)}
+                className="px-3 py-1 text-xs font-semibold capitalize transition-colors"
+                style={{
+                  background: auditGroupBy === g ? "#6366f1" : "transparent",
+                  color: auditGroupBy === g ? "#fff" : "var(--muted)",
+                }}
+              >
+                {g}
+              </button>
+            ))}
+          </div>
+          {/* Plan filter */}
+          <select
+            value={auditPlan}
+            onChange={(e) => setAuditPlan(e.target.value as typeof auditPlan)}
+            className="text-xs border border-[var(--border)] rounded-lg px-2 py-1 bg-[var(--surface)] text-[var(--muted)]"
+          >
+            <option value="">All plans</option>
+            <option value="free">Free</option>
+            <option value="pro">Pro</option>
+            <option value="agency">Agency</option>
+          </select>
+          {/* Score range */}
+          <input
+            type="number"
+            placeholder="Score min"
+            min={0}
+            max={100}
+            value={auditScoreMin}
+            onChange={(e) => setAuditScoreMin(e.target.value)}
+            className="text-xs border border-[var(--border)] rounded-lg px-2 py-1 w-24 bg-[var(--surface)] text-[var(--muted)]"
+          />
+          <input
+            type="number"
+            placeholder="Score max"
+            min={0}
+            max={100}
+            value={auditScoreMax}
+            onChange={(e) => setAuditScoreMax(e.target.value)}
+            className="text-xs border border-[var(--border)] rounded-lg px-2 py-1 w-24 bg-[var(--surface)] text-[var(--muted)]"
+          />
+        </div>
+        {loading ? (
+          <ChartSkeleton title="Audit Volume" />
+        ) : (
+          <AdminTrendChart data={data?.audit_trend ?? []} title="Audit Volume" color="#6366f1" />
         )}
       </div>
 
