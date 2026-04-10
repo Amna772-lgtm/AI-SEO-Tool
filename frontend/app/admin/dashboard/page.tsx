@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   fetchAdminDashboard,
   AdminUserMetrics,
@@ -89,11 +89,14 @@ function MiniDonutChart({
 
   const arcPath = (sa: number, sweep: number) => {
     if (sweep >= 2 * Math.PI - 0.001) {
+      // Full circle: outer ring + inner cutout via evenodd fill rule
       return [
-        `M ${cx + R} ${cy}`,
-        `A ${R} ${R} 0 1 1 ${(cx + R - 0.01).toFixed(3)} ${cy}`,
-        `L ${(cx + r - 0.01).toFixed(3)} ${cy}`,
-        `A ${r} ${r} 0 1 0 ${cx + r} ${cy} Z`,
+        `M ${cx - R} ${cy}`,
+        `a ${R} ${R} 0 1 0 ${2 * R} 0`,
+        `a ${R} ${R} 0 1 0 ${-2 * R} 0`,
+        `M ${cx - r} ${cy}`,
+        `a ${r} ${r} 0 1 0 ${2 * r} 0`,
+        `a ${r} ${r} 0 1 0 ${-2 * r} 0`,
       ].join(" ");
     }
     const ea = sa + sweep;
@@ -121,6 +124,7 @@ function MiniDonutChart({
             key={s.key}
             d={arcPath(s.startAngle, s.sweep)}
             fill={s.color ?? MINI_DONUT_COLORS[s.key] ?? "#94a3b8"}
+            fillRule="evenodd"
             opacity={0.9}
           >
             <title>{`${s.label}: ${s.displayValue ?? s.value}`}</title>
@@ -484,38 +488,84 @@ type DashboardData = {
   revenue_trend: AdminRevenueTrendPoint[];
 };
 
+// Module-level cache — persists across navigations within the same session
+let _dashboardCache: DashboardData | null = null;
+
 export default function AdminDashboard() {
-  const [data, setData] = useState<DashboardData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState<DashboardData | null>(_dashboardCache);
+  const [cardsLoading, setCardsLoading] = useState(_dashboardCache === null);
+  const [auditChartLoading, setAuditChartLoading] = useState(false);
+  const [revenueChartLoading, setRevenueChartLoading] = useState(false);
+  const initialLoadDone = useRef(_dashboardCache !== null);
 
   // Revenue filters
   const [revenueDays, setRevenueDays] = useState<7 | 30 | 365>(7);
 
   // Audit Volume filters
-  const [auditDays, setAuditDays] = useState<7 | 30 | 90>(30);
+  const [auditDays, setAuditDays] = useState<7 | 30 | 90>(7);
   const [auditGroupBy, setAuditGroupBy] = useState<"day" | "week">("day");
   const [auditPlan, setAuditPlan] = useState<"" | "free" | "pro" | "agency">("");
-  const [auditScoreMin, setAuditScoreMin] = useState("");
-  const [auditScoreMax, setAuditScoreMax] = useState("");
 
+  // Initial load — fetches everything including summary cards
   useEffect(() => {
-    setLoading(true);
+    // If cached data exists, show it immediately and refresh silently in background
+    if (_dashboardCache === null) setCardsLoading(true);
     const params: Parameters<typeof fetchAdminDashboard>[0] = {
       audit_days: auditDays,
       audit_group_by: auditGroupBy,
       revenue_days: revenueDays,
     };
     if (auditPlan) params.audit_plan = auditPlan;
-    const minN = parseInt(auditScoreMin);
-    const maxN = parseInt(auditScoreMax);
-    if (!isNaN(minN)) params.audit_score_min = minN;
-    if (!isNaN(maxN)) params.audit_score_max = maxN;
-
     fetchAdminDashboard(params)
-      .then(setData)
+      .then((d) => { _dashboardCache = d; setData(d); })
       .catch(() => {})
-      .finally(() => setLoading(false));
-  }, [auditDays, auditGroupBy, auditPlan, auditScoreMin, auditScoreMax, revenueDays]);
+      .finally(() => {
+        setCardsLoading(false);
+        initialLoadDone.current = true;
+      });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Audit filter changes — only refreshes the audit chart
+  useEffect(() => {
+    if (!initialLoadDone.current) return;
+    setAuditChartLoading(true);
+    const params: Parameters<typeof fetchAdminDashboard>[0] = {
+      audit_days: auditDays,
+      audit_group_by: auditGroupBy,
+      revenue_days: revenueDays,
+    };
+    if (auditPlan) params.audit_plan = auditPlan;
+    fetchAdminDashboard(params)
+      .then((d) => {
+        setData((prev) => {
+          const next = prev ? { ...prev, audit_trend: d.audit_trend } : d;
+          _dashboardCache = next;
+          return next;
+        });
+      })
+      .catch(() => {})
+      .finally(() => setAuditChartLoading(false));
+  }, [auditDays, auditGroupBy, auditPlan]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Revenue filter changes — only refreshes the revenue chart
+  useEffect(() => {
+    if (!initialLoadDone.current) return;
+    setRevenueChartLoading(true);
+    fetchAdminDashboard({
+      audit_days: auditDays,
+      audit_group_by: auditGroupBy,
+      revenue_days: revenueDays,
+    })
+      .then((d) => {
+        setData((prev) => {
+          const next = prev ? { ...prev, revenue_trend: d.revenue_trend } : d;
+          _dashboardCache = next;
+          return next;
+        });
+      })
+      .catch(() => {})
+      .finally(() => setRevenueChartLoading(false));
+  }, [revenueDays]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const queueDepth = data
     ? data.system.celery.active_tasks + data.system.celery.pending_tasks
@@ -541,7 +591,7 @@ export default function AdminDashboard() {
 
       {/* Summary cards row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
-        {loading ? (
+        {cardsLoading ? (
           <>
             <StatCardWithDonutSkeleton />
             <StatCardWithDonutSkeleton />
@@ -559,9 +609,10 @@ export default function AdminDashboard() {
               chart={
                 <MiniDonutChart
                   data={[
-                    { key: "admin", label: "Admins", value: data?.users.admin_count ?? 0 },
-                    { key: "pro", label: "Pro", value: data?.users.plan_distribution?.pro ?? 0 },
-                    { key: "agency", label: "Agency", value: data?.users.plan_distribution?.agency ?? 0 },
+                    { key: "free", label: "Free Users", value: Math.max(0, (data?.users.plan_distribution?.free ?? 0) - (data?.users.admin_count ?? 0)) },
+                    { key: "pro", label: "Pro Users", value: data?.users.plan_distribution?.pro ?? 0 },
+                    { key: "agency", label: "Agency Users", value: data?.users.plan_distribution?.agency ?? 0 },
+                    { key: "admin", label: "Admin", value: data?.users.admin_count ?? 0 },
                   ]}
                 />
               }
@@ -576,6 +627,7 @@ export default function AdminDashboard() {
               chart={
                 <MiniDonutChart
                   data={[
+                    { key: "free", label: "Free Audits", value: data?.audits.plan_distribution?.free ?? 0 },
                     { key: "pro", label: "Pro Audits", value: data?.audits.plan_distribution?.pro ?? 0 },
                     { key: "agency", label: "Agency Audits", value: data?.audits.plan_distribution?.agency ?? 0 },
                   ]}
@@ -614,6 +666,7 @@ export default function AdminDashboard() {
               chart={
                 <MiniDonutChart
                   data={[
+                    { key: "free", label: "Free", value: Math.max(0, (data?.users.plan_distribution?.free ?? 0) - (data?.users.admin_count ?? 0)) },
                     { key: "pro", label: "Pro", value: data?.revenue.plan_distribution?.pro ?? 0 },
                     { key: "agency", label: "Agency", value: data?.revenue.plan_distribution?.agency ?? 0 },
                   ]}
@@ -624,149 +677,85 @@ export default function AdminDashboard() {
         )}
       </div>
 
-      {/* Revenue section — combined card */}
-      <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 mb-6" style={{ boxShadow: "0 1px 3px rgba(0,0,0,.06)" }}>
-        <div className="flex items-center justify-between mb-3">
-          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">Revenue</p>
-          <select
-            value={revenueDays}
-            onChange={(e) => setRevenueDays(Number(e.target.value) as 7 | 30 | 365)}
-            className="text-xs border border-[var(--border)] rounded-md px-2 py-1 bg-[var(--surface)] text-[var(--muted)] focus:outline-none focus:ring-1 focus:ring-[#6366f1]"
-          >
-            <option value={7}>Last 7 days</option>
-            <option value={30}>Last 30 days</option>
-            <option value={365}>Last year</option>
-          </select>
-        </div>
-        {loading ? (
-          <div className="flex gap-6 animate-pulse">
-            <div className="flex-1 h-[200px] rounded-lg bg-[var(--border)]" />
-            <div className="w-[180px] h-[200px] rounded-lg bg-[var(--border)]" />
+      {/* Revenue + Audit Volume — same row */}
+      <div className="flex flex-col lg:flex-row gap-4 mb-6">
+        {/* Revenue card */}
+        <div className="flex-1 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4" style={{ boxShadow: "0 1px 3px rgba(0,0,0,.06)" }}>
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-sm font-bold uppercase tracking-wide text-[var(--muted)]">Revenue</p>
+            <select
+              value={revenueDays}
+              onChange={(e) => setRevenueDays(Number(e.target.value) as 7 | 30 | 365)}
+              className="text-xs border border-[var(--border)] rounded-md px-2 py-1 bg-[var(--surface)] text-[var(--muted)] focus:outline-none focus:ring-1 focus:ring-[#6366f1]"
+            >
+              <option value={7}>Last 7 days</option>
+              <option value={30}>Last 30 days</option>
+              <option value={365}>Last year</option>
+            </select>
           </div>
-        ) : (
-          <div className="flex flex-col lg:flex-row gap-6 items-start">
+          {revenueChartLoading ? (
+            <div className="h-[200px] rounded-lg bg-[var(--border)] animate-pulse" />
+          ) : (
             <RevenueStackedBarChart data={data?.revenue_trend ?? []} />
-            <div className="lg:border-l border-[var(--border)] lg:pl-6 flex-shrink-0">
-              <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)] mb-3">Plan Distribution</p>
-              <PlanDonutChart
-                distribution={data?.revenue.plan_distribution ?? {}}
-                activePaid={data?.revenue.active_paid ?? 0}
-                title=""
-              />
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Audit Volume with filters */}
-      <div className="mb-4">
-        <div className="flex flex-wrap items-center gap-2 mb-2">
-          {/* Time range */}
-          <div className="flex rounded-lg border border-[var(--border)] overflow-hidden">
-            {([7, 30, 90] as const).map((d) => (
-              <button
-                key={d}
-                onClick={() => setAuditDays(d)}
-                className="px-3 py-1 text-xs font-semibold transition-colors"
-                style={{
-                  background: auditDays === d ? "#6366f1" : "transparent",
-                  color: auditDays === d ? "#fff" : "var(--muted)",
-                }}
-              >
-                {d}d
-              </button>
-            ))}
-          </div>
-          {/* Group by */}
-          <div className="flex rounded-lg border border-[var(--border)] overflow-hidden">
-            {(["day", "week"] as const).map((g) => (
-              <button
-                key={g}
-                onClick={() => setAuditGroupBy(g)}
-                className="px-3 py-1 text-xs font-semibold capitalize transition-colors"
-                style={{
-                  background: auditGroupBy === g ? "#6366f1" : "transparent",
-                  color: auditGroupBy === g ? "#fff" : "var(--muted)",
-                }}
-              >
-                {g}
-              </button>
-            ))}
-          </div>
-          {/* Plan filter */}
-          <select
-            value={auditPlan}
-            onChange={(e) => setAuditPlan(e.target.value as typeof auditPlan)}
-            className="text-xs border border-[var(--border)] rounded-lg px-2 py-1 bg-[var(--surface)] text-[var(--muted)]"
-          >
-            <option value="">All plans</option>
-            <option value="free">Free</option>
-            <option value="pro">Pro</option>
-            <option value="agency">Agency</option>
-          </select>
-          {/* Score range */}
-          <input
-            type="number"
-            placeholder="Score min"
-            min={0}
-            max={100}
-            value={auditScoreMin}
-            onChange={(e) => setAuditScoreMin(e.target.value)}
-            className="text-xs border border-[var(--border)] rounded-lg px-2 py-1 w-24 bg-[var(--surface)] text-[var(--muted)]"
-          />
-          <input
-            type="number"
-            placeholder="Score max"
-            min={0}
-            max={100}
-            value={auditScoreMax}
-            onChange={(e) => setAuditScoreMax(e.target.value)}
-            className="text-xs border border-[var(--border)] rounded-lg px-2 py-1 w-24 bg-[var(--surface)] text-[var(--muted)]"
-          />
+          )}
         </div>
-        {loading ? (
-          <ChartSkeleton title="Audit Volume" />
-        ) : (
-          <AdminTrendChart data={data?.audit_trend ?? []} title="Audit Volume" color="#6366f1" />
-        )}
+
+        {/* Audit Volume card */}
+        <div className="flex-1 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4" style={{ boxShadow: "0 1px 3px rgba(0,0,0,.06)" }}>
+          <div className="flex flex-wrap items-center gap-2 mb-3">
+            <p className="text-sm font-bold uppercase tracking-wide text-[var(--muted)] mr-auto">Audit Volume</p>
+            {/* Time range */}
+            <div className="flex rounded-lg border border-[var(--border)] overflow-hidden">
+              {([7, 30, 90] as const).map((d) => (
+                <button
+                  key={d}
+                  onClick={() => setAuditDays(d)}
+                  className="px-3 py-1 text-xs font-semibold transition-colors"
+                  style={{
+                    background: auditDays === d ? "#6366f1" : "transparent",
+                    color: auditDays === d ? "#fff" : "var(--muted)",
+                  }}
+                >
+                  {d}d
+                </button>
+              ))}
+            </div>
+            {/* Group by */}
+            <div className="flex rounded-lg border border-[var(--border)] overflow-hidden">
+              {(["day", "week"] as const).map((g) => (
+                <button
+                  key={g}
+                  onClick={() => setAuditGroupBy(g)}
+                  className="px-3 py-1 text-xs font-semibold capitalize transition-colors"
+                  style={{
+                    background: auditGroupBy === g ? "#6366f1" : "transparent",
+                    color: auditGroupBy === g ? "#fff" : "var(--muted)",
+                  }}
+                >
+                  {g}
+                </button>
+              ))}
+            </div>
+            {/* Plan filter */}
+            <select
+              value={auditPlan}
+              onChange={(e) => setAuditPlan(e.target.value as typeof auditPlan)}
+              className="text-xs border border-[var(--border)] rounded-lg px-2 py-1 bg-[var(--surface)] text-[var(--muted)]"
+            >
+              <option value="">All plans</option>
+              <option value="free">Free</option>
+              <option value="pro">Pro</option>
+              <option value="agency">Agency</option>
+            </select>
+          </div>
+          {auditChartLoading ? (
+            <div className="h-[200px] rounded-lg bg-[var(--border)] animate-pulse" />
+          ) : (
+            <AdminTrendChart data={data?.audit_trend ?? []} title="" color="#6366f1" />
+          )}
+        </div>
       </div>
 
-      {/* System health row */}
-      <div className="mb-2">
-        <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)] mb-3">System Health</p>
-      </div>
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        {loading ? (
-          <><StatCardSkeleton /><StatCardSkeleton /><StatCardSkeleton /><StatCardSkeleton /></>
-        ) : (
-          <>
-            <StatCard
-              label="Queue Depth"
-              value={queueDepth != null ? String(queueDepth) : "--"}
-              accentColor="#0891b2"
-              icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>}
-            />
-            <StatCard
-              label="Failed Jobs"
-              value={data ? String(data.system.failed_jobs) : "--"}
-              accentColor="#dc2626"
-              icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>}
-            />
-            <StatCard
-              label="Worker Status"
-              value={data ? (data.system.celery.worker_online ? "Online" : "Offline") : "--"}
-              accentColor={data?.system.celery.worker_online ? "#16a34a" : "#dc2626"}
-              icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>}
-            />
-            <StatCard
-              label="Redis Memory"
-              value={data ? `${data.system.redis_memory_mb} MB` : "--"}
-              accentColor="#8b5cf6"
-              icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>}
-            />
-          </>
-        )}
-      </div>
     </div>
   );
 }
