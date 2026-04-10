@@ -54,28 +54,36 @@ function Spinner({ label }: { label: string }) {
 
 // ── Semicircle gauge (PageSpeed) ──────────────────────────────────────────────
 function SemiGauge({ score, label }: { score: number; label: string }) {
-  const r = 36, cx = 56, cy = 48;
+  const r = 44, cx = 60, cy = 58;
   const circ = Math.PI * r;
   const filled = Math.min(score / 100, 1) * circ;
-  const color = score >= 90 ? "var(--success)" : score >= 50 ? "#f59e0b" : "#ef4444";
+  const color = score >= 90 ? "#10b981" : score >= 50 ? "#f59e0b" : "#ef4444";
+  const gradId = `gauge-${label.replace(/\s/g, "")}`;
   return (
-    <div className="flex flex-col items-center gap-1">
-      <svg width="112" height="58" viewBox="0 0 112 58">
+    <div className="flex flex-col items-center gap-2">
+      <svg width="128" height="74" viewBox="0 0 128 74">
+        <defs>
+          <linearGradient id={gradId} x1="0" x2="1" y1="0" y2="0">
+            <stop offset="0%" stopColor={color} stopOpacity="0.5" />
+            <stop offset="100%" stopColor={color} />
+          </linearGradient>
+        </defs>
         <path
           d={`M ${cx - r} ${cy} A ${r} ${r} 0 0 1 ${cx + r} ${cy}`}
-          fill="none" stroke="var(--border)" strokeWidth="7" strokeLinecap="round"
+          fill="none" stroke="var(--border)" strokeWidth="9" strokeLinecap="round"
         />
         <path
           d={`M ${cx - r} ${cy} A ${r} ${r} 0 0 1 ${cx + r} ${cy}`}
-          fill="none" stroke={color} strokeWidth="7" strokeLinecap="round"
+          fill="none" stroke={`url(#${gradId})`} strokeWidth="9" strokeLinecap="round"
           strokeDasharray={`${filled} ${circ}`}
+          style={{ transition: "stroke-dasharray 900ms cubic-bezier(0.4, 0, 0.2, 1)" }}
         />
-        <text x={cx} y={cy - 5} textAnchor="middle" fontSize="22" fontWeight="bold"
-          fill={color} fontFamily="monospace">
+        <text x={cx} y={cy - 6} textAnchor="middle" fontSize="26" fontWeight="800"
+          fill={color} fontFamily="system-ui">
           {score}
         </text>
       </svg>
-      <span className="text-xs uppercase tracking-wide text-[var(--muted)]">{label}</span>
+      <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--muted)]">{label}</span>
     </div>
   );
 }
@@ -93,30 +101,55 @@ function SecurityHeadersBlock({ sh }: { sh: SecurityHeadersResult }) {
     ...preferredOrder.filter((k) => sh.headers[k]),
     ...Object.keys(sh.headers).filter((k) => !preferredOrder.includes(k)),
   ];
+  const pct = sh.total_count > 0 ? (sh.passed_count / sh.total_count) * 100 : 0;
+  const barColor = pct === 100 ? "#10b981" : pct >= 60 ? "#f59e0b" : "#ef4444";
   return (
-    <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4">
+    <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 transition-shadow hover:shadow-md">
       <div className="mb-4 flex items-center justify-between">
-        <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">
-          Security Headers
-        </p>
-        <span className={`font-mono text-xs font-bold ${
-          sh.passed_count === sh.total_count ? "text-[var(--success)]" : "text-[var(--warning)]"
-        }`}>
+        <div className="flex items-center gap-2">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-500/10 text-indigo-500">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+            </svg>
+          </div>
+          <p className="text-sm font-semibold text-[var(--foreground)]">Security Headers</p>
+        </div>
+        <span className="rounded-full px-2.5 py-0.5 text-[11px] font-bold" style={{ background: `${barColor}1a`, color: barColor }}>
           {sh.passed_count}/{sh.total_count}
         </span>
+      </div>
+      <div className="mb-4 h-1.5 w-full overflow-hidden rounded-full bg-[var(--surface-elevated)]">
+        <div
+          className="h-full rounded-full"
+          style={{ width: `${pct}%`, background: barColor, transition: "width 900ms cubic-bezier(0.4, 0, 0.2, 1)" }}
+        />
       </div>
       {sh.error ? (
         <p className="text-xs text-[var(--warning)]">{sh.error}</p>
       ) : (
-        <div className="space-y-2.5">
+        <div className="space-y-1.5">
           {displayKeys.map((key) => {
             const info = sh.headers[key];
             if (!info) return null;
             return (
-              <div key={key} className="flex items-center justify-between text-xs">
-                <span className="text-[var(--foreground)]">{info.label}</span>
-                <span className={info.present ? "text-[var(--success)]" : "text-red-500"}>
-                  {info.present ? "✓" : "✗"}
+              <div
+                key={key}
+                className="flex items-center justify-between rounded-md px-2.5 py-1.5 text-xs transition-colors hover:bg-[var(--surface-elevated)]"
+              >
+                <span className="flex items-center gap-2 text-[var(--foreground)]">
+                  <span
+                    className="inline-flex h-4 w-4 items-center justify-center rounded-full text-[10px] font-bold"
+                    style={{
+                      background: info.present ? "#10b98122" : "#ef444422",
+                      color: info.present ? "#10b981" : "#ef4444",
+                    }}
+                  >
+                    {info.present ? "✓" : "✗"}
+                  </span>
+                  {info.label}
+                </span>
+                <span className={`font-mono text-[10px] ${info.present ? "text-[var(--success)]" : "text-red-500"}`}>
+                  {info.present ? "PASS" : "FAIL"}
                 </span>
               </div>
             );
@@ -132,49 +165,154 @@ function AuditFullPanel({ audit }: { audit: AuditResult }) {
   const { https, sitemap, broken_links, missing_canonicals, pagespeed } = audit;
   const desk = pagespeed.desktop;
   const mob = pagespeed.mobile;
+  const [expanded, setExpanded] = useState<"broken" | "canonicals" | null>(null);
+
+  const checks = [
+    { key: "https", passed: https.passed },
+    { key: "sitemap", passed: sitemap.found },
+    { key: "broken", passed: broken_links.count === 0 },
+    { key: "canonicals", passed: missing_canonicals.missing_count === 0 },
+  ];
+  const passedCount = checks.filter(c => c.passed).length;
+  const healthPct = (passedCount / checks.length) * 100;
+  const healthColor = healthPct === 100 ? "#10b981" : healthPct >= 50 ? "#f59e0b" : "#ef4444";
+  const healthLabel = healthPct === 100 ? "Excellent" : healthPct >= 75 ? "Good" : healthPct >= 50 ? "Fair" : "Poor";
 
   function StatusCard({
-    icon, title, ok, badge,
+    icon, title, ok, badge, tint, onClick, expanded: isExpanded, clickable,
   }: {
-    icon: React.ReactNode; title: string; ok: boolean; badge: string;
+    icon: React.ReactNode;
+    title: string;
+    ok: boolean;
+    badge: string;
+    tint: string;
+    onClick?: () => void;
+    expanded?: boolean;
+    clickable?: boolean;
   }) {
+    const statusColor = ok ? "#10b981" : "#ef4444";
     return (
-      <div className="flex flex-col gap-4 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4">
-        <div className="flex items-center gap-2">
-          <span className={ok ? "text-[var(--success)]" : "text-[var(--warning)]"}>{icon}</span>
-          <span className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">{title}</span>
+      <button
+        type="button"
+        onClick={onClick}
+        disabled={!clickable}
+        className={`group relative flex flex-col gap-3 overflow-hidden rounded-xl border bg-[var(--surface)] p-4 text-left transition-all ${
+          clickable ? "cursor-pointer hover:-translate-y-0.5 hover:shadow-lg" : "cursor-default"
+        } ${isExpanded ? "border-[var(--accent)] shadow-md ring-2 ring-[var(--accent)]/20" : "border-[var(--border)]"}`}
+      >
+        <div
+          className="pointer-events-none absolute inset-0 opacity-40 transition-opacity group-hover:opacity-60"
+          style={{ background: `radial-gradient(circle at top right, ${tint}22, transparent 70%)` }}
+        />
+        <div className="relative flex items-center justify-between">
+          <div
+            className="flex h-10 w-10 items-center justify-center rounded-lg"
+            style={{ background: `${tint}1a`, color: tint }}
+          >
+            {icon}
+          </div>
+          <span
+            className="inline-flex h-6 w-6 items-center justify-center rounded-full text-sm font-bold"
+            style={{ background: `${statusColor}1a`, color: statusColor }}
+          >
+            {ok ? "✓" : "!"}
+          </span>
         </div>
-        <span className={`self-start rounded px-3 py-1 text-xs font-bold ${
-          ok
-            ? "bg-[var(--success)]/15 text-[var(--success)]"
-            : "bg-red-500/15 text-red-400"
-        }`}>
-          {badge}
-        </span>
-      </div>
+        <div className="relative">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--muted)]">{title}</p>
+          <p className="mt-1 text-sm font-bold text-[var(--foreground)]">{badge}</p>
+        </div>
+        {clickable && (
+          <span className="relative mt-auto text-[10px] font-medium text-[var(--accent)]">
+            {isExpanded ? "Hide details ↑" : "View details →"}
+          </span>
+        )}
+      </button>
     );
   }
 
-  const cwvMetrics: { key: keyof PageSpeedResult; label: string }[] = [
-    { key: "fcp", label: "FCP" },
-    { key: "lcp", label: "LCP" },
-    { key: "tbt", label: "TBT" },
-    { key: "cls", label: "CLS" },
-    { key: "speed_index", label: "SI" },
+  const cwvMetrics: { key: keyof PageSpeedResult; label: string; full: string }[] = [
+    { key: "fcp", label: "FCP", full: "First Contentful Paint" },
+    { key: "lcp", label: "LCP", full: "Largest Contentful Paint" },
+    { key: "tbt", label: "TBT", full: "Total Blocking Time" },
+    { key: "cls", label: "CLS", full: "Cumulative Layout Shift" },
+    { key: "speed_index", label: "SI", full: "Speed Index" },
   ];
 
   const hasSecHeaders = !!audit.security_headers;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-auto p-4">
-      {/* Top: 4 status cards */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      {/* Hero health summary */}
+      <div
+        className="relative shrink-0 overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4"
+        style={{
+          backgroundImage: `linear-gradient(135deg, ${healthColor}10 0%, transparent 55%)`,
+        }}
+      >
+        <div className="relative flex items-center gap-4">
+          {/* Circular health badge */}
+          <div
+            className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full font-black text-base"
+            style={{
+              background: `${healthColor}18`,
+              color: healthColor,
+              border: `2px solid ${healthColor}`,
+            }}
+          >
+            {Math.round(healthPct)}%
+          </div>
+
+          {/* Title + subtitle */}
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <p className="text-sm font-bold text-[var(--foreground)]">Site Health</p>
+              <span
+                className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider"
+                style={{ background: `${healthColor}1a`, color: healthColor }}
+              >
+                {healthLabel}
+              </span>
+            </div>
+            <p className="mt-0.5 text-xs text-[var(--muted)]">
+              {passedCount} of {checks.length} core checks passing
+            </p>
+            {/* Progress bar */}
+            <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-[var(--surface-elevated)]">
+              <div
+                className="h-full rounded-full"
+                style={{
+                  width: `${healthPct}%`,
+                  background: `linear-gradient(90deg, ${healthColor}, ${healthColor}cc)`,
+                  transition: "width 900ms cubic-bezier(0.4, 0, 0.2, 1)",
+                }}
+              />
+            </div>
+          </div>
+
+          {/* Check indicator dots */}
+          <div className="hidden shrink-0 gap-1.5 sm:flex">
+            {checks.map(c => (
+              <div
+                key={c.key}
+                className="h-8 w-1.5 rounded-full"
+                style={{ background: c.passed ? "#10b981" : "#ef4444", opacity: c.passed ? 1 : 0.8 }}
+                title={c.key}
+              />
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* 4 status cards */}
+      <div className="grid shrink-0 grid-cols-2 gap-3 sm:grid-cols-4">
         <StatusCard
           title="HTTPS"
           ok={https.passed}
           badge={https.passed ? "Secure" : "Not Secure"}
+          tint="#6366f1"
           icon={
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
               <rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" />
             </svg>
           }
@@ -183,30 +321,37 @@ function AuditFullPanel({ audit }: { audit: AuditResult }) {
           title="Sitemap"
           ok={sitemap.found}
           badge={sitemap.found ? "Found" : "Not Found"}
+          tint="#0ea5e9"
           icon={
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
-              <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 3h7v7H3z"/><path d="M14 3h7v7h-7z"/><path d="M14 14h7v7h-7z"/><path d="M3 14h7v7H3z"/>
             </svg>
           }
         />
         <StatusCard
           title="Broken Links"
           ok={broken_links.count === 0}
-          badge={broken_links.count === 0 ? "None" : `${broken_links.count} found`}
+          badge={broken_links.count === 0 ? "None Found" : `${broken_links.count} found`}
+          tint="#ef4444"
+          clickable={broken_links.urls.length > 0}
+          expanded={expanded === "broken"}
+          onClick={() => setExpanded(expanded === "broken" ? null : "broken")}
           icon={
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-              <line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" />
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><path d="M15 3h6v6"/><path d="M10 14L21 3"/>
             </svg>
           }
         />
         <StatusCard
           title="Canonicals"
           ok={missing_canonicals.missing_count === 0}
-          badge={missing_canonicals.missing_count === 0 ? "OK" : `${missing_canonicals.missing_count} missing`}
+          badge={missing_canonicals.missing_count === 0 ? "All OK" : `${missing_canonicals.missing_count} missing`}
+          tint="#8b5cf6"
+          clickable={missing_canonicals.missing_count > 0}
+          expanded={expanded === "canonicals"}
+          onClick={() => setExpanded(expanded === "canonicals" ? null : "canonicals")}
           icon={
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
               <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
             </svg>
@@ -214,78 +359,95 @@ function AuditFullPanel({ audit }: { audit: AuditResult }) {
         />
       </div>
 
-      {/* Broken links list */}
-      {broken_links.urls.length > 0 && (
-        <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)]">
-          <p className="border-b border-[var(--border)] px-4 py-2 text-xs font-semibold uppercase tracking-wide text-[var(--warning)]">
-            Broken Links
-          </p>
-          <div className="max-h-40 overflow-auto">
+      {/* Expandable broken links list */}
+      {expanded === "broken" && broken_links.urls.length > 0 && (
+        <div className="shrink-0 overflow-hidden rounded-xl border border-red-500/30 bg-[var(--surface)]">
+          <div className="flex items-center justify-between border-b border-[var(--border)] bg-red-500/5 px-4 py-2.5">
+            <div className="flex items-center gap-2">
+              <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-red-500/15 text-[11px] font-bold text-red-500">!</span>
+              <p className="text-xs font-semibold text-red-500">Broken Links ({broken_links.urls.length})</p>
+            </div>
+            <button onClick={() => setExpanded(null)} className="text-xs text-[var(--muted)] hover:text-[var(--foreground)]">✕</button>
+          </div>
+          <div className="max-h-56 overflow-auto">
             {broken_links.urls.map((u, i) => (
-              <p key={i} className="truncate border-b border-[var(--border)]/40 px-4 py-1.5 font-mono text-xs text-red-400" title={u}>
-                {u}
-              </p>
+              <div key={i} className="flex items-center gap-2 border-b border-[var(--border)]/40 px-4 py-2 font-mono text-xs transition-colors hover:bg-[var(--surface-elevated)]">
+                <span className="text-[10px] text-[var(--muted)]">{i + 1}.</span>
+                <span className="truncate text-red-400" title={u}>{u}</span>
+              </div>
             ))}
           </div>
         </div>
       )}
 
-      {/* Missing canonicals list */}
-      {missing_canonicals.missing_count > 0 && (
-        <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)]">
-          <p className="border-b border-[var(--border)] px-4 py-2 text-xs font-semibold uppercase tracking-wide text-[var(--warning)]">
-            Missing Canonicals ({missing_canonicals.missing_count} / {missing_canonicals.total_html_pages})
-          </p>
-          <div className="max-h-40 overflow-auto">
-            {missing_canonicals.urls.map((u, i) => (
-              <p key={i} className="truncate border-b border-[var(--border)]/40 px-4 py-1.5 font-mono text-xs text-[var(--muted)]" title={u}>
-                {u}
+      {/* Expandable missing canonicals list */}
+      {expanded === "canonicals" && missing_canonicals.missing_count > 0 && (
+        <div className="shrink-0 overflow-hidden rounded-xl border border-purple-500/30 bg-[var(--surface)]">
+          <div className="flex items-center justify-between border-b border-[var(--border)] bg-purple-500/5 px-4 py-2.5">
+            <div className="flex items-center gap-2">
+              <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-purple-500/15 text-[11px] font-bold text-purple-500">!</span>
+              <p className="text-xs font-semibold text-purple-500">
+                Missing Canonicals ({missing_canonicals.missing_count} / {missing_canonicals.total_html_pages})
               </p>
+            </div>
+            <button onClick={() => setExpanded(null)} className="text-xs text-[var(--muted)] hover:text-[var(--foreground)]">✕</button>
+          </div>
+          <div className="max-h-56 overflow-auto">
+            {missing_canonicals.urls.map((u, i) => (
+              <div key={i} className="flex items-center gap-2 border-b border-[var(--border)]/40 px-4 py-2 font-mono text-xs transition-colors hover:bg-[var(--surface-elevated)]">
+                <span className="text-[10px] text-[var(--muted)]">{i + 1}.</span>
+                <span className="truncate text-[var(--muted)]" title={u}>{u}</span>
+              </div>
             ))}
           </div>
         </div>
       )}
 
       {/* Bottom: Security Headers + PageSpeed */}
-      <div className={`grid gap-4 ${hasSecHeaders ? "grid-cols-1 lg:grid-cols-2" : "grid-cols-1"}`}>
+      <div className={`grid shrink-0 gap-4 ${hasSecHeaders ? "grid-cols-1 lg:grid-cols-2" : "grid-cols-1"}`}>
         {hasSecHeaders && <SecurityHeadersBlock sh={audit.security_headers!} />}
 
         {/* PageSpeed */}
-        <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4">
-          <p className="mb-4 text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">Pagespeed</p>
+        <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 transition-shadow hover:shadow-md">
+          <div className="mb-4 flex items-center gap-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-500/10 text-amber-500">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+              </svg>
+            </div>
+            <p className="text-sm font-semibold text-[var(--foreground)]">PageSpeed Insights</p>
+          </div>
           {desk.error && mob.error ? (
             <p className="text-xs text-[var(--warning)]">{psiErrorMessage(desk.error)}</p>
           ) : (
             <>
-              <div className="flex justify-around mb-5">
+              <div className="mb-5 flex justify-around">
                 {!desk.error && desk.performance != null && <SemiGauge score={desk.performance} label="Desktop" />}
                 {!mob.error && mob.performance != null && <SemiGauge score={mob.performance} label="Mobile" />}
               </div>
               <div className="grid grid-cols-2 gap-3 text-xs">
-                <div className="rounded-lg bg-[var(--surface-elevated)] px-4 py-3 space-y-2">
-                  {cwvMetrics.map(({ key, label }) => {
-                    const val = desk[key];
-                    if (!val) return null;
-                    return (
-                      <div key={label} className="flex justify-between">
-                        <span className="text-[var(--muted)]">{label}</span>
-                        <span className="font-mono text-[var(--accent)]">{val}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-                <div className="rounded-lg bg-[var(--surface-elevated)] px-4 py-3 space-y-2">
-                  {cwvMetrics.map(({ key, label }) => {
-                    const val = mob[key];
-                    if (!val) return null;
-                    return (
-                      <div key={label} className="flex justify-between">
-                        <span className="text-[var(--muted)]">{label}</span>
-                        <span className="font-mono text-[var(--accent)]">{val}</span>
-                      </div>
-                    );
-                  })}
-                </div>
+                {[
+                  { label: "Desktop", data: desk, accent: "#6366f1" },
+                  { label: "Mobile", data: mob, accent: "#0ea5e9" },
+                ].map(({ label, data, accent }) => (
+                  <div key={label} className="rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)] p-3">
+                    <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider" style={{ color: accent }}>
+                      {label}
+                    </p>
+                    <div className="space-y-1.5">
+                      {cwvMetrics.map(({ key, label: metricLabel, full }) => {
+                        const val = data[key];
+                        if (!val) return null;
+                        return (
+                          <div key={metricLabel} className="flex items-center justify-between" title={full}>
+                            <span className="text-[var(--muted)]">{metricLabel}</span>
+                            <span className="font-mono font-semibold text-[var(--foreground)]">{val}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
               </div>
             </>
           )}
@@ -356,7 +518,7 @@ export default function Home() {
   const [audit, setAudit] = useState<AuditResponse | null>(null);
   const [geo, setGeo] = useState<GeoResponse | null>(null);
   const [openDropdown, setOpenDropdown] = useState<"status" | "indexability" | "canonical" | null>(null);
-  const defaultFilters = { statusGroup: [] as string[], indexability: [] as string[], hasCanonical: null as boolean | null };
+  const defaultFilters = { statusGroup: null as string | null, indexability: null as string | null, hasCanonical: null as boolean | null };
   const [colFilters, setColFilters] = useState(defaultFilters);
   const [draftFilters, setDraftFilters] = useState(defaultFilters);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -531,8 +693,8 @@ export default function Home() {
   }
 
   const filteredDashboardPages = (pagesData?.pages ?? []).filter(page => {
-    if (colFilters.statusGroup.length > 0 && !colFilters.statusGroup.some(g => matchesStatusGroup(page.status_code, g))) return false;
-    if (colFilters.indexability.length > 0 && !colFilters.indexability.includes(page.indexability ?? "")) return false;
+    if (colFilters.statusGroup && !matchesStatusGroup(page.status_code, colFilters.statusGroup)) return false;
+    if (colFilters.indexability && (page.indexability ?? "") !== colFilters.indexability) return false;
     if (colFilters.hasCanonical !== null) {
       const hasCanon = !!page.canonical;
       if (colFilters.hasCanonical !== hasCanon) return false;
@@ -991,35 +1153,29 @@ export default function Home() {
                                 else { setDraftFilters({ ...colFilters }); setOpenDropdown("status"); }
                               }}
                               className={`flex items-center gap-1 rounded border px-2 py-1 text-xs transition-colors ${
-                                colFilters.statusGroup.length > 0
+                                colFilters.statusGroup
                                   ? "border-[var(--accent)] bg-[var(--accent-light)] text-[var(--accent)] font-medium"
                                   : "border-[var(--border)] bg-[var(--surface-elevated)] text-[var(--muted)] hover:text-[var(--foreground)]"
                               }`}
                             >
-                              Status{colFilters.statusGroup.length > 0 ? ` · ${colFilters.statusGroup.length}` : ""}
+                              {draftFilters.statusGroup ? `Status: ${draftFilters.statusGroup}` : "Status"}
                               <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
                             </button>
                             {openDropdown === "status" && (
                               <div className="absolute left-0 top-full z-50 mt-1 rounded-lg border border-[var(--border)] bg-[var(--surface)] shadow-lg" style={{ minWidth: 170 }}>
-                                <div className="px-3 py-2 space-y-1.5">
+                                <div className="py-1">
                                   {([["2xx", "OK"], ["3xx", "Redirects"], ["4xx", "Client Errors"], ["5xx", "Server Errors"]] as const).map(([g, label]) => (
-                                    <label key={g} className="flex items-center gap-2 cursor-pointer text-xs text-[var(--foreground)] hover:text-[var(--accent)]">
-                                      <input
-                                        type="checkbox"
-                                        checked={draftFilters.statusGroup.includes(g)}
-                                        onChange={() => setDraftFilters(d => ({
-                                          ...d,
-                                          statusGroup: d.statusGroup.includes(g) ? d.statusGroup.filter(x => x !== g) : [...d.statusGroup, g]
-                                        }))}
-                                        className="accent-[var(--accent)]"
-                                      />
+                                    <button
+                                      key={g}
+                                      type="button"
+                                      onClick={() => { setDraftFilters(d => ({ ...d, statusGroup: g })); setOpenDropdown(null); }}
+                                      className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs hover:bg-[var(--surface-elevated)] ${
+                                        draftFilters.statusGroup === g ? "text-[var(--accent)] font-medium" : "text-[var(--foreground)]"
+                                      }`}
+                                    >
                                       <span className="font-mono text-[10px] text-[var(--muted)]">{g}</span> {label}
-                                    </label>
+                                    </button>
                                   ))}
-                                </div>
-                                <div className="flex items-center justify-between border-t border-[var(--border)] px-3 py-1.5">
-                                  <button onClick={() => { setDraftFilters(d => ({ ...d, statusGroup: [] })); setColFilters(f => ({ ...f, statusGroup: [] })); setOpenDropdown(null); }} className="text-[10px] text-[var(--muted)] hover:text-[var(--foreground)]">Clear</button>
-                                  <button onClick={() => { setColFilters(f => ({ ...f, statusGroup: draftFilters.statusGroup })); setOpenDropdown(null); }} className="rounded bg-[var(--accent)] px-2 py-0.5 text-[10px] text-white">Apply</button>
                                 </div>
                               </div>
                             )}
@@ -1032,35 +1188,29 @@ export default function Home() {
                                 else { setDraftFilters({ ...colFilters }); setOpenDropdown("indexability"); }
                               }}
                               className={`flex items-center gap-1 rounded border px-2 py-1 text-xs transition-colors ${
-                                colFilters.indexability.length > 0
+                                colFilters.indexability
                                   ? "border-[var(--accent)] bg-[var(--accent-light)] text-[var(--accent)] font-medium"
                                   : "border-[var(--border)] bg-[var(--surface-elevated)] text-[var(--muted)] hover:text-[var(--foreground)]"
                               }`}
                             >
-                              Indexability{colFilters.indexability.length > 0 ? ` · ${colFilters.indexability.length}` : ""}
+                              {draftFilters.indexability ? `Indexability: ${draftFilters.indexability}` : "Indexability"}
                               <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
                             </button>
                             {openDropdown === "indexability" && (
                               <div className="absolute left-0 top-full z-50 mt-1 rounded-lg border border-[var(--border)] bg-[var(--surface)] shadow-lg" style={{ minWidth: 160 }}>
-                                <div className="px-3 py-2 space-y-1.5">
+                                <div className="py-1">
                                   {(["Indexable", "Non-Indexable"] as const).map((val) => (
-                                    <label key={val} className="flex items-center gap-2 cursor-pointer text-xs text-[var(--foreground)] hover:text-[var(--accent)]">
-                                      <input
-                                        type="checkbox"
-                                        checked={draftFilters.indexability.includes(val)}
-                                        onChange={() => setDraftFilters(d => ({
-                                          ...d,
-                                          indexability: d.indexability.includes(val) ? d.indexability.filter(x => x !== val) : [...d.indexability, val]
-                                        }))}
-                                        className="accent-[var(--accent)]"
-                                      />
+                                    <button
+                                      key={val}
+                                      type="button"
+                                      onClick={() => { setDraftFilters(d => ({ ...d, indexability: val })); setOpenDropdown(null); }}
+                                      className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs hover:bg-[var(--surface-elevated)] ${
+                                        draftFilters.indexability === val ? "text-[var(--accent)] font-medium" : "text-[var(--foreground)]"
+                                      }`}
+                                    >
                                       {val}
-                                    </label>
+                                    </button>
                                   ))}
-                                </div>
-                                <div className="flex items-center justify-between border-t border-[var(--border)] px-3 py-1.5">
-                                  <button onClick={() => { setDraftFilters(d => ({ ...d, indexability: [] })); setColFilters(f => ({ ...f, indexability: [] })); setOpenDropdown(null); }} className="text-[10px] text-[var(--muted)] hover:text-[var(--foreground)]">Clear</button>
-                                  <button onClick={() => { setColFilters(f => ({ ...f, indexability: draftFilters.indexability })); setOpenDropdown(null); }} className="rounded bg-[var(--accent)] px-2 py-0.5 text-[10px] text-white">Apply</button>
                                 </div>
                               </div>
                             )}
@@ -1078,32 +1228,40 @@ export default function Home() {
                                   : "border-[var(--border)] bg-[var(--surface-elevated)] text-[var(--muted)] hover:text-[var(--foreground)]"
                               }`}
                             >
-                              Canonical{colFilters.hasCanonical !== null ? " · 1" : ""}
+                              {draftFilters.hasCanonical === true ? "Canonical: Has" : draftFilters.hasCanonical === false ? "Canonical: Missing" : "Canonical"}
                               <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
                             </button>
                             {openDropdown === "canonical" && (
                               <div className="absolute left-0 top-full z-50 mt-1 rounded-lg border border-[var(--border)] bg-[var(--surface)] shadow-lg" style={{ minWidth: 170 }}>
-                                <div className="px-3 py-2 space-y-1.5">
-                                  {([["any", "Any", null], ["has", "Has Canonical", true], ["missing", "Missing Canonical", false]] as const).map(([key, label, val]) => (
-                                    <label key={key} className="flex items-center gap-2 cursor-pointer text-xs text-[var(--foreground)] hover:text-[var(--accent)]">
-                                      <input
-                                        type="radio"
-                                        name="canonical-filter"
-                                        checked={draftFilters.hasCanonical === val}
-                                        onChange={() => setDraftFilters(d => ({ ...d, hasCanonical: val }))}
-                                        className="accent-[var(--accent)]"
-                                      />
+                                <div className="py-1">
+                                  {([["has", "Has Canonical", true], ["missing", "Missing Canonical", false]] as const).map(([key, label, val]) => (
+                                    <button
+                                      key={key}
+                                      type="button"
+                                      onClick={() => { setDraftFilters(d => ({ ...d, hasCanonical: val })); setOpenDropdown(null); }}
+                                      className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs hover:bg-[var(--surface-elevated)] ${
+                                        draftFilters.hasCanonical === val ? "text-[var(--accent)] font-medium" : "text-[var(--foreground)]"
+                                      }`}
+                                    >
                                       {label}
-                                    </label>
+                                    </button>
                                   ))}
-                                </div>
-                                <div className="flex items-center justify-between border-t border-[var(--border)] px-3 py-1.5">
-                                  <button onClick={() => { setDraftFilters(d => ({ ...d, hasCanonical: null })); setColFilters(f => ({ ...f, hasCanonical: null })); setOpenDropdown(null); }} className="text-[10px] text-[var(--muted)] hover:text-[var(--foreground)]">Clear</button>
-                                  <button onClick={() => { setColFilters(f => ({ ...f, hasCanonical: draftFilters.hasCanonical })); setOpenDropdown(null); }} className="rounded bg-[var(--accent)] px-2 py-0.5 text-[10px] text-white">Apply</button>
                                 </div>
                               </div>
                             )}
                           </div>
+                          <button
+                            onClick={() => { setColFilters({ ...draftFilters }); setOpenDropdown(null); }}
+                            className="rounded bg-[var(--accent)] px-3 py-1 text-xs font-medium text-white hover:opacity-90"
+                          >
+                            Filter
+                          </button>
+                          <button
+                            onClick={() => { setDraftFilters(defaultFilters); setColFilters(defaultFilters); setOpenDropdown(null); }}
+                            className="rounded border border-[var(--border)] bg-[var(--surface-elevated)] px-3 py-1 text-xs text-[var(--muted)] hover:text-[var(--foreground)]"
+                          >
+                            Clear
+                          </button>
                           <span className="ml-auto shrink-0 text-xs text-[var(--muted)]">
                             {pagesData?.total ?? 0} URL{(pagesData?.total ?? 0) !== 1 ? "s" : ""}
                             {site?.status === "processing" && " (updating…)"}
