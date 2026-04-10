@@ -894,6 +894,7 @@ export interface AdminUserMetrics {
   total: number;
   active: number;
   disabled: number;
+  admin_count: number;
   plan_distribution: Record<string, number>;
 }
 
@@ -901,6 +902,7 @@ export interface AdminAuditMetrics {
   total_audits: number;
   avg_score: number | null;
   most_audited_domains: { domain: string; count: number }[];
+  plan_distribution: Record<string, number>;
 }
 
 export interface AdminRevenueMetrics {
@@ -928,6 +930,8 @@ export interface AdminTrendPoint {
 export interface AdminRevenueTrendPoint {
   date: string;
   mrr: number;
+  pro: number;
+  agency: number;
 }
 
 export interface BannedDomain {

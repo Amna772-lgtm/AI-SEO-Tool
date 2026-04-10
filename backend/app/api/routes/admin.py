@@ -261,7 +261,7 @@ def admin_dashboard(
     audit_plan: str | None = Query(default=None),
     audit_score_min: int | None = Query(default=None, ge=0, le=100),
     audit_score_max: int | None = Query(default=None, ge=0, le=100),
-    revenue_days: int = Query(default=30, ge=7, le=90),
+    revenue_days: int = Query(default=7, ge=7, le=365),
 ) -> dict[str, Any]:
     """Return aggregated analytics: user metrics, audit metrics, revenue, system health, trends."""
     from app.store.history_store import (
@@ -273,19 +273,27 @@ def admin_dashboard(
         get_signup_trend,
     )
 
-    users = get_admin_user_metrics()
-    audits = get_audit_metrics()
-    revenue = get_revenue_metrics()
-    signup_trend = get_signup_trend(30)
-    audit_trend = get_audit_trend(
+    def _safe(fn, *args, default=None, **kwargs):
+        try:
+            return fn(*args, **kwargs)
+        except Exception:
+            return default
+
+    users = _safe(get_admin_user_metrics, default={"total": 0, "active": 0, "disabled": 0, "plan_distribution": {}})
+    audits = _safe(get_audit_metrics, default={"total_audits": 0, "avg_score": None, "most_audited_domains": []})
+    revenue = _safe(get_revenue_metrics, default={"mrr": 0, "active_paid": 0, "plan_distribution": {}})
+    signup_trend = _safe(get_signup_trend, 30, default=[])
+    audit_trend = _safe(
+        get_audit_trend,
         days=audit_days,
         group_by=audit_group_by,
         plan_filter=audit_plan,
         score_min=audit_score_min,
         score_max=audit_score_max,
+        default=[],
     )
-    revenue_trend = get_revenue_trend(revenue_days)
-    system = _get_system_health()
+    revenue_trend = _safe(get_revenue_trend, revenue_days, default=[])
+    system = _safe(_get_system_health, default={"celery": {"active_tasks": 0, "pending_tasks": 0, "worker_online": False}, "redis_memory_mb": 0, "avg_audit_duration": None, "failed_jobs": 0})
 
     return {
         "users": users,

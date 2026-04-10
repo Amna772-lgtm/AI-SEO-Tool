@@ -1092,12 +1092,13 @@ PLAN_PRICES = {"free": 0, "pro": 29, "agency": 99}
 
 
 def get_admin_user_metrics() -> dict[str, Any]:
-    """Return total/active/disabled counts and plan distribution."""
+    """Return total/active/disabled counts, admin count, and plan distribution."""
     conn = _connect()
     try:
         total = conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
         active = conn.execute("SELECT COUNT(*) FROM users WHERE is_disabled = 0").fetchone()[0]
         disabled = conn.execute("SELECT COUNT(*) FROM users WHERE is_disabled = 1").fetchone()[0]
+        admin_count = conn.execute("SELECT COUNT(*) FROM users WHERE is_admin = 1").fetchone()[0]
         plan_rows = conn.execute(
             "SELECT plan, COUNT(*) as count FROM subscriptions GROUP BY plan"
         ).fetchall()
@@ -1105,6 +1106,7 @@ def get_admin_user_metrics() -> dict[str, Any]:
             "total": total,
             "active": active,
             "disabled": disabled,
+            "admin_count": admin_count,
             "plan_distribution": {row["plan"]: row["count"] for row in plan_rows},
         }
     finally:
@@ -1127,7 +1129,7 @@ def get_signup_trend(days: int = 30) -> list[dict[str, Any]]:
 
 
 def get_audit_metrics() -> dict[str, Any]:
-    """Return total audits, average score, and top domains."""
+    """Return total audits, average score, top domains, and per-plan audit counts."""
     conn = _connect()
     try:
         total = conn.execute("SELECT COUNT(*) FROM analyses").fetchone()[0]
@@ -1138,10 +1140,18 @@ def get_audit_metrics() -> dict[str, Any]:
         top_domains = conn.execute(
             "SELECT domain, COUNT(*) as count FROM analyses GROUP BY domain ORDER BY count DESC LIMIT 10"
         ).fetchall()
+        plan_rows = conn.execute(
+            "SELECT s.plan, COUNT(*) as count FROM analyses a "
+            "JOIN users u ON a.user_id = u.id "
+            "JOIN subscriptions s ON u.id = s.user_id "
+            "WHERE a.user_id IS NOT NULL "
+            "GROUP BY s.plan"
+        ).fetchall()
         return {
             "total_audits": total,
             "avg_score": avg_score,
             "most_audited_domains": [{"domain": r["domain"], "count": r["count"]} for r in top_domains],
+            "plan_distribution": {row["plan"]: row["count"] for row in plan_rows},
         }
     finally:
         conn.close()
@@ -1234,8 +1244,14 @@ def get_revenue_trend(days: int = 30) -> list[dict[str, Any]]:
                 "AND DATE(created_at) <= ? GROUP BY plan",
                 (d_str,),
             ).fetchall()
-            mrr = sum(PLAN_PRICES.get(r["plan"], 0) * r["count"] for r in rows)
-            result.append({"date": d_str, "mrr": mrr})
+            per_plan = {r["plan"]: PLAN_PRICES.get(r["plan"], 0) * r["count"] for r in rows}
+            mrr = sum(per_plan.values())
+            result.append({
+                "date": d_str,
+                "mrr": mrr,
+                "pro": per_plan.get("pro", 0),
+                "agency": per_plan.get("agency", 0),
+            })
         return result
     finally:
         conn.close()
