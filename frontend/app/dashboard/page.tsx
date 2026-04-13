@@ -8,6 +8,7 @@ import {
   getOverview,
   getAudit,
   getGeo,
+  getHistory,
   type Site,
   type PageRow,
   type PagesResponse,
@@ -17,6 +18,7 @@ import {
   type PageSpeedResult,
   type SecurityHeadersResult,
   type GeoResponse,
+  type HistoryItem,
 } from "../lib/api";
 import { GeoTab } from "../components/geo/GeoTab";
 import { ChecklistPanel } from "../components/geo/ChecklistPanel";
@@ -28,7 +30,7 @@ import LockedFeature from "../components/LockedFeature";
 import CompetitorsTab from "../components/competitors/CompetitorsTab";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
-type MainTab = "dashboard" | "audit" | "geo" | "insights" | "history" | "schedules" | "competitors";
+type MainTab = "dashboard" | "geo" | "insights" | "history" | "schedules" | "competitors";
 
 // ── Small UI helpers ───────────────────────────────────────────────────────────
 
@@ -160,302 +162,6 @@ function SecurityHeadersBlock({ sh }: { sh: SecurityHeadersResult }) {
   );
 }
 
-// ── Technical Audit Panel ──────────────────────────────────────────────────────
-function AuditFullPanel({ audit }: { audit: AuditResult }) {
-  const { https, sitemap, broken_links, missing_canonicals, pagespeed } = audit;
-  const desk = pagespeed.desktop;
-  const mob = pagespeed.mobile;
-  const [expanded, setExpanded] = useState<"broken" | "canonicals" | null>(null);
-
-  const checks = [
-    { key: "https", passed: https.passed },
-    { key: "sitemap", passed: sitemap.found },
-    { key: "broken", passed: broken_links.count === 0 },
-    { key: "canonicals", passed: missing_canonicals.missing_count === 0 },
-  ];
-  const passedCount = checks.filter(c => c.passed).length;
-  const healthPct = (passedCount / checks.length) * 100;
-  const healthColor = healthPct === 100 ? "#10b981" : healthPct >= 50 ? "#f59e0b" : "#ef4444";
-  const healthLabel = healthPct === 100 ? "Excellent" : healthPct >= 75 ? "Good" : healthPct >= 50 ? "Fair" : "Poor";
-
-  function StatusCard({
-    icon, title, ok, badge, tint, onClick, expanded: isExpanded, clickable,
-  }: {
-    icon: React.ReactNode;
-    title: string;
-    ok: boolean;
-    badge: string;
-    tint: string;
-    onClick?: () => void;
-    expanded?: boolean;
-    clickable?: boolean;
-  }) {
-    const statusColor = ok ? "#10b981" : "#ef4444";
-    return (
-      <button
-        type="button"
-        onClick={onClick}
-        disabled={!clickable}
-        className={`group relative flex flex-col gap-3 overflow-hidden rounded-xl border bg-[var(--surface)] p-4 text-left transition-all ${
-          clickable ? "cursor-pointer hover:-translate-y-0.5 hover:shadow-lg" : "cursor-default"
-        } ${isExpanded ? "border-[var(--accent)] shadow-md ring-2 ring-[var(--accent)]/20" : "border-[var(--border)]"}`}
-      >
-        <div
-          className="pointer-events-none absolute inset-0 opacity-40 transition-opacity group-hover:opacity-60"
-          style={{ background: `radial-gradient(circle at top right, ${tint}22, transparent 70%)` }}
-        />
-        <div className="relative flex items-center justify-between">
-          <div
-            className="flex h-10 w-10 items-center justify-center rounded-lg"
-            style={{ background: `${tint}1a`, color: tint }}
-          >
-            {icon}
-          </div>
-          <span
-            className="inline-flex h-6 w-6 items-center justify-center rounded-full text-sm font-bold"
-            style={{ background: `${statusColor}1a`, color: statusColor }}
-          >
-            {ok ? "✓" : "!"}
-          </span>
-        </div>
-        <div className="relative">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--muted)]">{title}</p>
-          <p className="mt-1 text-sm font-bold text-[var(--foreground)]">{badge}</p>
-        </div>
-        {clickable && (
-          <span className="relative mt-auto text-[10px] font-medium text-[var(--accent)]">
-            {isExpanded ? "Hide details ↑" : "View details →"}
-          </span>
-        )}
-      </button>
-    );
-  }
-
-  const cwvMetrics: { key: keyof PageSpeedResult; label: string; full: string }[] = [
-    { key: "fcp", label: "FCP", full: "First Contentful Paint" },
-    { key: "lcp", label: "LCP", full: "Largest Contentful Paint" },
-    { key: "tbt", label: "TBT", full: "Total Blocking Time" },
-    { key: "cls", label: "CLS", full: "Cumulative Layout Shift" },
-    { key: "speed_index", label: "SI", full: "Speed Index" },
-  ];
-
-  const hasSecHeaders = !!audit.security_headers;
-
-  return (
-    <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-auto p-4">
-      {/* Hero health summary */}
-      <div
-        className="relative shrink-0 overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4"
-        style={{
-          backgroundImage: `linear-gradient(135deg, ${healthColor}10 0%, transparent 55%)`,
-        }}
-      >
-        <div className="relative flex items-center gap-4">
-          {/* Circular health badge */}
-          <div
-            className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full font-black text-base"
-            style={{
-              background: `${healthColor}18`,
-              color: healthColor,
-              border: `2px solid ${healthColor}`,
-            }}
-          >
-            {Math.round(healthPct)}%
-          </div>
-
-          {/* Title + subtitle */}
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
-              <p className="text-sm font-bold text-[var(--foreground)]">Site Health</p>
-              <span
-                className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider"
-                style={{ background: `${healthColor}1a`, color: healthColor }}
-              >
-                {healthLabel}
-              </span>
-            </div>
-            <p className="mt-0.5 text-xs text-[var(--muted)]">
-              {passedCount} of {checks.length} core checks passing
-            </p>
-            {/* Progress bar */}
-            <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-[var(--surface-elevated)]">
-              <div
-                className="h-full rounded-full"
-                style={{
-                  width: `${healthPct}%`,
-                  background: `linear-gradient(90deg, ${healthColor}, ${healthColor}cc)`,
-                  transition: "width 900ms cubic-bezier(0.4, 0, 0.2, 1)",
-                }}
-              />
-            </div>
-          </div>
-
-          {/* Check indicator dots */}
-          <div className="hidden shrink-0 gap-1.5 sm:flex">
-            {checks.map(c => (
-              <div
-                key={c.key}
-                className="h-8 w-1.5 rounded-full"
-                style={{ background: c.passed ? "#10b981" : "#ef4444", opacity: c.passed ? 1 : 0.8 }}
-                title={c.key}
-              />
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* 4 status cards */}
-      <div className="grid shrink-0 grid-cols-2 gap-3 sm:grid-cols-4">
-        <StatusCard
-          title="HTTPS"
-          ok={https.passed}
-          badge={https.passed ? "Secure" : "Not Secure"}
-          tint="#6366f1"
-          icon={
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" />
-            </svg>
-          }
-        />
-        <StatusCard
-          title="Sitemap"
-          ok={sitemap.found}
-          badge={sitemap.found ? "Found" : "Not Found"}
-          tint="#0ea5e9"
-          icon={
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M3 3h7v7H3z"/><path d="M14 3h7v7h-7z"/><path d="M14 14h7v7h-7z"/><path d="M3 14h7v7H3z"/>
-            </svg>
-          }
-        />
-        <StatusCard
-          title="Broken Links"
-          ok={broken_links.count === 0}
-          badge={broken_links.count === 0 ? "None Found" : `${broken_links.count} found`}
-          tint="#ef4444"
-          clickable={broken_links.urls.length > 0}
-          expanded={expanded === "broken"}
-          onClick={() => setExpanded(expanded === "broken" ? null : "broken")}
-          icon={
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><path d="M15 3h6v6"/><path d="M10 14L21 3"/>
-            </svg>
-          }
-        />
-        <StatusCard
-          title="Canonicals"
-          ok={missing_canonicals.missing_count === 0}
-          badge={missing_canonicals.missing_count === 0 ? "All OK" : `${missing_canonicals.missing_count} missing`}
-          tint="#8b5cf6"
-          clickable={missing_canonicals.missing_count > 0}
-          expanded={expanded === "canonicals"}
-          onClick={() => setExpanded(expanded === "canonicals" ? null : "canonicals")}
-          icon={
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
-              <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
-            </svg>
-          }
-        />
-      </div>
-
-      {/* Expandable broken links list */}
-      {expanded === "broken" && broken_links.urls.length > 0 && (
-        <div className="shrink-0 overflow-hidden rounded-xl border border-red-500/30 bg-[var(--surface)]">
-          <div className="flex items-center justify-between border-b border-[var(--border)] bg-red-500/5 px-4 py-2.5">
-            <div className="flex items-center gap-2">
-              <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-red-500/15 text-[11px] font-bold text-red-500">!</span>
-              <p className="text-xs font-semibold text-red-500">Broken Links ({broken_links.urls.length})</p>
-            </div>
-            <button onClick={() => setExpanded(null)} className="text-xs text-[var(--muted)] hover:text-[var(--foreground)]">✕</button>
-          </div>
-          <div className="max-h-56 overflow-auto">
-            {broken_links.urls.map((u, i) => (
-              <div key={i} className="flex items-center gap-2 border-b border-[var(--border)]/40 px-4 py-2 font-mono text-xs transition-colors hover:bg-[var(--surface-elevated)]">
-                <span className="text-[10px] text-[var(--muted)]">{i + 1}.</span>
-                <span className="truncate text-red-400" title={u}>{u}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Expandable missing canonicals list */}
-      {expanded === "canonicals" && missing_canonicals.missing_count > 0 && (
-        <div className="shrink-0 overflow-hidden rounded-xl border border-purple-500/30 bg-[var(--surface)]">
-          <div className="flex items-center justify-between border-b border-[var(--border)] bg-purple-500/5 px-4 py-2.5">
-            <div className="flex items-center gap-2">
-              <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-purple-500/15 text-[11px] font-bold text-purple-500">!</span>
-              <p className="text-xs font-semibold text-purple-500">
-                Missing Canonicals ({missing_canonicals.missing_count} / {missing_canonicals.total_html_pages})
-              </p>
-            </div>
-            <button onClick={() => setExpanded(null)} className="text-xs text-[var(--muted)] hover:text-[var(--foreground)]">✕</button>
-          </div>
-          <div className="max-h-56 overflow-auto">
-            {missing_canonicals.urls.map((u, i) => (
-              <div key={i} className="flex items-center gap-2 border-b border-[var(--border)]/40 px-4 py-2 font-mono text-xs transition-colors hover:bg-[var(--surface-elevated)]">
-                <span className="text-[10px] text-[var(--muted)]">{i + 1}.</span>
-                <span className="truncate text-[var(--muted)]" title={u}>{u}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Bottom: Security Headers + PageSpeed */}
-      <div className={`grid shrink-0 gap-4 ${hasSecHeaders ? "grid-cols-1 lg:grid-cols-2" : "grid-cols-1"}`}>
-        {hasSecHeaders && <SecurityHeadersBlock sh={audit.security_headers!} />}
-
-        {/* PageSpeed */}
-        <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 transition-shadow hover:shadow-md">
-          <div className="mb-4 flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-500/10 text-amber-500">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
-              </svg>
-            </div>
-            <p className="text-sm font-semibold text-[var(--foreground)]">PageSpeed Insights</p>
-          </div>
-          {desk.error && mob.error ? (
-            <p className="text-xs text-[var(--warning)]">{psiErrorMessage(desk.error)}</p>
-          ) : (
-            <>
-              <div className="mb-5 flex justify-around">
-                {!desk.error && desk.performance != null && <SemiGauge score={desk.performance} label="Desktop" />}
-                {!mob.error && mob.performance != null && <SemiGauge score={mob.performance} label="Mobile" />}
-              </div>
-              <div className="grid grid-cols-2 gap-3 text-xs">
-                {[
-                  { label: "Desktop", data: desk, accent: "#6366f1" },
-                  { label: "Mobile", data: mob, accent: "#0ea5e9" },
-                ].map(({ label, data, accent }) => (
-                  <div key={label} className="rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)] p-3">
-                    <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider" style={{ color: accent }}>
-                      {label}
-                    </p>
-                    <div className="space-y-1.5">
-                      {cwvMetrics.map(({ key, label: metricLabel, full }) => {
-                        const val = data[key];
-                        if (!val) return null;
-                        return (
-                          <div key={metricLabel} className="flex items-center justify-between" title={full}>
-                            <span className="text-[var(--muted)]">{metricLabel}</span>
-                            <span className="font-mono font-semibold text-[var(--foreground)]">{val}</span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
 
 // ── Donut Chart ────────────────────────────────────────────────────────────────
 const TYPE_COLORS: Record<string, string> = {
@@ -499,6 +205,304 @@ function DonutChart({ slices, size = 110 }: {
 }
 
 
+// ── Crawl History Chart ────────────────────────────────────────────────────────
+function CrawlHistoryChart({ items }: { items: HistoryItem[] }) {
+  const sorted = [...items]
+    .sort((a, b) => new Date(a.analyzed_at).getTime() - new Date(b.analyzed_at).getTime())
+    .slice(-30);
+
+  const W = 560, H = 140;
+  const PAD = { top: 12, right: 16, bottom: 28, left: 38 };
+  const innerW = W - PAD.left - PAD.right;
+  const innerH = H - PAD.top - PAD.bottom;
+
+  if (sorted.length < 2) {
+    return (
+      <div className="flex h-full flex-col rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
+        <p className="mb-3 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>
+          CRAWL HISTORY (Past 30 Days)
+        </p>
+        <div className="flex flex-1 items-center justify-center text-xs text-[var(--muted)]">
+          Run more audits on this domain to see history
+        </div>
+      </div>
+    );
+  }
+
+  const maxY = Math.max(...sorted.map(d => d.pages_count ?? 0), 10);
+  const scaleX = (i: number) => PAD.left + (i / (sorted.length - 1)) * innerW;
+  const scaleY = (v: number) => PAD.top + innerH - ((v / maxY) * innerH);
+  const points = sorted.map((d, i) => ({ x: scaleX(i), y: scaleY(d.pages_count ?? 0) }));
+  const linePath = points.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(" ");
+  const areaPath = `${linePath} L ${points[points.length - 1].x.toFixed(1)} ${(PAD.top + innerH).toFixed(1)} L ${points[0].x.toFixed(1)} ${(PAD.top + innerH).toFixed(1)} Z`;
+  const yTicks = [0.25, 0.5, 0.75, 1];
+  const step = Math.max(1, Math.ceil(sorted.length / 5));
+  const xLabelIdxs = sorted.reduce<number[]>((acc, _, i) => {
+    if (i % step === 0 || i === sorted.length - 1) acc.push(i);
+    return acc;
+  }, []);
+
+  return (
+    <div className="flex flex-col rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
+      <div className="mb-2 flex items-center justify-between">
+        <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>
+          CRAWL HISTORY (Past 30 Days)
+        </p>
+        <span className="text-[10px] text-[var(--muted)]">Historical View →</span>
+      </div>
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height: 150 }}>
+        <defs>
+          <linearGradient id="crawlHistGrad" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0%" stopColor="#0d9488" stopOpacity="0.35" />
+            <stop offset="100%" stopColor="#0d9488" stopOpacity="0.02" />
+          </linearGradient>
+        </defs>
+        {yTicks.map(pct => {
+          const y = PAD.top + innerH * (1 - pct);
+          return (
+            <g key={pct}>
+              <line x1={PAD.left} y1={y} x2={PAD.left + innerW} y2={y} stroke="var(--border)" strokeWidth="0.5" />
+              <text x={PAD.left - 4} y={y + 3} textAnchor="end" fontSize="7.5" fill="#94a3b8">{Math.round(maxY * pct)}</text>
+            </g>
+          );
+        })}
+        <path d={areaPath} fill="url(#crawlHistGrad)" />
+        <path d={linePath} fill="none" stroke="#0d9488" strokeWidth="2" strokeLinejoin="round" />
+        {points.map((p, i) => <circle key={i} cx={p.x} cy={p.y} r="2.5" fill="#0d9488" />)}
+        {xLabelIdxs.map(i => (
+          <text key={i} x={scaleX(i)} y={H - 2} textAnchor="middle" fontSize="7.5" fill="#94a3b8">
+            {new Date(sorted[i].analyzed_at).toLocaleDateString("en", { month: "short", day: "numeric" })}
+          </text>
+        ))}
+        <line x1={PAD.left} y1={PAD.top + innerH} x2={PAD.left + innerW} y2={PAD.top + innerH} stroke="var(--border)" strokeWidth="0.5" />
+        <line x1={PAD.left} y1={PAD.top} x2={PAD.left} y2={PAD.top + innerH} stroke="var(--border)" strokeWidth="0.5" />
+        <text x={W / 2} y={H - 1} textAnchor="middle" fontSize="7.5" fill="#94a3b8">Past 30 Days</text>
+        <text x={9} y={H / 2 - 4} textAnchor="middle" fontSize="7" fill="#94a3b8" transform={`rotate(-90, 9, ${H / 2 - 4})`}>URLs</text>
+      </svg>
+    </div>
+  );
+}
+
+// ── Issues Breakdown Donut ─────────────────────────────────────────────────────
+function DashIssuesDonut({
+  overview, audit, pages,
+}: {
+  overview: OverviewResponse | null;
+  audit: AuditResult | null;
+  pages: PageRow[];
+}) {
+  const missingAlt = overview?.images_missing_alt ?? 0;
+  const brokenLinks = audit?.broken_links?.count ?? 0;
+  const mobilePerfScore = audit?.pagespeed?.mobile?.performance;
+  const slowPages = mobilePerfScore != null && mobilePerfScore < 50 ? 1 : 0;
+  const noMetaDesc = pages.filter(p => !p.meta_descp).length;
+  const noH1 = pages.filter(p => !p.h1).length;
+
+  const issues = [
+    { label: "Missing Alt text", value: missingAlt, color: "#ef4444" },
+    { label: "Broken Links", value: brokenLinks, color: "#f59e0b" },
+    { label: "Slow Pages", value: slowPages, color: "#f97316" },
+    { label: "No Meta Decs", value: noMetaDesc, color: "#8b5cf6" },
+    { label: "No H1", value: noH1, color: "#0ea5e9" },
+  ].filter(i => i.value > 0);
+  const total = issues.reduce((s, i) => s + i.value, 0);
+
+  return (
+    <div className="flex flex-col rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
+      <p className="mb-3 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        ISSUES BREAKDOWN
+      </p>
+      {total === 0 ? (
+        <div className="flex flex-1 items-center justify-center text-xs" style={{ color: "#16a34a" }}>No issues found ✓</div>
+      ) : (
+        <div className="flex flex-col items-center gap-3">
+          <div className="relative shrink-0">
+            <DonutChart slices={issues} size={120} />
+            <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+              <span className="text-base font-black tabular-nums">{total}</span>
+            </div>
+          </div>
+          <div className="w-full space-y-1.5 text-xs">
+            {issues.map(iss => (
+              <div key={iss.label} className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: iss.color }} />
+                  <span className="text-[var(--muted)]">{iss.label}</span>
+                </div>
+                <span className="font-semibold" style={{ color: iss.color }}>{iss.value}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Speed: Desktop vs Mobile ───────────────────────────────────────────────────
+function DashSpeedSection({ pagespeed }: { pagespeed: { desktop: PageSpeedResult; mobile: PageSpeedResult } }) {
+  const desk = pagespeed.desktop;
+  const mob = pagespeed.mobile;
+  function parseVal(v: string | null | undefined): number {
+    if (!v) return 0;
+    return parseFloat(v.replace(/[^0-9.]/g, "")) || 0;
+  }
+  const metrics = [
+    { label: "LCP", desk: parseVal(desk.lcp), mob: parseVal(mob.lcp), max: 10 },
+    { label: "FCP", desk: parseVal(desk.fcp), mob: parseVal(mob.fcp), max: 6 },
+    { label: "CLS", desk: parseVal(desk.cls), mob: parseVal(mob.cls), max: 1 },
+    { label: "FID", desk: parseVal(desk.tbt), mob: parseVal(mob.tbt), max: 500 },
+    { label: "SI",  desk: parseVal(desk.speed_index), mob: parseVal(mob.speed_index), max: 15 },
+  ];
+  const deskScore = desk.performance ?? 0;
+  const mobScore = mob.performance ?? 0;
+  const deskColor = deskScore >= 90 ? "#10b981" : deskScore >= 50 ? "#f59e0b" : "#ef4444";
+  const mobColor = mobScore >= 90 ? "#10b981" : mobScore >= 50 ? "#f59e0b" : "#ef4444";
+  const C = 2 * Math.PI * 18;
+
+  return (
+    <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
+      <p className="mb-3 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+        SPEED: DESKTOP VS MOBILE
+      </p>
+      <div className="mb-3 flex items-center gap-4">
+        {[{ score: deskScore, color: deskColor, label: "Desktop" }, { score: mobScore, color: mobColor, label: "Mobile" }].map(({ score, color, label }) => (
+          <div key={label} className="flex flex-col items-center">
+            <div className="relative h-12 w-12">
+              <svg viewBox="0 0 44 44" className="h-full w-full" style={{ transform: "rotate(-90deg)" }}>
+                <circle cx="22" cy="22" r="18" fill="none" stroke="var(--border)" strokeWidth="5" />
+                <circle cx="22" cy="22" r="18" fill="none" stroke={color} strokeWidth="5"
+                  strokeDasharray={`${(score / 100) * C} ${C}`} strokeLinecap="round" />
+              </svg>
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className="text-[11px] font-black" style={{ color }}>{score}</span>
+              </div>
+            </div>
+            <span className="mt-0.5 text-[9px] text-[var(--muted)]">{label}</span>
+          </div>
+        ))}
+        <div className="ml-auto space-y-1 text-[10px]">
+          <div className="flex items-center gap-1"><span className="inline-block h-2 w-3 rounded" style={{ background: "#6366f1" }} /> Desktop</div>
+          <div className="flex items-center gap-1"><span className="inline-block h-2 w-3 rounded" style={{ background: "#0ea5e9" }} /> Mobile</div>
+        </div>
+      </div>
+      <div className="space-y-2">
+        {metrics.map(m => (
+          <div key={m.label} className="flex items-center gap-2 text-xs">
+            <span className="w-7 shrink-0 font-medium text-[var(--muted)]">{m.label}</span>
+            <div className="flex-1 space-y-0.5">
+              <div className="h-1.5 w-full overflow-hidden rounded-full bg-[var(--surface-elevated)]">
+                <div className="h-full rounded-full" style={{ width: `${Math.min(100, m.max > 0 ? (m.desk / m.max) * 100 : 0)}%`, background: "#6366f1" }} />
+              </div>
+              <div className="h-1.5 w-full overflow-hidden rounded-full bg-[var(--surface-elevated)]">
+                <div className="h-full rounded-full" style={{ width: `${Math.min(100, m.max > 0 ? (m.mob / m.max) * 100 : 0)}%`, background: "#0ea5e9" }} />
+              </div>
+            </div>
+            <span className="w-8 shrink-0 text-right font-mono text-[10px] text-[var(--muted)]">{m.desk > 0 ? m.desk : "—"}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Security Headers (Dashboard variant) ──────────────────────────────────────
+function DashSecurityHeaders({ sh }: { sh: SecurityHeadersResult }) {
+  const preferredOrder = [
+    "x_content_type_options", "x_frame_options",
+    "strict_transport_security", "content_security_policy", "referrer_policy",
+  ];
+  const displayKeys = [
+    ...preferredOrder.filter(k => sh.headers[k]),
+    ...Object.keys(sh.headers).filter(k => !preferredOrder.includes(k)),
+  ];
+  const pct = sh.total_count > 0 ? (sh.passed_count / sh.total_count) * 100 : 0;
+  const allPass = pct === 100;
+
+  return (
+    <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
+      <div className="mb-3 flex items-center justify-between">
+        <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          SECURITY HEADERS
+        </p>
+        <span className="rounded-full px-2 py-0.5 text-[10px] font-bold"
+          style={{ background: allPass ? "#f0fdf4" : "#fffbeb", color: allPass ? "#16a34a" : "#d97706" }}>
+          {allPass ? "All Pass" : `${sh.passed_count}/${sh.total_count}`}
+        </span>
+      </div>
+      {sh.error ? (
+        <p className="text-xs text-[var(--warning)]">{sh.error}</p>
+      ) : (
+        <div className="space-y-2">
+          {displayKeys.map(key => {
+            const info = sh.headers[key];
+            if (!info) return null;
+            return (
+              <div key={key} className="flex items-center gap-2 text-xs">
+                <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[10px] font-bold"
+                  style={{ background: info.present ? "#10b98122" : "#ef444422", color: info.present ? "#10b981" : "#ef4444" }}>
+                  {info.present ? "✓" : "✗"}
+                </span>
+                <span className="flex-1 truncate text-[var(--foreground)]" title={info.label}>{info.label}</span>
+                <div className="h-1.5 w-14 shrink-0 overflow-hidden rounded-full bg-[var(--surface-elevated)]">
+                  <div className="h-full rounded-full transition-all" style={{ width: info.present ? "100%" : "15%", background: info.present ? "#10b981" : "#ef4444" }} />
+                </div>
+                <span className="w-5 shrink-0 text-right text-[9px] font-semibold" style={{ color: info.present ? "#10b981" : "#ef4444" }}>VS</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Indexability & Status (Dashboard) ─────────────────────────────────────────
+function DashIndexabilityStatus({ overview }: { overview: OverviewResponse }) {
+  const indexable = overview.indexability_counts?.indexable ?? 0;
+  const nonIndexable = overview.indexability_counts?.non_indexable ?? 0;
+  const idxTotal = Math.max(indexable + nonIndexable, 1);
+  const ok = overview.status_counts?.ok ?? 0;
+  const statusTotal = Math.max(overview.total_urls, 1);
+
+  function SmallRing({ count, total, color, label, sub }: { count: number; total: number; color: string; label: string; sub: string }) {
+    const r = 26, cx = 34, cy = 34, C = 2 * Math.PI * r;
+    const filled = (count / total) * C;
+    return (
+      <div className="flex flex-col items-center gap-1">
+        <svg width="68" height="68" viewBox="0 0 68 68">
+          <circle cx={cx} cy={cy} r={r} fill="none" stroke="var(--border)" strokeWidth="7" />
+          <circle cx={cx} cy={cy} r={r} fill="none" stroke={color} strokeWidth="7"
+            strokeDasharray={`${filled} ${C}`} strokeDashoffset={C * 0.25} />
+          <text x={cx} y={cy + 5} textAnchor="middle" fontSize="13" fontWeight="800" fill="var(--foreground)">{count}</text>
+        </svg>
+        <p className="text-[10px] font-semibold text-[var(--foreground)]">{label}</p>
+        <p className="text-center text-[9px] leading-tight text-[var(--muted)]">{sub}</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
+      <p className="mb-4 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        INDEXABILITY & STATUS
+      </p>
+      <div className="flex justify-around">
+        <SmallRing count={indexable} total={idxTotal} color="#0d9488" label="Indexability"
+          sub={`Indexable ${indexable} · Non-Indexable ${nonIndexable}`} />
+        <SmallRing count={ok} total={statusTotal} color="#10b981" label="Status Codes"
+          sub={`200 Success: ${ok}`} />
+      </div>
+    </div>
+  );
+}
+
 // ── Main Component ─────────────────────────────────────────────────────────────
 const PAGE_SIZE = 100;
 
@@ -522,6 +526,7 @@ export default function Home() {
   const [colFilters, setColFilters] = useState(defaultFilters);
   const [draftFilters, setDraftFilters] = useState(defaultFilters);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [historyItems, setHistoryItems] = useState<HistoryItem[]>([]);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const { user, signOut: handleSignOut, subscription, loading: authLoading } = useAuth();
   const isFree = subscription?.plan === "free";
@@ -588,6 +593,15 @@ export default function Home() {
     const t = setInterval(fetchGeo, 4000);
     return () => clearInterval(t);
   }, [siteId, site?.status, geo?.geo_status]);
+
+  // ── History for crawl history chart ────────────────────────────────────
+  useEffect(() => {
+    if (!site?.url) return;
+    try {
+      const domain = new URL(site.url.startsWith("http") ? site.url : `https://${site.url}`).hostname;
+      getHistory({ domain, limit: 30 }).then(r => setHistoryItems(r.items)).catch(() => {});
+    } catch { /* invalid URL */ }
+  }, [site?.url]);
 
   // ── Close dropdown on outside click ───────────────────────────────────────
   useEffect(() => {
@@ -769,8 +783,7 @@ export default function Home() {
           {(
             [
               { id: "dashboard", label: "Dashboard", icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg> },
-              { id: "audit",     label: "Technical Audit", icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg> },
-              { id: "geo",       label: "GEO Analysis", icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> },
+{ id: "geo",       label: "GEO Analysis", icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> },
               { id: "insights",  label: "Insights",  icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg> },
               { id: "history",   label: "History",   icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.95"/></svg> },
               { id: "schedules", label: "Schedules", icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> },
@@ -886,12 +899,6 @@ export default function Home() {
             >
               {loading ? "Starting…" : "Start →"}
             </button>
-            <button disabled={quotaExhausted} className="flex items-center gap-1 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5 text-xs text-[var(--muted)] transition-colors hover:bg-[var(--surface-elevated)] disabled:opacity-50 disabled:cursor-not-allowed">
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 0-14.14 0"/><path d="M4.93 19.07a10 10 0 0 0 14.14 0"/>
-              </svg>
-              Config
-            </button>
             <button onClick={handleClear} disabled={quotaExhausted} className="rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors hover:opacity-80 disabled:opacity-50 disabled:cursor-not-allowed" style={{ borderColor: "#bbf7d0", backgroundColor: "#f0fdf4", color: "#16a34a" }}>
               Clear
             </button>
@@ -968,176 +975,181 @@ export default function Home() {
               ) : (
                 <div className="space-y-3 p-4">
 
-                  {/* Row 1: 3 summary cards */}
-                  <div className="grid grid-cols-3 gap-3">
+                  {/* Row 1: 4 summary cards */}
+                  <div className="grid grid-cols-4 gap-3">
 
                     {/* URLs Crawled */}
-                    <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] overflow-hidden" style={{ boxShadow: "var(--card-shadow)" }}>
-                      <div className="h-1 w-full" style={{ background: "linear-gradient(90deg, #0d9488, #16a34a)" }} />
-                      <div className="p-4">
-                        <div className="flex items-center justify-between mb-2">
-                          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">URLs Crawled</p>
-                          <span className="text-xs font-medium px-2 py-0.5 rounded-full" style={{ background: "#f0fdf4", color: "#16a34a" }}>Total</span>
-                        </div>
-                        <div className="flex items-end gap-2">
-                          <span className="text-3xl font-black tabular-nums" style={{ color: "#0f172a" }}>{(overview?.total_urls ?? 0).toLocaleString()}</span>
-                        </div>
-                        <p className="mt-1 text-xs text-[var(--muted)]">{(pagesData?.total ?? 0).toLocaleString()} pages crawled</p>
-                        <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-[var(--border)]">
-                          {site.status === "processing" ? (
-                            <div className="progress-indeterminate h-full w-1/3 rounded-full" style={{ background: "linear-gradient(90deg,#0d9488,#16a34a)" }} />
-                          ) : (
-                            <div className="h-full w-full rounded-full" style={{ background: "linear-gradient(90deg,#0d9488,#16a34a)" }} />
-                          )}
+                    <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4" style={{ boxShadow: "var(--card-shadow)" }}>
+                      <div className="mb-2 flex items-center justify-between">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">URLs Crawled</p>
+                        <div className="flex h-7 w-7 items-center justify-center rounded-lg" style={{ background: "#f0fdf4" }}>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
                         </div>
                       </div>
-                    </div>
-
-                    {/* Image SEO Issues */}
-                    <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] overflow-hidden" style={{ boxShadow: "var(--card-shadow)" }}>
-                      <div className="h-1 w-full" style={{ background: "linear-gradient(90deg, #f59e0b, #f97316)" }} />
-                      <div className="p-4">
-                        <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">Image SEO</p>
-                        {overview ? (
-                          <div className="space-y-2.5">
-                            <div className="flex items-center justify-between">
-                              <span className="text-xs text-[var(--muted)]">Total images</span>
-                              <span className="text-lg font-black tabular-nums" style={{ color: "#0f172a" }}>{overview.images_total.toLocaleString()}</span>
-                            </div>
-                            <div className="flex items-center justify-between">
-                              <span className="text-xs" style={{ color: "#d97706" }}>Missing alt text</span>
-                              <span className="text-sm font-bold" style={{ color: "#d97706" }}>{overview.images_missing_alt.toLocaleString()}</span>
-                            </div>
-                            <div className="flex items-center justify-between">
-                              <span className="text-xs" style={{ color: "#16a34a" }}>Optimized ⓘ</span>
-                              <span className="text-sm font-bold" style={{ color: "#16a34a" }}>{(overview.images_optimized ?? 0).toLocaleString()}</span>
-                            </div>
-                          </div>
+                      <div className="text-3xl font-black tabular-nums" style={{ color: "#0f172a" }}>{(overview?.total_urls ?? 0).toLocaleString()}</div>
+                      <p className="mt-1 text-xs text-[var(--muted)]">{(pagesData?.total ?? 0).toLocaleString()} unique pages</p>
+                      <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-[var(--border)]">
+                        {site.status === "processing" ? (
+                          <div className="progress-indeterminate h-full w-1/3 rounded-full" style={{ background: "linear-gradient(90deg,#0d9488,#16a34a)" }} />
                         ) : (
-                          <div className="flex h-16 items-center justify-center text-xs text-[var(--muted)]">Loading…</div>
+                          <div className="h-full w-full rounded-full" style={{ background: "linear-gradient(90deg,#0d9488,#16a34a)" }} />
                         )}
                       </div>
                     </div>
 
                     {/* GEO Score */}
-                    <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] overflow-hidden" style={{ boxShadow: "var(--card-shadow)" }}>
-                      <div className="h-1 w-full" style={{ background: geoScore != null ? (geoScore >= 80 ? "linear-gradient(90deg,#16a34a,#0d9488)" : geoScore >= 60 ? "linear-gradient(90deg,#f59e0b,#f97316)" : "linear-gradient(90deg,#ef4444,#dc2626)") : "linear-gradient(90deg,#e2e8f0,#cbd5e1)" }} />
-                      <div className="p-4">
-                        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">GEO Score</p>
-                        {geoScore != null ? (
-                          <>
-                            <div className="flex items-end gap-1">
-                              <span className="text-3xl font-black tabular-nums" style={{ color: "#0f172a" }}>{geoScore}</span>
-                              <span className="mb-1 text-sm text-[var(--muted)]">/100</span>
-                              {geoGrade && <span className="mb-1 ml-1 text-sm font-black" style={{ color: geoScore >= 80 ? "#16a34a" : geoScore >= 60 ? "#d97706" : "#dc2626" }}>{geoGrade}</span>}
-                            </div>
-                            <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold mt-1" style={{
-                              background: geoScore >= 80 ? "#f0fdf4" : geoScore >= 60 ? "#fffbeb" : "#fef2f2",
-                              color: geoScore >= 80 ? "#16a34a" : geoScore >= 60 ? "#d97706" : "#dc2626"
-                            }}>
-                              {geoScore >= 80 ? "✓ Excellent" : geoScore >= 65 ? "▲ Good" : geoScore >= 50 ? "~ Fair" : "✗ Poor"}
-                            </span>
-                          </>
-                        ) : (
-                          <div className="flex flex-col gap-1">
-                            <div className="text-2xl font-black" style={{ color: "#94a3b8" }}>—/100</div>
-                            <div className="flex items-center gap-1.5 text-xs text-[var(--muted)]">
-                              {site.status === "completed" ? (
-                                <>
-                                  <div className="h-2.5 w-2.5 animate-spin rounded-full border border-[var(--border)] border-t-[var(--accent)]" />
-                                  Analyzing…
-                                </>
-                              ) : "Awaiting crawl"}
-                            </div>
-                          </div>
-                        )}
+                    <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4" style={{ boxShadow: "var(--card-shadow)" }}>
+                      <div className="mb-2 flex items-center justify-between">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">GEO Score</p>
+                        <div className="flex h-7 w-7 items-center justify-center rounded-lg" style={{ background: "#f0fdf4" }}>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                        </div>
                       </div>
-                    </div>
-                  </div>
-
-                  {/* Row 2: Status code cards */}
-                  <div className="grid grid-cols-2 gap-3">
-
-                    {/* Status Codes donut */}
-                    <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4">
-                      <p className="mb-3 text-xs font-medium text-[var(--muted)]">Status Codes</p>
-                      {overview ? (() => {
-                        const sc = overview.status_counts;
-                        const ok    = sc?.ok        ?? 0;
-                        const r3xx  = sc?.redirect  ?? 0;
-                        const r4xx  = sc?.error_4xx ?? 0;
-                        const r5xx  = sc?.error_5xx ?? 0;
-                        const blocked = Math.max(0, overview.total_urls - ok - r3xx - r4xx - r5xx);
-                        const sliceDefs = [
-                          { label: "2xx Success",           value: ok,      color: "#10b981" },
-                          { label: "3xx Redirection",       value: r3xx,    color: "#f59e0b" },
-                          { label: "4xx Client Error",      value: r4xx,    color: "#f43f5e" },
-                          { label: "5xx Server Error",      value: r5xx,    color: "#dc2626" },
-                          { label: "Blocked by robots.txt", value: blocked, color: "#94a3b8" },
-                        ].filter((s) => s.value > 0);
-                        return (
-                          <div className="flex items-center gap-4">
-                            <div className="relative shrink-0">
-                              <DonutChart slices={sliceDefs} size={110} />
-                              <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                                <span className="text-base font-black tabular-nums">{overview.total_urls.toLocaleString()}</span>
-                              </div>
-                            </div>
-                            <div className="flex-1 space-y-1.5 text-xs">
-                              {sliceDefs.map((s) => (
-                                <div key={s.label} className="flex items-center justify-between">
-                                  <div className="flex items-center gap-1.5">
-                                    <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: s.color }} />
-                                    <span className="text-[var(--muted)]">{s.label}</span>
-                                  </div>
-                                  <span className="font-semibold" style={{ color: s.color }}>{s.value.toLocaleString()}</span>
-                                </div>
-                              ))}
-                            </div>
-                            {(r3xx > 0 || r4xx > 0) && (
-                              <div className="shrink-0 space-y-2 border-l border-[var(--border)] pl-3 text-xs">
-                                {r3xx > 0 && <div><p className="font-medium text-[var(--warning)]">3xx Redirection</p><p className="font-bold text-[var(--warning)]">{r3xx}</p></div>}
-                                {r4xx > 0 && <div><p className="font-medium text-red-500">4xx Client Error</p><p className="font-bold text-red-500">{r4xx}</p></div>}
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })() : <div className="flex h-20 items-center justify-center text-xs text-[var(--muted)]">Loading…</div>}
-                    </div>
-
-                    {/* Indexability ring */}
-                    <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4">
-                      <p className="mb-3 text-xs font-medium text-[var(--muted)]">Indexability</p>
-                      {overview?.indexability_counts ? (() => {
-                        const idxSlices = [
-                          { label: "Indexable",     value: indexabilityCounts.indexable,    color: "#10b981" },
-                          { label: "Non-Indexable", value: indexabilityCounts.nonIndexable, color: "#f43f5e" },
-                          { label: "External",      value: indexabilityCounts.external,     color: "#f59e0b" },
-                        ].filter((s) => s.label === "External" || s.value > 0);
-                        const idxTotal = idxSlices.reduce((acc, s) => acc + s.value, 0);
+                      {geoScore != null ? (() => {
+                        const color = geoScore >= 80 ? "#16a34a" : geoScore >= 65 ? "#f59e0b" : "#ef4444";
+                        const r = 24, cx = 30, cy = 30, C = 2 * Math.PI * r;
                         return (
                           <div className="flex items-center gap-3">
-                            <DonutChart slices={idxSlices} size={110} />
-                            <div className="flex-1 space-y-1.5 text-xs">
-                              {idxSlices.map((s) => (
-                                <div key={s.label} className="flex items-center justify-between">
-                                  <div className="flex items-center gap-1.5">
-                                    <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: s.color }} />
-                                    <span className="text-[var(--muted)]">{s.label}</span>
-                                  </div>
-                                  <span className="font-semibold" style={{ color: s.color }}>
-                                    {idxTotal > 0 ? Math.round((s.value / idxTotal) * 100) : 0}% → {s.value.toLocaleString()}
-                                  </span>
-                                </div>
-                              ))}
+                            <svg width="60" height="60" viewBox="0 0 60 60" className="shrink-0">
+                              <circle cx={cx} cy={cy} r={r} fill="none" stroke="var(--border)" strokeWidth="6" />
+                              <circle cx={cx} cy={cy} r={r} fill="none" stroke={color} strokeWidth="6"
+                                strokeDasharray={`${(geoScore / 100) * C} ${C}`} strokeDashoffset={C * 0.25}
+                                style={{ transition: "stroke-dasharray 900ms" }} />
+                              <text x={cx} y={cy + 5} textAnchor="middle" fontSize="13" fontWeight="800" fill={color}>{geoScore}</text>
+                            </svg>
+                            <div>
+                              <p className="text-sm font-bold" style={{ color: "#0f172a" }}>{geoScore} / 100 {geoGrade}</p>
+                              <span className="mt-1 inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold"
+                                style={{ background: geoScore >= 80 ? "#f0fdf4" : geoScore >= 65 ? "#fffbeb" : "#fef2f2", color }}>
+                                {geoScore >= 80 ? "Excellent" : geoScore >= 65 ? "Good" : geoScore >= 50 ? "Fair" : "Poor"}
+                              </span>
                             </div>
                           </div>
                         );
-                      })() : <div className="flex h-20 items-center justify-center text-xs text-[var(--muted)]">Loading…</div>}
+                      })() : (
+                        <div className="flex h-14 items-center gap-2 text-xs text-[var(--muted)]">
+                          {site.status === "completed" ? <><div className="h-3 w-3 animate-spin rounded-full border-2 border-[var(--border)] border-t-[var(--accent)]" />Analyzing…</> : "Awaiting crawl"}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Site Health */}
+                    <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4" style={{ boxShadow: "var(--card-shadow)" }}>
+                      <div className="mb-2 flex items-center justify-between">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">Site Health</p>
+                        <div className="flex h-7 w-7 items-center justify-center rounded-lg" style={{ background: "#f0fdf4" }}>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                        </div>
+                      </div>
+                      {audit?.audit ? (() => {
+                        const checks = [audit.audit.https.passed, audit.audit.sitemap.found, audit.audit.broken_links.count === 0, audit.audit.missing_canonicals.missing_count === 0];
+                        const passed = checks.filter(Boolean).length;
+                        const pct = Math.round((passed / checks.length) * 100);
+                        const color = pct === 100 ? "#16a34a" : pct >= 75 ? "#f59e0b" : "#ef4444";
+                        const label = pct === 100 ? "Excellent" : pct >= 75 ? "Good" : pct >= 50 ? "Fair" : "Poor";
+                        const r = 24, cx = 30, cy = 30, C = 2 * Math.PI * r;
+                        return (
+                          <div className="flex items-center gap-3">
+                            <svg width="60" height="60" viewBox="0 0 60 60" className="shrink-0">
+                              <circle cx={cx} cy={cy} r={r} fill="none" stroke="var(--border)" strokeWidth="6" />
+                              <circle cx={cx} cy={cy} r={r} fill="none" stroke={color} strokeWidth="6"
+                                strokeDasharray={`${(pct / 100) * C} ${C}`} strokeDashoffset={C * 0.25} />
+                              <text x={cx} y={cy + 4} textAnchor="middle" fontSize="10" fontWeight="800" fill={color}>{pct}%</text>
+                            </svg>
+                            <div>
+                              <span className="inline-flex rounded-full px-2 py-0.5 text-xs font-bold"
+                                style={{ background: `${color}1a`, color }}>{label}</span>
+                              <p className="mt-1 text-xs text-[var(--muted)]">{passed}/{checks.length} checks</p>
+                            </div>
+                          </div>
+                        );
+                      })() : (
+                        <div className="flex h-14 items-center gap-2 text-xs text-[var(--muted)]">
+                          {site.status === "completed" ? <><div className="h-3 w-3 animate-spin rounded-full border-2 border-[var(--border)] border-t-[var(--accent)]" />Analyzing…</> : "Awaiting crawl"}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Image SEO */}
+                    <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4" style={{ boxShadow: "var(--card-shadow)" }}>
+                      <div className="mb-3 flex items-center justify-between">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">Image SEO</p>
+                        <div className="flex h-7 w-7 items-center justify-center rounded-lg" style={{ background: "#fffbeb" }}>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                        </div>
+                      </div>
+                      {overview ? (
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-[var(--muted)]">Total images</span>
+                            <span className="font-bold" style={{ color: "#0f172a" }}>{overview.images_total.toLocaleString()}</span>
+                          </div>
+                          <div className="flex items-center justify-between text-xs">
+                            <span style={{ color: "#d97706" }}>Missing Alt Text</span>
+                            <span className="font-bold" style={{ color: "#d97706" }}>{overview.images_missing_alt.toLocaleString()}</span>
+                          </div>
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-[var(--muted)]">Optimized</span>
+                            <span className="font-bold" style={{ color: "#0f172a" }}>{(overview.images_optimized ?? 0).toLocaleString()}</span>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex h-16 items-center justify-center text-xs text-[var(--muted)]">Loading…</div>
+                      )}
                     </div>
                   </div>
 
-                  {/* Row 3: Full crawl table + detail drawer */}
+                  {/* Row 2: Crawl History + Issues Breakdown */}
+                  <div className="grid gap-3" style={{ gridTemplateColumns: "3fr 2fr" }}>
+                    <CrawlHistoryChart items={historyItems} />
+                    <DashIssuesDonut overview={overview} audit={audit?.audit ?? null} pages={pagesData?.pages ?? []} />
+                  </div>
+
+                  {/* Row 3: Status badges */}
+                  {audit?.audit && (
+                    <div className="grid grid-cols-4 gap-3">
+                      {[
+                        { title: "HTTPS", ok: audit.audit.https.passed, badge: audit.audit.https.passed ? "Secure" : "Not Secure", color: "#6366f1",
+                          icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> },
+                        { title: "Sitemap", ok: audit.audit.sitemap.found, badge: audit.audit.sitemap.found ? "Found" : "Not Found", color: "#0ea5e9",
+                          icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3h7v7H3z"/><path d="M14 3h7v7h-7z"/><path d="M14 14h7v7h-7z"/><path d="M3 14h7v7H3z"/></svg> },
+                        { title: "Broken Links", ok: audit.audit.broken_links.count === 0, badge: audit.audit.broken_links.count === 0 ? "None Found" : `${audit.audit.broken_links.count} found`, color: "#ef4444",
+                          icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><path d="M15 3h6v6"/><path d="M10 14L21 3"/></svg> },
+                        { title: "Canonicals", ok: audit.audit.missing_canonicals.missing_count === 0, badge: audit.audit.missing_canonicals.missing_count === 0 ? "All OK" : `${audit.audit.missing_canonicals.missing_count} missing`, color: "#8b5cf6",
+                          icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg> },
+                      ].map(item => (
+                        <div key={item.title} className="flex items-center justify-between rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3" style={{ boxShadow: "var(--card-shadow)" }}>
+                          <div className="flex items-center gap-3">
+                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg" style={{ background: `${item.color}18`, color: item.color }}>
+                              {item.icon}
+                            </div>
+                            <div>
+                              <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--muted)]">{item.title}</p>
+                              <p className="text-sm font-bold text-[var(--foreground)]">{item.badge}</p>
+                            </div>
+                          </div>
+                          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-sm font-bold"
+                            style={{ background: item.ok ? "#10b98118" : "#ef444418", color: item.ok ? "#10b981" : "#ef4444" }}>
+                            {item.ok ? "✓" : "!"}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Row 4: Speed + Security Headers + Indexability & Status */}
+                  {audit?.audit && overview && (
+                    <div className="grid grid-cols-3 gap-3">
+                      <DashSpeedSection pagespeed={audit.audit.pagespeed} />
+                      {audit.audit.security_headers
+                        ? <DashSecurityHeaders sh={audit.audit.security_headers} />
+                        : <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 flex items-center justify-center text-xs text-[var(--muted)]">Security headers unavailable</div>
+                      }
+                      <DashIndexabilityStatus overview={overview} />
+                    </div>
+                  )}
+
+                  {/* Row 5: Full crawl table + detail drawer */}
                   {crawlActive && (
                     <div className="flex gap-1 min-h-0">
                       {/* Table side */}
@@ -1397,28 +1409,7 @@ export default function Home() {
             </div>
           )}
 
-        {/* ── AUDIT TAB ── */}
-        {mainTab === "audit" && !quotaExhausted && (
-          <div className="flex min-h-0 flex-1 flex-col bg-[var(--background)]">
-            {!site || site.status !== "completed" ? (
-              <div className="flex flex-1 items-center justify-center text-[var(--muted)]">
-                Complete a crawl to view the technical audit.
-              </div>
-            ) : !audit || audit.audit_status === "pending" || audit.audit_status === "running" ? (
-              <div className="flex flex-1 items-center justify-center">
-                <Spinner label="Running technical audit… (PageSpeed Insights may take 30–60s)" />
-              </div>
-            ) : audit.audit_status === "failed" || !audit.audit ? (
-              <div className="flex flex-1 items-center justify-center text-[var(--error)]">
-                Audit failed. Please try again.
-              </div>
-            ) : (
-              <AuditFullPanel audit={audit.audit} />
-            )}
-          </div>
-        )}
-
-        {/* ── INSIGHTS TAB ── */}
+{/* ── INSIGHTS TAB ── */}
         {mainTab === "insights" && !quotaExhausted && (
           <div className="flex min-h-0 flex-1 flex-col overflow-auto bg-[var(--background)] p-4">
             {isFree ? (
