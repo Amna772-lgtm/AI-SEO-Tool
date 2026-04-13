@@ -702,6 +702,11 @@ export default function Home() {
     return true;
   });
 
+  const displayedDashboardPages = filteredDashboardPages.filter(page => {
+    const ct = page.content_type ?? "";
+    return !ct.startsWith("image/") && !ct.includes("css") && !ct.includes("javascript") && !ct.includes("font");
+  });
+
   // ── Detail rows for bottom panel ──────────────────────────────────────────
   const filteredDetailRows = selectedPage
     ? Object.entries({
@@ -1134,7 +1139,7 @@ export default function Home() {
 
                   {/* Row 3: Full crawl table + detail drawer */}
                   {crawlActive && (
-                    <div className="flex gap-3 min-h-0">
+                    <div className="flex gap-1 min-h-0">
                       {/* Table side */}
                       <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] flex flex-col min-w-0" style={{ flex: selectedPage ? "0 0 60%" : "1", transition: "flex 200ms ease", overflow: "hidden" }}>
                         <div className="flex shrink-0 items-center gap-2 border-b border-[var(--border)] bg-[var(--surface-elevated)] px-3 py-2" ref={dropdownRef}>
@@ -1150,13 +1155,9 @@ export default function Home() {
                             <button
                               onClick={() => {
                                 if (openDropdown === "status") { setOpenDropdown(null); }
-                                else { setDraftFilters({ ...colFilters }); setOpenDropdown("status"); }
+                                else { setOpenDropdown("status"); }
                               }}
-                              className={`flex items-center gap-1 rounded border px-2 py-1 text-xs transition-colors ${
-                                colFilters.statusGroup
-                                  ? "border-[var(--accent)] bg-[var(--accent-light)] text-[var(--accent)] font-medium"
-                                  : "border-[var(--border)] bg-[var(--surface-elevated)] text-[var(--muted)] hover:text-[var(--foreground)]"
-                              }`}
+                              className="flex items-center gap-1 rounded border border-[var(--border)] bg-[var(--surface-elevated)] px-2 py-1 text-xs text-[var(--muted)] transition-colors hover:text-[var(--foreground)]"
                             >
                               {draftFilters.statusGroup ? `Status: ${draftFilters.statusGroup}` : "Status"}
                               <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
@@ -1185,13 +1186,9 @@ export default function Home() {
                             <button
                               onClick={() => {
                                 if (openDropdown === "indexability") { setOpenDropdown(null); }
-                                else { setDraftFilters({ ...colFilters }); setOpenDropdown("indexability"); }
+                                else { setOpenDropdown("indexability"); }
                               }}
-                              className={`flex items-center gap-1 rounded border px-2 py-1 text-xs transition-colors ${
-                                colFilters.indexability
-                                  ? "border-[var(--accent)] bg-[var(--accent-light)] text-[var(--accent)] font-medium"
-                                  : "border-[var(--border)] bg-[var(--surface-elevated)] text-[var(--muted)] hover:text-[var(--foreground)]"
-                              }`}
+                              className="flex items-center gap-1 rounded border border-[var(--border)] bg-[var(--surface-elevated)] px-2 py-1 text-xs text-[var(--muted)] transition-colors hover:text-[var(--foreground)]"
                             >
                               {draftFilters.indexability ? `Indexability: ${draftFilters.indexability}` : "Indexability"}
                               <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
@@ -1220,13 +1217,9 @@ export default function Home() {
                             <button
                               onClick={() => {
                                 if (openDropdown === "canonical") { setOpenDropdown(null); }
-                                else { setDraftFilters({ ...colFilters }); setOpenDropdown("canonical"); }
+                                else { setOpenDropdown("canonical"); }
                               }}
-                              className={`flex items-center gap-1 rounded border px-2 py-1 text-xs transition-colors ${
-                                colFilters.hasCanonical !== null
-                                  ? "border-[var(--accent)] bg-[var(--accent-light)] text-[var(--accent)] font-medium"
-                                  : "border-[var(--border)] bg-[var(--surface-elevated)] text-[var(--muted)] hover:text-[var(--foreground)]"
-                              }`}
+                              className="flex items-center gap-1 rounded border border-[var(--border)] bg-[var(--surface-elevated)] px-2 py-1 text-xs text-[var(--muted)] transition-colors hover:text-[var(--foreground)]"
                             >
                               {draftFilters.hasCanonical === true ? "Canonical: Has" : draftFilters.hasCanonical === false ? "Canonical: Missing" : "Canonical"}
                               <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
@@ -1263,30 +1256,11 @@ export default function Home() {
                             Clear
                           </button>
                           <span className="ml-auto shrink-0 text-xs text-[var(--muted)]">
-                            {pagesData?.total ?? 0} URL{(pagesData?.total ?? 0) !== 1 ? "s" : ""}
+                            {displayedDashboardPages.length} URL{displayedDashboardPages.length !== 1 ? "s" : ""}
+                            {(colFilters.statusGroup || colFilters.indexability || colFilters.hasCanonical !== null) && ` of ${pagesData?.total ?? 0}`}
                             {site?.status === "processing" && " (updating…)"}
                           </span>
                         </div>
-                        {/* Inventory banner */}
-                        {site?.inventory_total && site.inventory_total >= 100 && (
-                          <div className="shrink-0 flex items-center gap-3 border-b border-[var(--border)] bg-[var(--accent-light)] px-3 py-1.5 text-[10px] text-[var(--accent)]">
-                            <span className="font-semibold">
-                              Sitemap: {site.inventory_total.toLocaleString()} URLs found
-                            </span>
-                            {site.inventory_sample_size && (
-                              <span>· Analyzing representative sample of {site.inventory_sample_size.toLocaleString()} pages</span>
-                            )}
-                            {site.inventory_sections && Object.keys(site.inventory_sections).length > 0 && (
-                              <span>
-                                ·{" "}
-                                {Object.entries(site.inventory_sections)
-                                  .slice(0, 4)
-                                  .map(([s, n]) => `/${s} (${n.toLocaleString()})`)
-                                  .join(" · ")}
-                              </span>
-                            )}
-                          </div>
-                        )}
                         <div className="overflow-auto" style={{ maxHeight: "400px" }}>
                           <table className="w-full border-collapse text-xs" style={{ minWidth: "1200px" }}>
                             <thead className="sticky top-0 z-10 border-b border-[var(--border)] bg-[var(--surface-elevated)]">
@@ -1313,10 +1287,12 @@ export default function Home() {
                                   </div>
                                 </td></tr>
                               )}
-                              {filteredDashboardPages.filter(page => {
-                                const ct = page.content_type ?? "";
-                                return !ct.startsWith("image/") && !ct.includes("css") && !ct.includes("javascript") && !ct.includes("font");
-                              }).map((page, i) => (
+                              {displayedDashboardPages.length === 0 && site?.status !== "processing" && (
+                                <tr><td colSpan={13} className="px-3 py-8 text-center text-xs text-[var(--muted)]">
+                                  No URLs match the applied filters.
+                                </td></tr>
+                              )}
+                              {displayedDashboardPages.map((page, i) => (
                                 <tr
                                   key={`${page.id}-${page.address}`}
                                   onClick={() => setSelectedPage(selectedPage?.id === page.id && selectedPage?.address === page.address ? null : page)}
@@ -1389,13 +1365,6 @@ export default function Home() {
                             <span className="min-w-0 flex-1 truncate text-xs font-medium text-[var(--foreground)]" title={selectedPage.address}>
                               {selectedPage.address}
                             </span>
-                            <input
-                              type="text"
-                              placeholder="Filter…"
-                              value={detailSearch}
-                              onChange={(e) => setDetailSearch(e.target.value)}
-                              className="w-24 shrink-0 rounded border border-[var(--border)] bg-[var(--surface)] px-2 py-1 text-xs outline-none focus:border-[var(--accent)]"
-                            />
                             <button
                               onClick={() => { setSelectedPage(null); setDetailSearch(""); }}
                               className="shrink-0 text-[var(--muted)] transition-colors hover:text-[var(--foreground)]"
