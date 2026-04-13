@@ -1224,11 +1224,7 @@ def get_audit_trend(
 
 
 def get_revenue_trend(days: int = 30) -> list[dict[str, Any]]:
-    """Return per-day cumulative MRR for the last N days.
-
-    For each date in the range, counts active paid subscriptions created on or
-    before that date and multiplies by PLAN_PRICES to get MRR.
-    """
+    """Return per-day revenue for the last N days (only subscriptions created on each date)."""
     from datetime import date, timedelta
 
     conn = _connect()
@@ -1241,7 +1237,7 @@ def get_revenue_trend(days: int = 30) -> list[dict[str, Any]]:
             rows = conn.execute(
                 "SELECT plan, COUNT(*) as count FROM subscriptions "
                 "WHERE status = 'active' AND plan != 'free' "
-                "AND DATE(created_at) <= ? GROUP BY plan",
+                "AND DATE(created_at) = ? GROUP BY plan",
                 (d_str,),
             ).fetchall()
             per_plan = {r["plan"]: PLAN_PRICES.get(r["plan"], 0) * r["count"] for r in rows}

@@ -633,7 +633,7 @@ export default function LandingPage() {
               <li><span className="lp-pi">✓</span><span>Track up to 10 competitors</span></li>
               <li><span className="lp-pi">✓</span><span>White-label PDF + CSV reports</span></li>
             </ul>
-            <Link href="#" className="lp-price-btn">Contact Sales</Link>
+            <Link href="/signup" className="lp-price-btn">Contact Sales</Link>
           </div>
         </div>
       </section>
