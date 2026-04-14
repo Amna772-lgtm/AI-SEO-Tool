@@ -1218,7 +1218,7 @@ export default function Home() {
                               }}
                               className="flex items-center gap-1 rounded border border-[var(--border)] bg-[var(--surface-elevated)] px-2 py-1 text-xs text-[var(--muted)] transition-colors hover:text-[var(--foreground)]"
                             >
-                              {draftFilters.statusGroup ? `Status: ${draftFilters.statusGroup}` : "Status"}
+                              {draftFilters.statusGroup ? `${draftFilters.statusGroup}` : "Status"}
                               <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
                             </button>
                             {openDropdown === "status" && (
@@ -1249,7 +1249,7 @@ export default function Home() {
                               }}
                               className="flex items-center gap-1 rounded border border-[var(--border)] bg-[var(--surface-elevated)] px-2 py-1 text-xs text-[var(--muted)] transition-colors hover:text-[var(--foreground)]"
                             >
-                              {draftFilters.indexability ? `Indexability: ${draftFilters.indexability}` : "Indexability"}
+                              {draftFilters.indexability ? `${draftFilters.indexability}` : "Indexability"}
                               <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
                             </button>
                             {openDropdown === "indexability" && (
@@ -1280,7 +1280,7 @@ export default function Home() {
                               }}
                               className="flex items-center gap-1 rounded border border-[var(--border)] bg-[var(--surface-elevated)] px-2 py-1 text-xs text-[var(--muted)] transition-colors hover:text-[var(--foreground)]"
                             >
-                              {draftFilters.hasCanonical === true ? "Canonical: Has" : draftFilters.hasCanonical === false ? "Canonical: Missing" : "Canonical"}
+                              {draftFilters.hasCanonical === true ? "Has" : draftFilters.hasCanonical === false ? "Missing" : "Canonical"}
                               <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
                             </button>
                             {openDropdown === "canonical" && (
