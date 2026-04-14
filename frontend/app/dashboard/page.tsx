@@ -221,7 +221,7 @@ function CrawlHistoryChart({ items }: { items: HistoryItem[] }) {
       <div className="flex h-full flex-col rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
         <p className="mb-3 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>
-          CRAWL HISTORY (Past 30 Days)
+          GEO SCORE HISTORY (Past 30 Audits)
         </p>
         <div className="flex flex-1 items-center justify-center text-xs text-[var(--muted)]">
           Run more audits on this domain to see history
@@ -230,10 +230,10 @@ function CrawlHistoryChart({ items }: { items: HistoryItem[] }) {
     );
   }
 
-  const maxY = Math.max(...sorted.map(d => d.pages_count ?? 0), 10);
+  const maxY = 100;
   const scaleX = (i: number) => PAD.left + (i / (sorted.length - 1)) * innerW;
   const scaleY = (v: number) => PAD.top + innerH - ((v / maxY) * innerH);
-  const points = sorted.map((d, i) => ({ x: scaleX(i), y: scaleY(d.pages_count ?? 0) }));
+  const points = sorted.map((d, i) => ({ x: scaleX(i), y: scaleY(d.overall_score ?? 0) }));
   const linePath = points.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(" ");
   const areaPath = `${linePath} L ${points[points.length - 1].x.toFixed(1)} ${(PAD.top + innerH).toFixed(1)} L ${points[0].x.toFixed(1)} ${(PAD.top + innerH).toFixed(1)} Z`;
   const yTicks = [0.25, 0.5, 0.75, 1];
@@ -248,7 +248,7 @@ function CrawlHistoryChart({ items }: { items: HistoryItem[] }) {
       <div className="mb-2 flex items-center justify-between">
         <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>
-          CRAWL HISTORY (Past 30 Days)
+          GEO SCORE HISTORY (Past 30 Audits)
         </p>
         <span className="text-[10px] text-[var(--muted)]">Historical View →</span>
       </div>
@@ -278,8 +278,8 @@ function CrawlHistoryChart({ items }: { items: HistoryItem[] }) {
         ))}
         <line x1={PAD.left} y1={PAD.top + innerH} x2={PAD.left + innerW} y2={PAD.top + innerH} stroke="var(--border)" strokeWidth="0.5" />
         <line x1={PAD.left} y1={PAD.top} x2={PAD.left} y2={PAD.top + innerH} stroke="var(--border)" strokeWidth="0.5" />
-        <text x={W / 2} y={H - 1} textAnchor="middle" fontSize="7.5" fill="#94a3b8">Past 30 Days</text>
-        <text x={9} y={H / 2 - 4} textAnchor="middle" fontSize="7" fill="#94a3b8" transform={`rotate(-90, 9, ${H / 2 - 4})`}>URLs</text>
+        <text x={W / 2} y={H - 1} textAnchor="middle" fontSize="7.5" fill="#94a3b8">Past 30 Audits</text>
+        <text x={9} y={H / 2 - 4} textAnchor="middle" fontSize="7" fill="#94a3b8" transform={`rotate(-90, 9, ${H / 2 - 4})`}>Score</text>
       </svg>
     </div>
   );
@@ -422,37 +422,50 @@ function DashSecurityHeaders({ sh }: { sh: SecurityHeadersResult }) {
   ];
   const pct = sh.total_count > 0 ? (sh.passed_count / sh.total_count) * 100 : 0;
   const allPass = pct === 100;
+  const badgeColor = allPass ? "#16a34a" : pct >= 60 ? "#d97706" : "#ef4444";
+
+  const SHORT_LABELS: Record<string, string> = {
+    "X-Content-Type-Options": "X-Content-Type",
+    "X-Frame-Options": "X-Frame",
+    "Strict-Transport-Security": "HSTS",
+    "Content-Security-Policy": "CSP",
+    "Referrer-Policy": "Referrer-Policy",
+  };
 
   return (
-    <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
-      <div className="mb-3 flex items-center justify-between">
+    <div className="flex flex-col rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
+      <div className="mb-4 flex items-center justify-between">
         <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-          SECURITY HEADERS
+          Security Headers
         </p>
-        <span className="rounded-full px-2 py-0.5 text-[10px] font-bold"
-          style={{ background: allPass ? "#f0fdf4" : "#fffbeb", color: allPass ? "#16a34a" : "#d97706" }}>
+        <span className="rounded-full px-2.5 py-0.5 text-[11px] font-bold"
+          style={{ background: allPass ? "#f0fdf4" : pct >= 60 ? "#fffbeb" : "#fef2f2", color: badgeColor }}>
           {allPass ? "All Pass" : `${sh.passed_count}/${sh.total_count}`}
         </span>
       </div>
       {sh.error ? (
         <p className="text-xs text-[var(--warning)]">{sh.error}</p>
       ) : (
-        <div className="space-y-2">
+        <div className="flex flex-1 flex-col justify-evenly gap-0.5">
           {displayKeys.map(key => {
             const info = sh.headers[key];
             if (!info) return null;
+            const pass = info.present;
             return (
-              <div key={key} className="flex items-center gap-2 text-xs">
-                <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[10px] font-bold"
-                  style={{ background: info.present ? "#10b98122" : "#ef444422", color: info.present ? "#10b981" : "#ef4444" }}>
-                  {info.present ? "✓" : "✗"}
+              <div key={key}
+                className="flex items-center gap-2.5 rounded-md py-1.5 pl-3 pr-2.5 text-xs transition-colors hover:bg-[var(--surface-elevated)]">
+                <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[9px] font-bold"
+                  style={{ background: pass ? "#10b98118" : "#ef444418", color: pass ? "#10b981" : "#ef4444" }}>
+                  {pass ? "✓" : "✗"}
                 </span>
-                <span className="flex-1 truncate text-[var(--foreground)]" title={info.label}>{info.label}</span>
-                <div className="h-1.5 w-14 shrink-0 overflow-hidden rounded-full bg-[var(--surface-elevated)]">
-                  <div className="h-full rounded-full transition-all" style={{ width: info.present ? "100%" : "15%", background: info.present ? "#10b981" : "#ef4444" }} />
-                </div>
-                <span className="w-5 shrink-0 text-right text-[9px] font-semibold" style={{ color: info.present ? "#10b981" : "#ef4444" }}>VS</span>
+                <span className="flex-1 truncate font-medium text-[var(--foreground)]" title={info.label}>
+                  {SHORT_LABELS[info.label] ?? info.label}
+                </span>
+                <span className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold"
+                  style={{ background: pass ? "#10b98115" : "#ef444415", color: pass ? "#10b981" : "#ef4444" }}>
+                  {pass ? "OK" : "Missing"}
+                </span>
               </div>
             );
           })}
@@ -466,23 +479,47 @@ function DashSecurityHeaders({ sh }: { sh: SecurityHeadersResult }) {
 function DashIndexabilityStatus({ overview }: { overview: OverviewResponse }) {
   const indexable = overview.indexability_counts?.indexable ?? 0;
   const nonIndexable = overview.indexability_counts?.non_indexable ?? 0;
-  const idxTotal = Math.max(indexable + nonIndexable, 1);
+  const external = overview.indexability_counts?.external ?? 0;
   const ok = overview.status_counts?.ok ?? 0;
-  const statusTotal = Math.max(overview.total_urls, 1);
+  const redirect = overview.status_counts?.redirect ?? 0;
+  const error4xx = overview.status_counts?.error_4xx ?? 0;
+  const error5xx = overview.status_counts?.error_5xx ?? 0;
 
-  function SmallRing({ count, total, color, label, sub }: { count: number; total: number; color: string; label: string; sub: string }) {
-    const r = 26, cx = 34, cy = 34, C = 2 * Math.PI * r;
-    const filled = (count / total) * C;
+  const r = 26, cx = 34, cy = 34, C = 2 * Math.PI * r;
+
+  type Segment = { count: number; color: string; label: string };
+
+  function MultiRing({ segments, label }: { segments: Segment[]; label: string }) {
+    const total = Math.max(segments.reduce((s, g) => s + g.count, 0), 1);
+    let cumulative = 0;
     return (
-      <div className="flex flex-col items-center gap-1">
+      <div className="flex flex-1 flex-col items-center gap-1.5">
         <svg width="68" height="68" viewBox="0 0 68 68">
           <circle cx={cx} cy={cy} r={r} fill="none" stroke="var(--border)" strokeWidth="7" />
-          <circle cx={cx} cy={cy} r={r} fill="none" stroke={color} strokeWidth="7"
-            strokeDasharray={`${filled} ${C}`} strokeDashoffset={C * 0.25} />
-          <text x={cx} y={cy + 5} textAnchor="middle" fontSize="13" fontWeight="800" fill="var(--foreground)">{count}</text>
+          {segments.map((seg, i) => {
+            if (seg.count === 0) return null;
+            const len = (seg.count / total) * C;
+            const offset = C * 0.25 - cumulative;
+            cumulative += len;
+            return (
+              <circle key={i} cx={cx} cy={cy} r={r} fill="none" stroke={seg.color} strokeWidth="7"
+                strokeDasharray={`${len} ${C - len}`} strokeDashoffset={offset} />
+            );
+          })}
+          <text x={cx} y={cy + 5} textAnchor="middle" fontSize="13" fontWeight="800" fill="var(--foreground)">{total}</text>
         </svg>
         <p className="text-[10px] font-semibold text-[var(--foreground)]">{label}</p>
-        <p className="text-center text-[9px] leading-tight text-[var(--muted)]">{sub}</p>
+        <div className="mt-1 w-full flex-1 rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)] p-2 flex flex-col justify-around">
+          {segments.map((seg, i) => (
+            <span key={i} className="flex items-center justify-between gap-3 px-1 py-0.5 text-[9px] text-[var(--muted)]">
+              <span className="flex items-center gap-1">
+                <span className="inline-block h-2 w-2 shrink-0 rounded-full" style={{ background: seg.color }} />
+                {seg.label}
+              </span>
+              <span className="font-semibold text-[var(--foreground)]">{seg.count}</span>
+            </span>
+          ))}
+        </div>
       </div>
     );
   }
@@ -493,11 +530,18 @@ function DashIndexabilityStatus({ overview }: { overview: OverviewResponse }) {
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
         INDEXABILITY & STATUS
       </p>
-      <div className="flex justify-around">
-        <SmallRing count={indexable} total={idxTotal} color="#0d9488" label="Indexability"
-          sub={`Indexable ${indexable} · Non-Indexable ${nonIndexable}`} />
-        <SmallRing count={ok} total={statusTotal} color="#10b981" label="Status Codes"
-          sub={`200 Success: ${ok}`} />
+      <div className="flex justify-around items-stretch gap-4">
+        <MultiRing label="Indexability" segments={[
+          { count: indexable,    color: "#0d9488", label: "Indexable" },
+          { count: nonIndexable, color: "#ef4444", label: "Non-Indexable" },
+          { count: external,     color: "#94a3b8", label: "External" },
+        ]} />
+        <MultiRing label="Status Codes" segments={[
+          { count: ok,       color: "#10b981", label: "2xx" },
+          { count: redirect, color: "#f59e0b", label: "3xx" },
+          { count: error4xx, color: "#e97171", label: "4xx" },
+          { count: error5xx, color: "#f10505", label: "5xx" },
+        ]} />
       </div>
     </div>
   );
@@ -1008,20 +1052,22 @@ export default function Home() {
                       {geoScore != null ? (() => {
                         const color = geoScore >= 80 ? "#16a34a" : geoScore >= 65 ? "#f59e0b" : "#ef4444";
                         const r = 24, cx = 30, cy = 30, C = 2 * Math.PI * r;
+                        const geoLabel = geoScore >= 80 ? "Excellent" : geoScore >= 65 ? "Good" : geoScore >= 50 ? "Fair" : "Poor";
                         return (
                           <div className="flex items-center gap-3">
                             <svg width="60" height="60" viewBox="0 0 60 60" className="shrink-0">
                               <circle cx={cx} cy={cy} r={r} fill="none" stroke="var(--border)" strokeWidth="6" />
                               <circle cx={cx} cy={cy} r={r} fill="none" stroke={color} strokeWidth="6"
-                                strokeDasharray={`${(geoScore / 100) * C} ${C}`} strokeDashoffset={C * 0.25}
+                                strokeDasharray={`${(geoScore / 100) * C} ${C}`}
+                                transform={`rotate(-90 ${cx} ${cy})`}
                                 style={{ transition: "stroke-dasharray 900ms" }} />
-                              <text x={cx} y={cy + 5} textAnchor="middle" fontSize="13" fontWeight="800" fill={color}>{geoScore}</text>
+                              <text x={cx} y={cy + 5} textAnchor="middle" fontSize="12" fontWeight="800" fill={color}>{geoScore}</text>
                             </svg>
                             <div>
                               <p className="text-sm font-bold" style={{ color: "#0f172a" }}>{geoScore} / 100 {geoGrade}</p>
                               <span className="mt-1 inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold"
                                 style={{ background: geoScore >= 80 ? "#f0fdf4" : geoScore >= 65 ? "#fffbeb" : "#fef2f2", color }}>
-                                {geoScore >= 80 ? "Excellent" : geoScore >= 65 ? "Good" : geoScore >= 50 ? "Fair" : "Poor"}
+                                {geoLabel}
                               </span>
                             </div>
                           </div>
@@ -1053,13 +1099,14 @@ export default function Home() {
                             <svg width="60" height="60" viewBox="0 0 60 60" className="shrink-0">
                               <circle cx={cx} cy={cy} r={r} fill="none" stroke="var(--border)" strokeWidth="6" />
                               <circle cx={cx} cy={cy} r={r} fill="none" stroke={color} strokeWidth="6"
-                                strokeDasharray={`${(pct / 100) * C} ${C}`} strokeDashoffset={C * 0.25} />
-                              <text x={cx} y={cy + 4} textAnchor="middle" fontSize="10" fontWeight="800" fill={color}>{pct}%</text>
+                                strokeDasharray={pct === 100 ? undefined : `${(pct / 100) * C} ${C}`}
+                                transform={`rotate(-90 ${cx} ${cy})`} />
+                              <text x={cx} y={cy + 5} textAnchor="middle" fontSize="12" fontWeight="800" fill={color}>{pct}%</text>
                             </svg>
                             <div>
-                              <span className="inline-flex rounded-full px-2 py-0.5 text-xs font-bold"
-                                style={{ background: `${color}1a`, color }}>{label}</span>
-                              <p className="mt-1 text-xs text-[var(--muted)]">{passed}/{checks.length} checks</p>
+                              <p className="text-sm font-bold" style={{ color: "#0f172a" }}>{passed} / {checks.length} Checks</p>
+                              <span className="mt-1 inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold"
+                                style={{ background: pct === 100 ? "#f0fdf4" : pct >= 75 ? "#fffbeb" : "#fef2f2", color }}>{label}</span>
                             </div>
                           </div>
                         );
@@ -1143,7 +1190,7 @@ export default function Home() {
                       <DashSpeedSection pagespeed={audit.audit.pagespeed} />
                       {audit.audit.security_headers
                         ? <DashSecurityHeaders sh={audit.audit.security_headers} />
-                        : <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 flex items-center justify-center text-xs text-[var(--muted)]">Security headers unavailable</div>
+                        : <div className="flex items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 text-xs text-[var(--muted)]">Security headers unavailable</div>
                       }
                       <DashIndexabilityStatus overview={overview} />
                     </div>
@@ -1371,7 +1418,7 @@ export default function Home() {
                       {selectedPage && (
                         <div
                           className="rounded-lg border border-[var(--border)] bg-[var(--surface)] flex flex-col shrink-0"
-                          style={{ width: "38%", maxHeight: "460px" }}
+                          style={{ width: "40%", maxHeight: "460px" }}
                         >
                           <div className="flex shrink-0 items-center gap-2 border-b border-[var(--border)] bg-[var(--surface-elevated)] px-3 py-2 rounded-t-lg">
                             <span className="min-w-0 flex-1 truncate text-xs font-medium text-[var(--foreground)]" title={selectedPage.address}>

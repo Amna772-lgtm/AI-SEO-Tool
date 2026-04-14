@@ -140,9 +140,9 @@ export default function LandingPage() {
           The #1 AI Citation Readiness Platform
         </div>
         <h1>
-          Will AI Search Engines <span className="lp-gradient-text">Actually Cite</span>
+          Is Your Website <span className="lp-gradient-text">Visible to AI</span>
           <br />
-          Your Website?
+          or Being Ignored?
         </h1>
         <p className="lp-hero-sub">
           Crawl every page. Score your GEO readiness. Get ranked by ChatGPT, Claude, Perplexity, Gemini &amp; Grok
