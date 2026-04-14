@@ -16,6 +16,7 @@ import { EngineScores } from "./EngineScores";
 import { EntityPanel } from "./EntityPanel";
 import LockedFeature from "../LockedFeature";
 
+
 const SITE_TYPE_ICONS: Record<string, string> = {
   ecommerce:      "🛒",
   blog:           "✍",
@@ -78,7 +79,7 @@ interface Props {
 export function GeoTab({ geo, siteId, siteUrl, pages, isFree = false, plan }: Props) {
   const isAgency = plan === "agency";
   const [detailTab, setDetailTab] = useState<DetailTab>("schema");
-  const isLoading = geo.geo_status === "running" || geo.geo_status === "pending";
+const isLoading = geo.geo_status === "running" || geo.geo_status === "pending";
 
   const score = geo.score;
   const suggestions = geo.suggestions;
@@ -86,7 +87,7 @@ export function GeoTab({ geo, siteId, siteUrl, pages, isFree = false, plan }: Pr
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-auto p-4">
       {/* ── Row 1: Score hero + Suggestions ─────────────────────────────── */}
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[340px_1fr]">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[340px_1fr] xl:items-stretch">
 
         {/* Score card */}
         <div className="rounded-xl border border-[var(--border)] bg-white shadow-sm">
@@ -119,68 +120,78 @@ export function GeoTab({ geo, siteId, siteUrl, pages, isFree = false, plan }: Pr
           </div>
         </div>
 
-        {/* Suggestions panel */}
-        <div className="rounded-xl border border-[var(--border)] bg-white shadow-sm flex flex-col" style={{ minHeight: "360px" }}>
-          <div className="border-b border-[var(--border)] bg-[var(--surface-elevated)] px-4 py-3 rounded-t-xl flex items-center justify-between">
-            <div>
-              <h2 className="text-sm font-semibold text-[var(--foreground)]">Prioritized Recommendations</h2>
-              <p className="text-[10px] text-[var(--muted)]">Actionable improvements sorted by impact</p>
+        {/* Right column: Recommendations + Engine Scores stacked */}
+        <div className="flex flex-col gap-4 min-h-0">
+
+          {/* Per-engine scores card */}
+          {!isFree && (
+            <div className="rounded-xl border border-[var(--border)] bg-white shadow-sm">
+              <div className="border-b border-[var(--border)] bg-[var(--surface-elevated)] px-4 py-3 rounded-t-xl">
+                <h2 className="text-sm font-semibold text-[var(--foreground)]">Per-Engine Citation Scores</h2>
+                <p className="text-[10px] text-[var(--muted)]">Each AI model weighs signals differently — target the engines most relevant to your audience</p>
+              </div>
+              <div className="p-4">
+                {score ? (
+                  <EngineScores score={score} inline />
+                ) : (
+                  <LoadingCard label="engine scores" />
+                )}
+              </div>
             </div>
-            {/* Export buttons — Agency only */}
-            <div className="flex gap-2">
-              {isAgency ? (
-                <>
-                  <a
-                    href={getGeoExportUrl(siteId, "csv")}
-                    download
-                    className="rounded-md border border-[var(--border)] bg-[var(--surface-elevated)] px-3 py-1.5 text-xs font-medium text-[var(--foreground)] hover:bg-[var(--border)] transition-colors"
-                  >
-                    ↓ CSV
-                  </a>
-                  <a
-                    href={getGeoExportUrl(siteId, "pdf")}
-                    download
-                    className="rounded-md border border-[var(--accent)] bg-[var(--accent-light)] px-3 py-1.5 text-xs font-medium text-[var(--accent)] hover:bg-[var(--accent)] hover:text-white transition-colors"
-                  >
-                    ↓ PDF
-                  </a>
-                </>
+          )}
+
+          {/* Recommendations card */}
+          <div className="rounded-xl border border-[var(--border)] bg-white shadow-sm flex flex-col flex-1">
+            <div className="border-b border-[var(--border)] bg-[var(--surface-elevated)] px-4 py-3 rounded-t-xl flex items-center justify-between">
+              <div>
+                <h2 className="text-sm font-semibold text-[var(--foreground)]">Prioritized Recommendations</h2>
+                <p className="text-[10px] text-[var(--muted)]">Actionable improvements sorted by impact</p>
+              </div>
+              <div className="flex gap-2">
+                {isAgency ? (
+                  <>
+                    <a
+                      href={getGeoExportUrl(siteId, "csv")}
+                      download
+                      className="rounded-md border border-[var(--border)] bg-[var(--surface-elevated)] px-3 py-1.5 text-xs font-medium text-[var(--foreground)] hover:bg-[var(--border)] transition-colors"
+                    >
+                      ↓ CSV
+                    </a>
+                    <a
+                      href={getGeoExportUrl(siteId, "pdf")}
+                      download
+                      className="rounded-md border border-[var(--accent)] bg-[var(--accent-light)] px-3 py-1.5 text-xs font-medium text-[var(--accent)] hover:bg-[var(--accent)] hover:text-white transition-colors"
+                    >
+                      ↓ PDF
+                    </a>
+                  </>
+                ) : (
+                  <>
+                    <button disabled title="Available on Agency plan" className="rounded-md border border-[var(--border)] bg-[var(--surface-elevated)] px-3 py-1.5 text-xs font-medium text-[var(--muted)] opacity-50 cursor-not-allowed">
+                      ↓ CSV
+                    </button>
+                    <button disabled title="Available on Agency plan" className="rounded-md border border-[var(--border)] bg-[var(--surface-elevated)] px-3 py-1.5 text-xs font-medium text-[var(--muted)] opacity-50 cursor-not-allowed">
+                      ↓ PDF
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4">
+              {isFree ? (
+                <LockedFeature title="Prioritized Recommendations" />
+              ) : isLoading && !suggestions ? (
+                <LoadingCard label="suggestions" />
+              ) : suggestions ? (
+                <SuggestionsList suggestions={suggestions} />
               ) : (
-                <>
-                  <button
-                    disabled
-                    title="Available on Agency plan"
-                    className="rounded-md border border-[var(--border)] bg-[var(--surface-elevated)] px-3 py-1.5 text-xs font-medium text-[var(--muted)] opacity-50 cursor-not-allowed"
-                  >
-                    ↓ CSV
-                  </button>
-                  <button
-                    disabled
-                    title="Available on Agency plan"
-                    className="rounded-md border border-[var(--border)] bg-[var(--surface-elevated)] px-3 py-1.5 text-xs font-medium text-[var(--muted)] opacity-50 cursor-not-allowed"
-                  >
-                    ↓ PDF
-                  </button>
-                </>
+                <p className="text-sm text-[var(--muted)]">Suggestions not available.</p>
               )}
             </div>
           </div>
-          <div className="flex-1 overflow-hidden p-4">
-            {isFree ? (
-              <LockedFeature title="Prioritized Recommendations" />
-            ) : isLoading && !suggestions ? (
-              <LoadingCard label="suggestions" />
-            ) : suggestions ? (
-              <SuggestionsList suggestions={suggestions} />
-            ) : (
-              <p className="text-sm text-[var(--muted)]">Suggestions not available.</p>
-            )}
-          </div>
+
         </div>
       </div>
-
-      {/* ── Row 1b: Per-engine scores ─────────────────────────────────────── */}
-      {score && !isFree && <EngineScores score={score} />}
 
       {/* ── Row 2: Detail tabs (Schema / Content / E-E-A-T / NLP) ────────── */}
       <div className="rounded-xl border border-[var(--border)] bg-white shadow-sm">

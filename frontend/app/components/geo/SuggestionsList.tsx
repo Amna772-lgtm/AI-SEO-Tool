@@ -94,8 +94,6 @@ export function SuggestionsList({ suggestions }: Props) {
     optional: suggestions.optional?.length ?? 0,
   };
 
-  const totalCritical = counts.critical;
-
   return (
     <div className="flex flex-col h-full">
       {/* Tabs */}
@@ -143,15 +141,6 @@ export function SuggestionsList({ suggestions }: Props) {
           ))
         )}
       </div>
-
-      {totalCritical > 0 && activeTab !== "critical" && (
-        <button
-          onClick={() => setActiveTab("critical")}
-          className="mt-2 w-full rounded-lg border border-red-200 bg-red-50 py-2 text-xs font-medium text-red-600 hover:bg-red-100 transition-colors"
-        >
-          {totalCritical} critical issue{totalCritical !== 1 ? "s" : ""} need attention
-        </button>
-      )}
     </div>
   );
 }
