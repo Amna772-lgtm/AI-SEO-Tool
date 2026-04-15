@@ -1,9 +1,9 @@
 """
 Agent 8 — Multi-Engine AI Visibility Probe
 
-Simulates how 5 AI engines respond to brand-relevant questions using a single
-ANTHROPIC_API_KEY. Each engine uses a tailored system prompt so Claude responds
-in that engine's style/knowledge base — no additional API keys required.
+Uses real APIs for Gemini, Grok (via Groq), and Perplexity (via OpenRouter).
+ChatGPT is simulated via Claude with a ChatGPT persona (no OpenAI key required).
+Claude uses the Anthropic API directly.
 
 All 5 engines always run. There is no "unavailable" state per engine.
 If ANTHROPIC_API_KEY is missing the entire probe returns None and the
@@ -18,10 +18,30 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from urllib.parse import urlparse
 
 # ── Environment ──────────────────────────────────────────────────────────────
-ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
-ANTHROPIC_MODEL   = os.getenv("ANTHROPIC_MODEL", "")
+ANTHROPIC_API_KEY  = os.getenv("ANTHROPIC_API_KEY", "")
+ANTHROPIC_MODEL    = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-6")
+GEMINI_AI_API_KEY  = os.getenv("GEMINI_AI_API_KEY", "")
+GROK_API_KEY       = os.getenv("GROK_API_KEY", "")       # Groq inference (gsk_...)
+PERPLEXITY_API_KEY = os.getenv("PERPLEXITY_API_KEY", "")  # OpenRouter (sk-or-v1-...)
 
-# ── Engine personas ──────────────────────────────────────────────────────────
+# ── Real-API config per engine ────────────────────────────────────────────────
+# Maps engine key → (api_key_env_value, base_url_or_None, model)
+# base_url=None means use SDK default
+_REAL_API_CONFIG: dict[str, tuple[str, str | None, str]] = {
+    "gemini":     (GEMINI_AI_API_KEY,  None,                              "gemini-2.0-flash"),
+    "grok":       (GROK_API_KEY,       "https://api.groq.com/openai/v1",  "llama-3.3-70b-versatile"),
+    "perplexity": (PERPLEXITY_API_KEY, "https://openrouter.ai/api/v1",    "perplexity/sonar"),
+}
+
+# System prompt used for real API calls (no persona needed — each engine speaks for itself)
+_REAL_ENGINE_SYSTEM = (
+    "You are a helpful AI assistant. Answer the user's question naturally and helpfully. "
+    "When you know of specific websites, tools, brands, or resources that are relevant, "
+    "name them explicitly by domain name or brand name. "
+    "Be direct and informative. Answer in 2-4 sentences."
+)
+
+# ── Claude persona prompts (used for Claude direct + ChatGPT simulation) ─────
 _ENGINE_PERSONAS: dict[str, str] = {
     "claude": (
         "You are Claude, an AI assistant made by Anthropic. "
@@ -34,24 +54,6 @@ _ENGINE_PERSONAS: dict[str, str] = {
         "Answer the user's question as ChatGPT would, drawing on OpenAI's training data up to early 2024. "
         "When you know of specific websites, tools, brands, or online resources that are relevant, name them explicitly. "
         "Be helpful and direct. Answer in 2-4 sentences."
-    ),
-    "gemini": (
-        "You are Gemini, an AI assistant made by Google DeepMind. "
-        "Answer the user's question as Gemini would, drawing on Google's broad training data and knowledge of the web. "
-        "When you know of specific websites, tools, platforms, or brands that are relevant, mention them by name. "
-        "Be comprehensive but concise. Answer in 2-4 sentences."
-    ),
-    "grok": (
-        "You are Grok, an AI assistant made by xAI. "
-        "Answer the user's question as Grok would — directly and confidently, drawing on xAI's training data. "
-        "When you know of specific websites, tools, or brands that are relevant, name them. "
-        "Be direct and informative. Answer in 2-4 sentences."
-    ),
-    "perplexity": (
-        "You are Perplexity AI, an AI search assistant that provides cited, web-sourced answers. "
-        "Answer the user's question as Perplexity would, naming specific websites, tools, or platforms as sources. "
-        "Be specific and source-oriented — Perplexity always names its sources explicitly. "
-        "Answer in 2-4 sentences, mentioning specific resources by name."
     ),
 }
 
@@ -136,12 +138,9 @@ def _truncate(text: str, max_chars: int = 320) -> str:
 
 def _site_name_from_domain(domain: str) -> str:
     """Convert domain to a human-readable site name, e.g. thecoffeetreasures.com → The Coffee Treasures."""
-    name = domain.split(".")[0]  # strip TLD
-    # Insert spaces before capital letters or between known word boundaries using simple heuristics
-    # Split on common separators first
+    name = domain.split(".")[0]
     for sep in ["-", "_"]:
         name = name.replace(sep, " ")
-    # Attempt to title-case it
     return name.title()
 
 
@@ -195,10 +194,56 @@ def _generate_questions(
     return _FALLBACK_QUESTIONS.get(site_type, _FALLBACK_QUESTIONS["informational"])[:3]
 
 
-# ── Per-engine probe ─────────────────────────────────────────────────────────
+# ── Real API callers ──────────────────────────────────────────────────────────
+
+def _call_gemini(question: str, system_prompt: str) -> str:
+    """Call Google Gemini API via google-genai SDK."""
+    from google import genai
+    from google.genai import types
+    client = genai.Client(api_key=GEMINI_AI_API_KEY)
+    response = client.models.generate_content(
+        model="gemini-2.0-flash",
+        contents=question,
+        config=types.GenerateContentConfig(
+            system_instruction=system_prompt,
+            max_output_tokens=300,
+        ),
+    )
+    return response.text.strip()
+
+
+def _call_openai_compat(question: str, system_prompt: str, api_key: str, base_url: str, model: str) -> str:
+    """Call any OpenAI-compatible API (Groq, OpenRouter, etc.)."""
+    from openai import OpenAI
+    client = OpenAI(api_key=api_key, base_url=base_url)
+    response = client.chat.completions.create(
+        model=model,
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": question},
+        ],
+        max_tokens=300,
+    )
+    return response.choices[0].message.content.strip()
+
+
+def _call_claude_persona(question: str, system_prompt: str) -> str:
+    """Call Claude API with a given system prompt (used for Claude direct + ChatGPT simulation)."""
+    import anthropic
+    client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+    msg = client.messages.create(
+        model=ANTHROPIC_MODEL,
+        max_tokens=300,
+        system=system_prompt,
+        messages=[{"role": "user", "content": question}],
+    )
+    return msg.content[0].text.strip()
+
+
+# ── Per-engine persona builder (only used for Claude + ChatGPT) ──────────────
 
 def _build_persona(engine_key: str, domain: str, site_name: str, site_type: str, topics: list[str]) -> str:
-    """Inject site knowledge into the engine persona so it can cite the domain when relevant."""
+    """Inject site knowledge into Claude/ChatGPT persona so they can cite the domain when relevant."""
     base = _ENGINE_PERSONAS[engine_key]
     topic_str = ", ".join(topics[:5]) if topics else site_type
     knowledge = (
@@ -210,6 +255,8 @@ def _build_persona(engine_key: str, domain: str, site_name: str, site_type: str,
     return base + knowledge
 
 
+# ── Per-engine probe ─────────────────────────────────────────────────────────
+
 def _probe_engine(
     engine_key: str,
     questions: list[str],
@@ -219,24 +266,34 @@ def _probe_engine(
     topics: list[str],
 ) -> tuple[str, dict]:
     """Run all questions for one engine in parallel. Returns (engine_key, result)."""
-    import anthropic
-    client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-    system_prompt = _build_persona(engine_key, domain, site_name, site_type, topics)
+
+    # Determine whether this engine uses a real API or Claude simulation
+    real_config = _REAL_API_CONFIG.get(engine_key)
+    api_key_val = real_config[0] if real_config else ""
+    use_real_api = bool(api_key_val) and engine_key not in ("claude", "chatgpt")
+
+    # For Claude/ChatGPT, build the persona-injected system prompt
+    if not use_real_api:
+        system_prompt = _build_persona(engine_key, domain, site_name, site_type, topics)
 
     def _ask_one(q: str) -> dict:
         try:
-            msg = client.messages.create(
-                model=ANTHROPIC_MODEL,
-                max_tokens=300,
-                system=system_prompt,
-                messages=[{"role": "user", "content": q}],
-            )
-            resp = msg.content[0].text.strip()
+            if use_real_api:
+                _, base_url, model = real_config
+                if engine_key == "gemini":
+                    resp = _call_gemini(q, _REAL_ENGINE_SYSTEM)
+                else:
+                    resp = _call_openai_compat(q, _REAL_ENGINE_SYSTEM, api_key_val, base_url, model)
+            else:
+                # Claude direct or ChatGPT simulation via Claude
+                resp = _call_claude_persona(q, system_prompt)
+
             return {
                 "query": q,
                 "response_excerpt": _truncate(resp),
                 "domain_mentioned": _domain_in_text(domain, resp),
                 "engine": engine_key,
+                "real": use_real_api,
             }
         except Exception:
             return {
@@ -244,6 +301,7 @@ def _probe_engine(
                 "response_excerpt": None,
                 "domain_mentioned": False,
                 "engine": engine_key,
+                "real": False,
             }
 
     # Run all questions for this engine concurrently
@@ -253,6 +311,7 @@ def _probe_engine(
     mention_count = sum(1 for p in probes if p["domain_mentioned"])
     return engine_key, {
         "available": True,
+        "real": use_real_api,
         "probes": probes,
         "mention_count": mention_count,
         "mention_rate": round(mention_count / len(probes) * 100, 1) if probes else 0.0,
@@ -268,15 +327,19 @@ def analyze_probe(
     site_type: str = "informational",
 ) -> dict | None:
     """
-    Simulate visibility across 5 AI engines using only ANTHROPIC_API_KEY.
+    Probe visibility across 5 AI engines.
 
-    Returns None if ANTHROPIC_API_KEY is not set (stored as null in Redis,
-    frontend shows a single error card).
+    - Claude: real Anthropic API (direct)
+    - ChatGPT: Claude simulation with ChatGPT persona (no OpenAI key needed)
+    - Gemini: real Google Gemini API (GEMINI_AI_API_KEY)
+    - Grok: real Groq inference API (GROK_API_KEY)
+    - Perplexity: real OpenRouter API routing to perplexity/sonar (PERPLEXITY_API_KEY)
 
+    Returns None if ANTHROPIC_API_KEY is not set.
     All 5 engines always return available=True — no per-card "Unavailable" states.
     """
     if not ANTHROPIC_API_KEY:
-        return None  # pipeline stores null; frontend handles gracefully
+        return None
 
     domain = _extract_domain(site_url)
     site_name = _site_name_from_domain(domain)
@@ -296,10 +359,10 @@ def analyze_probe(
                 engine_key, result = future.result(timeout=60)
                 engines[engine_key] = result
             except Exception:
-                # Entire engine timed out — return 0% rather than unavailable
                 engines[key] = {
                     "available": True,
-                    "probes": [{"query": q, "response_excerpt": None, "domain_mentioned": False, "engine": key} for q in questions],
+                    "real": False,
+                    "probes": [{"query": q, "response_excerpt": None, "domain_mentioned": False, "engine": key, "real": False} for q in questions],
                     "mention_count": 0,
                     "mention_rate": 0.0,
                 }
@@ -309,6 +372,7 @@ def analyze_probe(
         if key not in engines:
             engines[key] = {
                 "available": True,
+                "real": False,
                 "probes": [],
                 "mention_count": 0,
                 "mention_rate": 0.0,
@@ -330,6 +394,16 @@ def analyze_probe(
     else:
         visibility_label = "Not Visible"
 
+    # Determine source label
+    real_engine_keys = [k for k, v in engines.items() if v.get("real")]
+    simulated_engine_keys = [k for k, v in engines.items() if not v.get("real")]
+    if not simulated_engine_keys:
+        source = "real-api"
+    elif not real_engine_keys:
+        source = "claude-simulated"
+    else:
+        source = "mixed"
+
     return {
         "questions": questions,
         "domain_checked": domain,
@@ -337,11 +411,14 @@ def analyze_probe(
         "overall_mention_rate": overall_rate,
         "visibility_label": visibility_label,
         "engines_tested": engines_tested,
-        "source": "claude-simulated",
+        "source": source,
+        "real_engines": real_engine_keys,
+        "simulated_engines": simulated_engine_keys,
         "note": (
-            "Visibility is simulated using Claude with engine-specific personas. "
-            "Each engine is given knowledge of your site and asked questions where your site "
-            "could be a natural recommendation. Results reflect citability potential — "
-            "how likely AI engines are to recommend your site when users search for what you offer."
+            "Gemini, Grok, and Perplexity use real AI APIs. "
+            "Claude uses the Anthropic API directly. "
+            "ChatGPT is simulated via Claude with a ChatGPT persona. "
+            "Results reflect citability potential — how likely AI engines are to recommend "
+            "your site when users search for what you offer."
         ),
     }

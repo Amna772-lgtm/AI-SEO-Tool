@@ -43,6 +43,8 @@ export interface Site {
   inventory_sections?: Record<string, number> | null;
   inventory_strategy?: string | null;
   inventory_sample_size?: number | null;
+  js_rendering?: boolean | null;
+  spa_signals?: string[] | null;
 }
 
 export interface PageRow {

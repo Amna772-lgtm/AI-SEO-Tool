@@ -18,6 +18,74 @@ from bs4 import BeautifulSoup
 from app.utils.url_validator import normalize_url
 
 
+def detect_spa(html: str) -> dict:
+    """
+    Detect if a page is likely a client-side rendered SPA (React CSR, Vue CSR, Angular).
+    Returns {"is_spa": bool, "confidence": float, "signals": list[str]}.
+
+    Fast heuristic — runs on raw HTML before any JavaScript executes.
+    Negative signals (SSR/SSG markers) take immediate precedence.
+    """
+    # ── Negative signals: SSR/SSG indicators — HTML is real, skip rendering ──────
+    if "__NEXT_DATA__" in html:
+        return {"is_spa": False, "confidence": 0.0, "signals": ["next_ssr_detected"]}
+    if "window.__NUXT__" in html or "__NUXT_DATA__" in html:
+        return {"is_spa": False, "confidence": 0.0, "signals": ["nuxt_ssr_detected"]}
+    if "window.__GATSBY" in html:
+        return {"is_spa": False, "confidence": 0.0, "signals": ["gatsby_ssr_detected"]}
+
+    signals: list[str] = []
+    points = 0
+
+    soup = BeautifulSoup(html, "html.parser")
+
+    # 1. Empty root container — strongest indicator (+3)
+    for root_id in ("root", "app", "__next", "vue-app"):
+        tag = soup.find(id=root_id)
+        if tag is not None and not tag.get_text(strip=True):
+            points += 3
+            signals.append(f"empty_#{root_id}")
+            break
+
+    # 2. Body text very thin (+2) / substantial text penalizes (-2)
+    body = soup.find("body")
+    if body:
+        word_count = len(body.get_text(separator=" ", strip=True).split())
+        if word_count < 50:
+            points += 2
+            signals.append(f"thin_body ({word_count} words)")
+        elif word_count > 300:
+            points -= 2  # real content present
+
+    # 3. Many bundled script tags (+1)
+    if len(soup.find_all("script", src=True)) >= 5:
+        points += 1
+        signals.append("many_script_tags")
+
+    # 4. Generator meta indicating CRA / Vite (+2)
+    generator = soup.find("meta", attrs={"name": "generator"})
+    if generator:
+        content = (generator.get("content") or "").lower()
+        if any(k in content for k in ("create react app", "vite", "cra")):
+            points += 2
+            signals.append(f"generator:{content[:40]}")
+
+    # 5. Title present but no H1 (+1)
+    if soup.title and soup.title.string and not soup.find("h1"):
+        points += 1
+        signals.append("title_but_no_h1")
+
+    # 6. <noscript> with meaningful fallback content (+1)
+    noscript = soup.find("noscript")
+    if noscript and len(noscript.get_text(strip=True)) > 20:
+        points += 1
+        signals.append("noscript_fallback")
+
+    is_spa = points >= 4
+    confidence = round(min(1.0, points / 8.0), 2)
+    return {"is_spa": is_spa, "confidence": confidence, "signals": signals}
+
+
 def _compute_readability(html: str) -> str:
     """Return 'Good', 'Poor', or 'N/A' based on Flesch-Kincaid grade level."""
     try:
@@ -348,6 +416,92 @@ def build_error_page_data(
     }
 
 
+def build_page_data_from_rendered_html(
+    request_url: str,
+    html: str,
+    status_code: int,
+    final_url: str,
+    response_time: float,
+    crawl_depth: int = 0,
+) -> dict:
+    """
+    Build page_data from Playwright-rendered HTML.
+    Used when the site is a SPA and no httpx.Response is available.
+    """
+    try:
+        address = normalize_url(final_url or request_url)
+    except Exception:
+        address = final_url or request_url
+
+    indexability = "Indexable" if status_code == 200 else "Non-Indexable"
+    indexability_status = "" if status_code == 200 else _get_status_text(status_code)
+
+    out = {
+        "address": address,
+        "content_type": "text/html",
+        "status_code": status_code,
+        "status": _get_status_text(status_code),
+        "indexability": indexability,
+        "indexability_status": indexability_status,
+        "title": None,
+        "title_length": 0,
+        "readability": None,
+        "crawl_depth": crawl_depth,
+        "response_time": response_time,
+        "last_modified": None,
+        "redirect_url": None,
+        "language": None,
+        "http_version": None,
+        "crawl_timestamp": datetime.utcnow(),
+        "meta_descp": None,
+        "h1": None,
+        "h2s": [],
+        "h3s": [],
+        "canonical": None,
+        "_img_alts": {},
+        "js_rendered": True,
+    }
+
+    if status_code == 200 and html:
+        html_meta = parse_html_metadata(html, address)
+        out["title"] = html_meta["title"]
+        out["title_length"] = html_meta["title_length"]
+        out["meta_descp"] = html_meta["meta_descp"]
+        out["h1"] = html_meta["h1"]
+        out["h2s"] = html_meta.get("h2s", [])
+        out["h3s"] = html_meta.get("h3s", [])
+        out["canonical"] = html_meta["canonical"]
+        out["_img_alts"] = html_meta.get("img_alts", {})
+        if html_meta.get("language"):
+            out["language"] = html_meta["language"]
+        out["readability"] = _compute_readability(html)
+        out["_html"] = html  # temporary; stripped by crawl_store.append_page
+
+    return out
+
+
+def _fetch_one_rendered(
+    args: tuple[str, int],
+    renderer,
+) -> tuple[str, int, str | None, str | None, int, float, Exception | None]:
+    """
+    Worker: render one URL with Playwright.
+    Returns (normalized_url, depth, final_url, html, status_code, elapsed, error).
+    """
+    current_normal, depth = args
+    try:
+        current_url = normalize_url(current_normal)
+    except Exception as e:
+        return (current_normal, depth, None, None, 0, 0.0, e)
+    try:
+        start = time.perf_counter()
+        html, status_code, final_url = renderer.render(current_url)
+        elapsed = round(time.perf_counter() - start, 3)
+        return (current_normal, depth, final_url, html, status_code, elapsed, None)
+    except Exception as e:
+        return (current_normal, depth, current_url, None, 0, 0.0, e)
+
+
 def build_external_page_data(
     url: str,
     response: httpx.Response,
@@ -666,6 +820,7 @@ def crawl_shallow(
     url: str,
     on_page_crawled: Callable[[dict], None] | None = None,
     img_alt_out: dict | None = None,
+    renderer=None,
 ) -> list[dict]:
     """
     Shallow BFS fallback used when no sitemap is available.
@@ -673,6 +828,9 @@ def crawl_shallow(
     Fetches the homepage (depth 0) then all internal links discovered on it (depth 1).
     No further link-following occurs — traversal stays at most two levels deep.
     External links are NOT fetched.
+
+    If renderer (PlaywrightRenderer) is provided, pages are fetched via headless
+    Chromium so JavaScript-rendered content is captured correctly.
     """
     url = normalize_url(url)
     results: list[dict] = []
@@ -688,29 +846,48 @@ def crawl_shallow(
         if on_page_crawled:
             on_page_crawled(pd)
 
-    # ── Step 1: Fetch homepage (no redirect follow, capture redirect row) ────
-    with httpx.Client(**_http_client_kwargs(False)) as client:
-        response_no_follow, time_no_follow = fetch_page_with_client(url, client, follow_redirects=False)
-    page_data_first = build_page_data(url, response_no_follow, time_no_follow, crawl_depth=0, store_final_url=False)
-    _emit(page_data_first)
-    request_normalized = _normalize_for_dedupe(url)
-    if request_normalized:
-        crawled_normalized.add(request_normalized)
-
-    is_redirect = response_no_follow.status_code in (301, 302, 303, 307, 308)
-    if is_redirect:
-        with httpx.Client(**_http_client_kwargs(True)) as client:
-            response_follow, time_follow = fetch_page_with_client(url, client, follow_redirects=True)
-        final_url = str(response_follow.url)
-        final_normal = _normalize_for_dedupe(final_url)
-        if final_normal and final_normal not in crawled_normalized:
-            _emit(build_page_data(url, response_follow, time_follow, crawl_depth=0, store_final_url=True))
-            crawled_normalized.add(final_normal)
-        seed_html = response_follow.text if response_follow.status_code == 200 else ""
-        seed_base = final_url
+    # ── Step 1: Fetch homepage ────────────────────────────────────────────────
+    if renderer:
+        # Playwright path: render homepage with JS execution
+        start = time.perf_counter()
+        hp_html, hp_status, hp_final = renderer.render(url)
+        hp_elapsed = round(time.perf_counter() - start, 3)
+        page_data_first = build_page_data_from_rendered_html(
+            url, hp_html, hp_status, hp_final, hp_elapsed, crawl_depth=0
+        )
+        _emit(page_data_first)
+        request_normalized = _normalize_for_dedupe(url)
+        if request_normalized:
+            crawled_normalized.add(request_normalized)
+        final_normalized = _normalize_for_dedupe(hp_final)
+        if final_normalized and final_normalized != request_normalized:
+            crawled_normalized.add(final_normalized)
+        seed_html = hp_html if hp_status == 200 else ""
+        seed_base = hp_final or url
     else:
-        seed_html = response_no_follow.text if response_no_follow.status_code == 200 else ""
-        seed_base = str(response_no_follow.url)
+        # httpx path: capture redirect row then follow for seed HTML
+        with httpx.Client(**_http_client_kwargs(False)) as client:
+            response_no_follow, time_no_follow = fetch_page_with_client(url, client, follow_redirects=False)
+        page_data_first = build_page_data(url, response_no_follow, time_no_follow, crawl_depth=0, store_final_url=False)
+        _emit(page_data_first)
+        request_normalized = _normalize_for_dedupe(url)
+        if request_normalized:
+            crawled_normalized.add(request_normalized)
+
+        is_redirect = response_no_follow.status_code in (301, 302, 303, 307, 308)
+        if is_redirect:
+            with httpx.Client(**_http_client_kwargs(True)) as client:
+                response_follow, time_follow = fetch_page_with_client(url, client, follow_redirects=True)
+            final_url = str(response_follow.url)
+            final_normal = _normalize_for_dedupe(final_url)
+            if final_normal and final_normal not in crawled_normalized:
+                _emit(build_page_data(url, response_follow, time_follow, crawl_depth=0, store_final_url=True))
+                crawled_normalized.add(final_normal)
+            seed_html = response_follow.text if response_follow.status_code == 200 else ""
+            seed_base = final_url
+        else:
+            seed_html = response_no_follow.text if response_no_follow.status_code == 200 else ""
+            seed_base = str(response_no_follow.url)
 
     if not seed_html:
         if img_alt_out is not None:
@@ -736,14 +913,24 @@ def crawl_shallow(
 
     # ── Step 3: Fetch depth-1 pages in parallel — no further link following ──
     with ThreadPoolExecutor(max_workers=CONCURRENT_REQUESTS) as executor:
-        futures = {
-            executor.submit(_fetch_one_internal, (norm, 1)): (i, norm)
-            for i, norm in enumerate(depth1_urls)
-        }
+        if renderer:
+            futures = {
+                executor.submit(_fetch_one_rendered, (norm, 1), renderer): (i, norm)
+                for i, norm in enumerate(depth1_urls)
+            }
+        else:
+            futures = {
+                executor.submit(_fetch_one_internal, (norm, 1)): (i, norm)
+                for i, norm in enumerate(depth1_urls)
+            }
         results_by_idx: dict[int, dict] = {}
         for future in as_completed(futures):
             idx, original_norm = futures[future]
-            current_normal, depth, current_url, response, resp_time, err = future.result()
+            result = future.result()
+            if renderer:
+                current_normal, depth, current_url, html, status_code, resp_time, err = result
+            else:
+                current_normal, depth, current_url, response, resp_time, err = result
             if current_normal in crawled_normalized:
                 continue
             crawled_normalized.add(current_normal)
@@ -752,18 +939,29 @@ def crawl_shallow(
                 pd = build_error_page_data(current_url or current_normal, err_msg, depth, "internal")
                 results_by_idx[idx] = pd
                 continue
-            resolved_normal = _normalize_for_dedupe(str(response.url))
-            if resolved_normal and resolved_normal in crawled_normalized and resolved_normal != current_normal:
-                continue
-            if resolved_normal:
-                crawled_normalized.add(resolved_normal)
-            pd = build_page_data(
-                current_url or current_normal,
-                response,
-                resp_time,
-                crawl_depth=depth,
-                store_final_url=True,
-            )
+            if renderer:
+                resolved_normal = _normalize_for_dedupe(current_url or current_normal)
+                if resolved_normal and resolved_normal in crawled_normalized and resolved_normal != current_normal:
+                    continue
+                if resolved_normal:
+                    crawled_normalized.add(resolved_normal)
+                pd = build_page_data_from_rendered_html(
+                    current_url or current_normal, html, status_code, current_url or current_normal,
+                    resp_time, crawl_depth=depth
+                )
+            else:
+                resolved_normal = _normalize_for_dedupe(str(response.url))
+                if resolved_normal and resolved_normal in crawled_normalized and resolved_normal != current_normal:
+                    continue
+                if resolved_normal:
+                    crawled_normalized.add(resolved_normal)
+                pd = build_page_data(
+                    current_url or current_normal,
+                    response,
+                    resp_time,
+                    crawl_depth=depth,
+                    store_final_url=True,
+                )
             results_by_idx[idx] = pd
 
         for idx in sorted(results_by_idx.keys()):
@@ -955,10 +1153,14 @@ def crawl_sampled(
     urls: list[str],
     on_page_crawled: Callable[[dict], None] | None = None,
     img_alt_out: dict | None = None,
+    renderer=None,
 ) -> list[dict]:
     """
     Fetch a pre-selected list of URLs in parallel. No BFS, no link following.
     Same output format as crawl_site(). Used by the Two-Phase crawl strategy.
+
+    If renderer (PlaywrightRenderer) is provided, pages are rendered via headless
+    Chromium so JavaScript-rendered content is captured correctly.
     """
     if not urls:
         return []
@@ -981,14 +1183,24 @@ def crawl_sampled(
             on_page_crawled(pd)
 
     with ThreadPoolExecutor(max_workers=CONCURRENT_REQUESTS) as executor:
-        futures = {
-            executor.submit(_fetch_one_internal, (url, 1)): (i, url)
-            for i, url in enumerate(urls)
-        }
+        if renderer:
+            futures = {
+                executor.submit(_fetch_one_rendered, (url, 1), renderer): (i, url)
+                for i, url in enumerate(urls)
+            }
+        else:
+            futures = {
+                executor.submit(_fetch_one_internal, (url, 1)): (i, url)
+                for i, url in enumerate(urls)
+            }
         results_by_idx: dict[int, dict] = {}
         for future in as_completed(futures):
             idx, original_url = futures[future]
-            current_normal, depth, current_url, response, resp_time, err = future.result()
+            result = future.result()
+            if renderer:
+                current_normal, depth, current_url, html, status_code, resp_time, err = result
+            else:
+                current_normal, depth, current_url, response, resp_time, err = result
             if err is not None:
                 pd = build_error_page_data(
                     current_url or current_normal or original_url,
@@ -998,13 +1210,23 @@ def crawl_sampled(
                 )
                 results_by_idx[idx] = pd
                 continue
-            pd = build_page_data(
-                current_url or current_normal,
-                response,
-                resp_time,
-                crawl_depth=depth,
-                store_final_url=True,
-            )
+            if renderer:
+                pd = build_page_data_from_rendered_html(
+                    current_url or current_normal,
+                    html,
+                    status_code,
+                    current_url or current_normal,
+                    resp_time,
+                    crawl_depth=depth,
+                )
+            else:
+                pd = build_page_data(
+                    current_url or current_normal,
+                    response,
+                    resp_time,
+                    crawl_depth=depth,
+                    store_final_url=True,
+                )
             results_by_idx[idx] = pd
 
         for idx in sorted(results_by_idx.keys()):

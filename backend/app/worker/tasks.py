@@ -3,7 +3,7 @@ import threading
 import uuid
 
 from app.worker.celery_app import celery
-from app.analyzers.crawler import crawl_shallow, crawl_sampled
+from app.analyzers.crawler import crawl_shallow, crawl_sampled, detect_spa, fetch_page
 from app.analyzers.audit import run_url_checks, run_page_checks
 from app.analyzers.page_inventory import build_inventory, hierarchical_select
 from app.store.crawl_store import (
@@ -53,6 +53,27 @@ def process_site(url: str, task_id: str, robots_allowed: bool = True, ai_crawler
         meta_with_inv["inventory_strategy"] = inventory.strategy
         set_meta(task_id, meta_with_inv)
 
+        # ── SPA Detection — quick homepage fetch before main crawl ───────────
+        renderer = None
+        spa_info: dict = {"is_spa": False, "confidence": 0.0, "signals": []}
+        try:
+            from app.analyzers.playwright_renderer import PlaywrightRenderer, PLAYWRIGHT_AVAILABLE
+            if PLAYWRIGHT_AVAILABLE:
+                _resp, _ = fetch_page(url, follow_redirects=True)
+                if _resp.status_code == 200 and _resp.text:
+                    spa_info = detect_spa(_resp.text)
+                    if spa_info["is_spa"]:
+                        renderer = PlaywrightRenderer()
+                        renderer.start()
+                        print(f"[SPA] Detected SPA at {url}, signals: {spa_info['signals']}")
+        except Exception:
+            pass  # non-fatal — fall back to httpx crawl
+
+        meta_after_inv = get_meta(task_id) or {}
+        meta_after_inv["js_rendering"] = spa_info["is_spa"]
+        meta_after_inv["spa_signals"] = spa_info.get("signals", [])
+        set_meta(task_id, meta_after_inv)
+
         # Start URL-only audit checks (HTTPS, sitemap, PSI) in parallel with the crawl.
         url_checks: dict = {}
         url_checks_done = threading.Event()
@@ -78,26 +99,34 @@ def process_site(url: str, task_id: str, robots_allowed: bool = True, ai_crawler
             append_page(task_id, page_data)
 
         # ── Phase 2: Crawl — hierarchical or shallow-BFS ─────────────────────
-        if inventory.has_sitemap:
-            # Sitemap available → hierarchical three-level selection, no link following
-            selected_urls = hierarchical_select(inventory)
+        try:
+            if inventory.has_sitemap:
+                # Sitemap available → hierarchical three-level selection, no link following
+                selected_urls = hierarchical_select(inventory)
 
-            # Update inventory with finalized sample size
-            set_inventory(task_id, {
-                "total": inventory.total,
-                "strategy": inventory.strategy,
-                "sample_size": inventory.sample_size,
-                "has_sitemap": inventory.has_sitemap,
-                "sections": inventory.sections,
-            })
-            meta_with_inv = get_meta(task_id) or {}
-            meta_with_inv["inventory_sample_size"] = inventory.sample_size
-            set_meta(task_id, meta_with_inv)
+                # Update inventory with finalized sample size
+                set_inventory(task_id, {
+                    "total": inventory.total,
+                    "strategy": inventory.strategy,
+                    "sample_size": inventory.sample_size,
+                    "has_sitemap": inventory.has_sitemap,
+                    "sections": inventory.sections,
+                })
+                meta_with_inv = get_meta(task_id) or {}
+                meta_with_inv["inventory_sample_size"] = inventory.sample_size
+                set_meta(task_id, meta_with_inv)
 
-            crawl_sampled(selected_urls, on_page_crawled=on_page_crawled, img_alt_out=img_alt_map)
-        else:
-            # No sitemap → shallow BFS (homepage + depth-1 internal pages only)
-            crawl_shallow(url, on_page_crawled=on_page_crawled, img_alt_out=img_alt_map)
+                crawl_sampled(selected_urls, on_page_crawled=on_page_crawled, img_alt_out=img_alt_map, renderer=renderer)
+            else:
+                # No sitemap → shallow BFS (homepage + depth-1 internal pages only)
+                crawl_shallow(url, on_page_crawled=on_page_crawled, img_alt_out=img_alt_map, renderer=renderer)
+        finally:
+            # Always shut down the browser, even if the crawl raises an exception
+            if renderer:
+                try:
+                    renderer.stop()
+                except Exception:
+                    pass
 
         flush_pages_buffer(task_id)
 

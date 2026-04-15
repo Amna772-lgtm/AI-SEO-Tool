@@ -1031,7 +1031,15 @@ export default function Home() {
                         </div>
                       </div>
                       <div className="text-3xl font-black tabular-nums" style={{ color: "#0f172a" }}>{(overview?.total_urls ?? 0).toLocaleString()}</div>
-                      <p className="mt-1 text-xs text-[var(--muted)]">{(pagesData?.total ?? 0).toLocaleString()} unique pages</p>
+                      <div className="mt-1 flex items-center gap-1.5 flex-wrap">
+                        <p className="text-xs text-[var(--muted)]">{(pagesData?.total ?? 0).toLocaleString()} unique pages</p>
+                        {site.js_rendering && (
+                          <span className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold" style={{ background: "#eff6ff", color: "#2563eb" }}>
+                            <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+                            JS Rendered
+                          </span>
+                        )}
+                      </div>
                       <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-[var(--border)]">
                         {site.status === "processing" ? (
                           <div className="progress-indeterminate h-full w-1/3 rounded-full" style={{ background: "linear-gradient(90deg,#0d9488,#16a34a)" }} />
@@ -1554,6 +1562,9 @@ export default function Home() {
               {pagesData && (
                 <span>
                   · {pagesData.total} URL{pagesData.total !== 1 ? "s" : ""} crawled
+                  {site.js_rendering && (
+                    <span className="ml-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold" style={{ background: "#eff6ff", color: "#2563eb" }}>JS Rendered</span>
+                  )}
                 </span>
               )}
               {audit?.audit_status === "completed" && <span>· Audit complete</span>}
