@@ -260,13 +260,13 @@ export interface ContentResult {
   flesch_kincaid_grade: number;
   pages_with_faq: number;
   faq_questions: string[];
-  faq_pairs?: FaqPair[];
+  faq_pairs: FaqPair[];
   heading_structure: HeadingStructure;
   conversational_tone_score: number;
   thin_content_pages: number;
   pages_analyzed: number;
   avg_lists_per_page: number;
-  factual_density?: FactualDensity;
+  factual_density: FactualDensity;
 }
 
 export interface QueryPatterns {

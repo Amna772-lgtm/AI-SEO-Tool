@@ -92,8 +92,8 @@ def _detect_faq(text: str, soup: BeautifulSoup) -> tuple[bool, list[str], list[d
     questions: list[str] = []
     qa_pairs: list[dict] = []
 
-    # Check for FAQ schema markup (flag only — don't pollute questions list)
-    has_schema_faq = bool(soup.find(attrs={"itemtype": re.compile(r"FAQPage|Question", re.I)}))
+    # Check for FAQ schema markup (informational only — not used for page count)
+    _has_schema_faq = bool(soup.find(attrs={"itemtype": re.compile(r"FAQPage|Question", re.I)}))
 
     # Check headings for question patterns and capture following answer text
     for tag in soup.find_all(["h2", "h3", "h4", "dt"]):
@@ -124,7 +124,10 @@ def _detect_faq(text: str, soup: BeautifulSoup) -> tuple[bool, list[str], list[d
             questions.append(bold_text)
 
     questions = list(dict.fromkeys(questions))  # deduplicate
-    return has_schema_faq or len(questions) > 0, questions[:10], qa_pairs[:10]
+    # Only count the page as having FAQ if at least one question was extracted.
+    # Schema markup alone (no readable questions found) does not count — it would
+    # inflate the FAQ page count while producing an empty questions list in the UI.
+    return len(questions) > 0, questions[:10], qa_pairs[:10]
 
 
 
@@ -288,7 +291,11 @@ def analyze_content(page_features: list[dict]) -> dict:
 
     word_counts.sort()
     avg_wc = int(sum(word_counts) / len(word_counts))
-    median_wc = word_counts[len(word_counts) // 2]
+    n = len(word_counts)
+    if n % 2 == 1:
+        median_wc = word_counts[n // 2]
+    else:
+        median_wc = int((word_counts[n // 2 - 1] + word_counts[n // 2]) / 2)
     avg_fk = round(sum(fk_grades) / len(fk_grades), 1) if fk_grades else 8.0
     avg_conv = round(sum(conv_scores) / len(conv_scores), 2) if conv_scores else 0.0
     avg_headings = round(total_headings / pages_analyzed, 1) if pages_analyzed else 0.0

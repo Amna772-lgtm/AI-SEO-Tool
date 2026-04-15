@@ -74,7 +74,7 @@ function FactualDensityCard({ fd }: { fd: FactualDensity }) {
       <div className="mb-3 h-1.5 w-full overflow-hidden rounded-full bg-[var(--border)]">
         <div
           className="h-full rounded-full transition-all duration-700"
-          style={{ width: `${fd.score}%`, background: color }}
+          style={{ width: `${Math.min(fd.score, 100)}%`, background: color }}
         />
       </div>
       <div className="grid grid-cols-5 gap-2">
@@ -110,7 +110,7 @@ export function ContentPanel({ content, siteType }: Props) {
   const thinColor  = content.thin_content_pages === 0 ? "#047857"
     : content.thin_content_pages <= 3 ? "#b45309" : "#dc2626";
 
-  const hasFaqPairs = (content.faq_pairs ?? []).length > 0;
+  const hasFaqPairs = content.faq_pairs.length > 0;
 
   const pa = content.pages_analyzed || 1;
   const h2Pct = Math.round((content.heading_structure.pages_with_h2 / pa) * 100);
@@ -153,6 +153,9 @@ export function ContentPanel({ content, siteType }: Props) {
               {readingCfg.note}
             </p>
           )}
+          <p className="mt-0.5 text-[10px] text-[var(--muted)]">
+            FK grade {content.flesch_kincaid_grade.toFixed(1)}
+          </p>
         </div>
 
         <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)] p-3">
@@ -237,7 +240,7 @@ export function ContentPanel({ content, siteType }: Props) {
       </div>
 
       {/* ── Factual density ──────────────────────────────────────────────── */}
-      {content.factual_density && <FactualDensityCard fd={content.factual_density} />}
+      <FactualDensityCard fd={content.factual_density} />
 
       {/* ── FAQ Q&A pairs (expandable) ───────────────────────────────────── */}
       {hasFaqPairs && (
@@ -245,11 +248,11 @@ export function ContentPanel({ content, siteType }: Props) {
           <div className="flex items-center justify-between border-b border-[var(--border)] bg-[var(--surface-elevated)] px-4 py-2.5">
             <p className="text-xs font-semibold text-[var(--foreground)]">FAQ Q&amp;A pairs</p>
             <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
-              {content.faq_pairs!.length}
+              {content.faq_pairs.length}
             </span>
           </div>
           <div className="max-h-72 divide-y divide-[var(--border)] overflow-y-auto">
-            {content.faq_pairs!.map((pair, i) => {
+            {content.faq_pairs.map((pair, i) => {
               const isLong = pair.answer.length > 150;
               const isExpanded = expandedFaq === i;
               return (
@@ -282,6 +285,7 @@ export function ContentPanel({ content, siteType }: Props) {
         <div className="overflow-hidden rounded-lg border border-[var(--border)]">
           <div className="flex items-center justify-between border-b border-[var(--border)] bg-[var(--surface-elevated)] px-4 py-2.5">
             <p className="text-xs font-semibold text-[var(--foreground)]">Detected FAQ questions</p>
+            <p className="text-[10px] text-[var(--muted)]">Answers not extractable — questions use bold/inline format, not headings</p>
             <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
               {content.faq_questions.length}
             </span>
