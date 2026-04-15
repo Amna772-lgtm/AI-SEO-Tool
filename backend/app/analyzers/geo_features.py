@@ -56,6 +56,7 @@ def _extract_raw_json_ld(soup: BeautifulSoup) -> list[dict]:
     """
     Extract JSON-LD blocks from the UNSTRIPPED soup.
     Must be called before any tag.decompose() calls.
+    Handles @graph wrappers (used by WordPress/Yoast, Shopify, etc.).
     Returns list of parsed JSON-LD dicts (invalid JSON silently skipped).
     """
     blocks = []
@@ -66,7 +67,13 @@ def _extract_raw_json_ld(soup: BeautifulSoup) -> list[dict]:
             if isinstance(data, list):
                 blocks.extend(data)
             elif isinstance(data, dict):
-                blocks.append(data)
+                # Unwrap @graph arrays (common in WordPress/Yoast, Shopify, etc.)
+                if "@graph" in data and isinstance(data["@graph"], list):
+                    blocks.extend(
+                        item for item in data["@graph"] if isinstance(item, dict)
+                    )
+                else:
+                    blocks.append(data)
         except Exception:
             pass
     return blocks

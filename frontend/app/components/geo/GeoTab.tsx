@@ -230,7 +230,7 @@ const isLoading = geo.geo_status === "running" || geo.geo_status === "pending";
                 geo.schema ? <SchemaPanel schema={geo.schema} /> : <LoadingCard label="schema analysis" />
               )}
               {detailTab === "content" && (
-                geo.content ? <ContentPanel content={geo.content} /> : <LoadingCard label="content analysis" />
+                geo.content ? <ContentPanel content={geo.content} siteType={geo.site_type?.site_type} /> : <LoadingCard label="content analysis" />
               )}
               {detailTab === "eeat" && (
                 geo.eeat ? <EeatPanel eeat={geo.eeat} /> : <LoadingCard label="E-E-A-T analysis" />

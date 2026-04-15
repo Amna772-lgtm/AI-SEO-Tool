@@ -14,9 +14,9 @@ Returns an array of page results sorted by score ascending (worst first).
 """
 from __future__ import annotations
 
-import json
 import re
 from app.analyzers.geo_features import _flesch_kincaid_grade as _compute_fk_grade
+from app.analyzers.geo_schema import _SCHEMA_REQUIRED_FIELDS
 
 # ── Grade thresholds ──────────────────────────────────────────────────────────
 
@@ -70,22 +70,6 @@ _COMPARISON_RE = re.compile(
 _ANSWER_BLOCK_RE = re.compile(
     r"^(yes|no|the\s|this\s|to\s|it\s|in\s|a\s|an\s)", re.IGNORECASE
 )
-
-# ── Schema completeness map (key fields per type, from geo_schema.py) ─────────
-
-_SCHEMA_REQUIRED_FIELDS: dict[str, list[str]] = {
-    "Article":       ["headline", "author", "datePublished"],
-    "BlogPosting":   ["headline", "author", "datePublished"],
-    "NewsArticle":   ["headline", "author", "datePublished"],
-    "Product":       ["name", "offers"],
-    "FAQPage":       ["mainEntity"],
-    "HowTo":         ["name", "step"],
-    "LocalBusiness": ["name", "address"],
-    "Organization":  ["name"],
-    "WebSite":       ["name", "url"],
-    "Person":        ["name"],
-    "Review":        ["reviewRating", "author"],
-}
 
 _HIGH_VALUE_SCHEMA_TYPES = {
     "Article", "BlogPosting", "NewsArticle",

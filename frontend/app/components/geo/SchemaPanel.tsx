@@ -34,7 +34,7 @@ export function SchemaPanel({ schema }: Props) {
             <div>
               <p className="text-xs font-semibold text-[var(--foreground)]">Schema coverage</p>
               <p className="mt-0.5 text-[11px] text-[var(--muted)]">
-                {schema.pages_with_schema} of {schema.pages_analyzed ?? (schema as any).pages_count ?? "?"} pages have structured data
+                {schema.pages_with_schema} of {schema.pages_analyzed} pages have structured data
               </p>
             </div>
             <span className="text-2xl font-bold tabular-nums" style={{ color }}>{pct}%</span>
@@ -83,7 +83,7 @@ export function SchemaPanel({ schema }: Props) {
               {schema.schema_types.map((t) => (
                 <span
                   key={t}
-                  className="rounded-md border border-[var(--border)] bg-white px-2.5 py-1 text-[11px] font-medium text-[var(--foreground)]"
+                  className="rounded-md border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1 text-[11px] font-medium text-[var(--foreground)]"
                 >
                   {t}
                 </span>
@@ -104,7 +104,7 @@ export function SchemaPanel({ schema }: Props) {
               {schema.missing_recommended.map((t) => (
                 <span
                   key={t}
-                  className="rounded-md border border-red-100 bg-white px-2.5 py-1 text-[11px] font-medium text-red-600"
+                  className="rounded-md border border-red-100 bg-[var(--surface)] px-2.5 py-1 text-[11px] font-medium text-red-600"
                 >
                   {t}
                 </span>
@@ -125,7 +125,7 @@ export function SchemaPanel({ schema }: Props) {
           </div>
           <div className="max-h-52 divide-y divide-[var(--border)] overflow-y-auto">
             {schema.completeness_issues.map((issue, i) => (
-              <div key={i} className="flex items-center gap-3 bg-white px-4 py-2.5">
+              <div key={i} className="flex items-center gap-3 bg-[var(--surface)] px-4 py-2.5">
                 <span className="shrink-0 rounded bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
                   {issue.type}
                 </span>
@@ -150,7 +150,7 @@ export function SchemaPanel({ schema }: Props) {
           </div>
           <div className="divide-y divide-[var(--border)]">
             {(schema.semantic_issues as SchemaSemanticIssue[]).slice(0, 4).map((issue, i) => (
-              <div key={i} className="bg-white px-4 py-3">
+              <div key={i} className="bg-[var(--surface)] px-4 py-3">
                 <div className="mb-1 flex items-center gap-2">
                   <span className="rounded bg-[var(--surface-elevated)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--muted)]">
                     {issue.type}

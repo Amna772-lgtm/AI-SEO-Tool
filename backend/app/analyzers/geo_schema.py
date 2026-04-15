@@ -256,6 +256,7 @@ def analyze_schemas(page_features: list[dict], site_type: str = "informational")
         "pages_without_schema": pages_analyzed - pages_with_schema,
         "pages_analyzed": pages_analyzed,
         "missing_recommended": missing_recommended,
+        "recommended_count": len(recommended),
         "completeness_issues": completeness_issues[:10],
         "semantic_issues": semantic_issues[:10],
         "raw_schemas": raw_schemas[:5],

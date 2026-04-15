@@ -22,6 +22,17 @@ _QUESTION_RE = re.compile(
 
 # Second-person pronouns (conversational indicators)
 _SECOND_PERSON_RE = re.compile(r"\b(you|your|you're|you'll|you've|yourself)\b", re.IGNORECASE)
+# Contractions (informal tone indicators)
+_CONTRACTION_RE = re.compile(
+    r"\b(don't|doesn't|didn't|won't|can't|couldn't|wouldn't|shouldn't|isn't|aren't|wasn't|weren't|"
+    r"it's|that's|there's|here's|let's|we're|they're|I'm|we've|they've|I've|I'll|we'll|they'll)\b",
+    re.IGNORECASE,
+)
+# Informal connectors (conversational flow)
+_INFORMAL_RE = re.compile(
+    r"\b(so|actually|basically|simply|just|really|pretty much|of course|for example|in fact)\b",
+    re.IGNORECASE,
+)
 
 # ── Factual density patterns ──────────────────────────────────────────────────
 # Statistics: numbers with %, currency, large units
@@ -39,8 +50,12 @@ _EXPERT_RE = re.compile(
     r"\b(?:Dr\.|Prof\.|PhD|M\.D\.|CEO|founder|director|researcher|scientist|professor|expert|author)\b",
     re.IGNORECASE,
 )
-# Specific year references
-_YEAR_RE = re.compile(r"\b(?:19|20)\d{2}\b")
+# Specific year references — only contextual years (preceded by "in", "since", "from", etc.)
+# Filters out bare copyright/navigation years that inflate the count
+_YEAR_CONTEXTUAL_RE = re.compile(
+    r"(?:in|since|from|by|during|between|after|before|circa|around|published|updated|as of|year)\s+(?:19|20)\d{2}\b",
+    re.IGNORECASE,
+)
 # Quoted phrases (short quotes indicating cited statements)
 _QUOTE_RE = re.compile(r'"[^"]{15,200}"')
 
@@ -77,15 +92,14 @@ def _detect_faq(text: str, soup: BeautifulSoup) -> tuple[bool, list[str], list[d
     questions: list[str] = []
     qa_pairs: list[dict] = []
 
-    # Check for FAQ schema markup
-    for tag in soup.find_all(attrs={"itemtype": re.compile(r"FAQPage|Question", re.I)}):
-        questions.append("FAQ schema detected")
+    # Check for FAQ schema markup (flag only — don't pollute questions list)
+    has_schema_faq = bool(soup.find(attrs={"itemtype": re.compile(r"FAQPage|Question", re.I)}))
 
     # Check headings for question patterns and capture following answer text
     for tag in soup.find_all(["h2", "h3", "h4", "dt"]):
-        text = tag.get_text(strip=True)
-        if _QUESTION_RE.search(text):
-            questions.append(text)
+        heading_text = tag.get_text(strip=True)
+        if _QUESTION_RE.search(heading_text):
+            questions.append(heading_text)
             # Extract answer from following sibling elements until next heading
             answer_parts: list[str] = []
             for sibling in tag.next_siblings:
@@ -101,16 +115,16 @@ def _detect_faq(text: str, soup: BeautifulSoup) -> tuple[bool, list[str], list[d
                             break
             if answer_parts:
                 answer = " ".join(answer_parts)[:300]
-                qa_pairs.append({"question": text, "answer": answer})
+                qa_pairs.append({"question": heading_text, "answer": answer})
 
     # Check bold text for question patterns
     for tag in soup.find_all(["strong", "b"]):
-        text = tag.get_text(strip=True)
-        if _QUESTION_RE.search(text) and len(text) < 100:
-            questions.append(text)
+        bold_text = tag.get_text(strip=True)
+        if _QUESTION_RE.search(bold_text) and len(bold_text) < 100:
+            questions.append(bold_text)
 
     questions = list(dict.fromkeys(questions))  # deduplicate
-    return len(questions) > 0, questions[:10], qa_pairs[:10]
+    return has_schema_faq or len(questions) > 0, questions[:10], qa_pairs[:10]
 
 
 
@@ -128,7 +142,7 @@ def _factual_density_score(text: str) -> dict:
     stats    = len(_STAT_RE.findall(text))
     cites    = len(_CITATION_RE.findall(text))
     experts  = len(_EXPERT_RE.findall(text))
-    years    = len(_YEAR_RE.findall(text))
+    years    = len(_YEAR_CONTEXTUAL_RE.findall(text))
     quotes   = len(_QUOTE_RE.findall(text))
 
     total_signals = stats + cites + experts + years + quotes
@@ -155,7 +169,7 @@ def _count_lists(soup: BeautifulSoup) -> int:
 def _conversational_score(text: str) -> float:
     """
     Score 0-1 for conversational tone.
-    Based on: second-person pronouns density + question density.
+    Based on: second-person pronouns, contractions, informal connectors, questions.
     """
     words = re.findall(r"\b\w+\b", text)
     if not words:
@@ -163,17 +177,24 @@ def _conversational_score(text: str) -> float:
 
     num_words = len(words)
     second_person = len(_SECOND_PERSON_RE.findall(text))
+    contractions = len(_CONTRACTION_RE.findall(text))
+    informal = len(_INFORMAL_RE.findall(text))
     questions = len(_QUESTION_RE.findall(text))
 
     # Normalize per 100 words
     sp_density = (second_person / num_words) * 100
+    ct_density = (contractions / num_words) * 100
+    inf_density = (informal / num_words) * 100
     q_density = (questions / num_words) * 100
 
-    # Score: 5%+ second-person → max SP contribution; 2%+ questions → max Q contribution
-    sp_score = min(sp_density / 5.0, 1.0) * 0.6
-    q_score = min(q_density / 2.0, 1.0) * 0.4
+    # Weighted contributions (sum to 1.0):
+    # Second-person 40%, contractions 20%, informal connectors 15%, questions 25%
+    sp_score  = min(sp_density / 5.0, 1.0) * 0.40
+    ct_score  = min(ct_density / 3.0, 1.0) * 0.20
+    inf_score = min(inf_density / 2.0, 1.0) * 0.15
+    q_score   = min(q_density / 2.0, 1.0) * 0.25
 
-    return round(sp_score + q_score, 2)
+    return round(sp_score + ct_score + inf_score + q_score, 2)
 
 
 def analyze_content(page_features: list[dict]) -> dict:

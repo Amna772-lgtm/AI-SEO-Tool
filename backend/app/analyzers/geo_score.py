@@ -2,11 +2,13 @@
 Agent 6 — AI Citation Readiness Scoring Engine
 Aggregates all agent results into a weighted 0-100 score.
 
-Unified weights (AI-citation-optimised):
-  NLP Intent        25%  — snippet readiness, question density, direct answers
-  Structured Data   25%  — JSON-LD/schema coverage
-  E-E-A-T           20%  — trust, authority, expertise signals
-  Conversational    20%  — content depth, FAQ, heading structure
+Unified weights (AI-citation-optimised, sum to 100):
+  NLP Intent        20%  — snippet readiness, question density, direct answers
+  Structured Data   20%  — JSON-LD/schema coverage
+  E-E-A-T           15%  — trust, authority, expertise signals
+  Conversational    15%  — content depth, FAQ, heading structure
+  Entity            12%  — Wikipedia, sameAs profiles, org schema completeness
+  Probe              8%  — AI engine actual mention rate
   Technical Crawl    5%  — HTTPS, sitemap, broken links, canonicals
   Speed & Access     5%  — AI crawler access; PageSpeed is marginal for AI citation
 
@@ -91,9 +93,10 @@ def _schema_raw(schema: dict | None) -> float:
     score += (coverage / 100.0) * 20
     # Schema types present vs. missing recommended (30 pts)
     missing = len(schema.get("missing_recommended", []))
-    total_recommended = missing + len(schema.get("schema_types", []))
+    total_recommended = schema.get("recommended_count", 0)
     if total_recommended > 0:
-        score += ((total_recommended - missing) / total_recommended) * 30
+        found = total_recommended - missing
+        score += (found / total_recommended) * 30
     elif schema.get("schema_types"):
         score += 15
     # Microdata/RDFa bonus
