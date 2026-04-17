@@ -83,6 +83,7 @@ See: .planning/codebase/ (generated 2026-03-30)
 - Phase 4 added: Add user authentication with Signup, Signin, Session management, and Logout
 - Phase 5 added: Implement Pricing Plan Selection Flow After Signup
 - Phase 7 added: Add a Competitor Tracking feature to the AI SEO Tool
+- Phase 9 added: WordPress Plugin Integration for AI SEO Tool
 
 ### Phase 04 Decisions
 
