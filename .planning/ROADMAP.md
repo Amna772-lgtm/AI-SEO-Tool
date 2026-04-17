@@ -152,6 +152,20 @@ Plans:
 - [x] 07-03-PLAN.md — Frontend api.ts types/fetchers + 6 new components (tab container, selector, suggestion card, competitor card, comparison card, custom SVG radar chart)
 - [ ] 07-04-PLAN.md — Wire CompetitorsTab into page.tsx + human UAT checkpoint for end-to-end verification
 
+### Phase 9: WordPress Plugin Integration for AI SEO Tool
+
+**Goal:** WordPress site owners can connect to their AI SEO Tool account via API key, trigger a full GEO citation readiness audit of their WordPress site, and view results (Dashboard, GEO Analysis, Technical Audit, History) entirely within the WordPress admin — with plan-based feature gating and WordPress.org directory compliance.
+**Requirements**: WP-01, WP-02, WP-03, WP-04, WP-05, WP-06, WP-07, WP-08, WP-09, WP-10, WP-11, WP-12, WP-13, WP-14, WP-15, WP-16, WP-17, WP-18, WP-19
+**Depends on:** Phase 7
+**Plans:** 6 plans
+
+Plans:
+- [ ] 09-01-PLAN.md — Backend API key system: api_keys table, 5 store functions, 3 auth routes, dual auth (Bearer + Cookie), 6 pytest tests
+- [ ] 09-02-PLAN.md — Next.js API Keys settings page + extend /auth/me with plan/subscription data
+- [ ] 09-03-PLAN.md — WordPress plugin PHP scaffold: main file, admin menu (5 sub-pages), REST proxy (7 routes + connect/disconnect), activation hook, wp-scripts build
+- [ ] 09-04-PLAN.md — WordPress plugin React: Connection screen, Dashboard screen, analysis progress bar, polling hook
+- [ ] 09-05-PLAN.md — WordPress plugin React: 4 result tabs (Dashboard, GEO Analysis, Technical Audit, History), PlanGate, GeoScoreRing SVG, EngineScoreCard
+- [ ] 09-06-PLAN.md — WordPress.org compliance audit (GPL, i18n, sanitization, readme) + human end-to-end verification
+
 ---
 *Roadmap created: 2026-03-31*
-- [x] TBD (run /gsd:plan-phase 5 to break down) (completed 2006-04-07)
