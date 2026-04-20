@@ -1,5 +1,6 @@
 """
 History Store — SQLite persistence for completed GEO analyses and schedules.
+Also stores API keys (SHA-256 hashed) for WordPress plugin authentication.
 
 Uses WAL journal mode for safe concurrent access between the FastAPI
 backend process (reads/deletes) and the Celery worker process (writes).
@@ -156,6 +157,19 @@ def init_db() -> None:
                     reason     TEXT,
                     banned_at  TEXT NOT NULL
                 );
+            """)
+            conn.executescript("""
+                CREATE TABLE IF NOT EXISTS api_keys (
+                    id           TEXT PRIMARY KEY,
+                    user_id      TEXT NOT NULL,
+                    name         TEXT NOT NULL,
+                    key_hash     TEXT NOT NULL UNIQUE,
+                    created_at   TEXT NOT NULL,
+                    last_used_at TEXT,
+                    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+                );
+                CREATE INDEX IF NOT EXISTS idx_api_keys_user_id  ON api_keys(user_id);
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_api_keys_hash ON api_keys(key_hash);
             """)
             conn.commit()
         finally:
@@ -1413,6 +1427,86 @@ def remove_user_quota_override(user_id: str) -> None:
             conn.execute(
                 "UPDATE subscriptions SET audit_quota_override = NULL WHERE user_id = ?",
                 (user_id,),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+
+# ---------------------------------------------------------------------------
+# API Keys
+# ---------------------------------------------------------------------------
+
+def create_api_key_record(key_id: str, user_id: str, name: str, key_hash: str) -> dict[str, Any]:
+    """Insert a new hashed API key row. Returns the saved row (without raw key)."""
+    now = datetime.now(timezone.utc).isoformat()
+    with _lock:
+        conn = _connect()
+        try:
+            conn.execute(
+                "INSERT INTO api_keys (id, user_id, name, key_hash, created_at) VALUES (?, ?, ?, ?, ?)",
+                (key_id, user_id, name, key_hash, now),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+    return {"id": key_id, "user_id": user_id, "name": name, "created_at": now, "last_used_at": None}
+
+
+def list_api_keys(user_id: str) -> list[dict[str, Any]]:
+    """Return all API key rows for a user (no hash exposed)."""
+    conn = _connect()
+    try:
+        rows = conn.execute(
+            "SELECT id, user_id, name, created_at, last_used_at FROM api_keys WHERE user_id = ? ORDER BY created_at DESC",
+            (user_id,),
+        ).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+def revoke_api_key(key_id: str, user_id: str) -> bool:
+    """Delete a key row. Returns True if a row was deleted, False if not found or not owned by user."""
+    with _lock:
+        conn = _connect()
+        try:
+            cur = conn.execute(
+                "DELETE FROM api_keys WHERE id = ? AND user_id = ?",
+                (key_id, user_id),
+            )
+            conn.commit()
+            return cur.rowcount > 0
+        finally:
+            conn.close()
+
+
+def get_user_by_api_key_hash(key_hash: str) -> dict[str, Any] | None:
+    """Look up a user by SHA-256 hash of their API key. Returns user row or None."""
+    conn = _connect()
+    try:
+        row = conn.execute(
+            """
+            SELECT u.* FROM users u
+            JOIN api_keys k ON k.user_id = u.id
+            WHERE k.key_hash = ?
+            """,
+            (key_hash,),
+        ).fetchone()
+        return dict(row) if row else None
+    finally:
+        conn.close()
+
+
+def update_api_key_last_used(key_hash: str) -> None:
+    """Stamp last_used_at on the key row matching the given hash."""
+    now = datetime.now(timezone.utc).isoformat()
+    with _lock:
+        conn = _connect()
+        try:
+            conn.execute(
+                "UPDATE api_keys SET last_used_at = ? WHERE key_hash = ?",
+                (now, key_hash),
             )
             conn.commit()
         finally:

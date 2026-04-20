@@ -13,6 +13,9 @@ services:
       - "8000:8000"
     depends_on:
       - redis
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+      - "ai-seo-tool.local:host-gateway"
     volumes:
       - ./backend:/app
       - history_data:/app/data
@@ -37,6 +40,9 @@ services:
     command: celery -A app.worker.celery_app worker --beat --loglevel=info
     depends_on:
       - redis
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+      - "ai-seo-tool.local:host-gateway"
     volumes:
       - ./backend:/app
       - history_data:/app/data

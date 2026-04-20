@@ -1,6 +1,8 @@
-"""Auth API Routes — signup, signin, logout, me."""
+"""Auth API Routes — signup, signin, logout, me, api-keys."""
 from __future__ import annotations
 
+import hashlib
+import secrets
 import sqlite3
 import uuid
 from typing import Any
@@ -14,8 +16,23 @@ from app.dependencies.auth import (
     create_access_token,
     get_current_user,
 )
-from app.schemas.auth import SigninRequest, SignupRequest, UserOut
-from app.store.history_store import create_user, get_user_by_email, get_admin_setting
+from app.schemas.auth import (
+    ApiKeyCreateRequest,
+    ApiKeyCreatedOut,
+    ApiKeyOut,
+    SigninRequest,
+    SignupRequest,
+    UserOut,
+)
+from app.store.history_store import (
+    create_api_key_record,
+    create_user,
+    get_admin_setting,
+    get_subscription_by_user,
+    get_user_by_email,
+    list_api_keys,
+    revoke_api_key,
+)
 
 router = APIRouter()
 
@@ -103,11 +120,45 @@ def logout(response: Response) -> dict[str, str]:
     return {"status": "ok"}
 
 
+_PLAN_LIMITS: dict[str, int | None] = {"free": 1, "pro": 10, "agency": None}
+
 @router.get("/me", response_model=UserOut)
 def me(current_user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
+    sub = get_subscription_by_user(current_user["id"])
+    plan_name = sub["plan"] if sub else None
     return {
         "id": current_user["id"],
         "email": current_user["email"],
         "name": current_user["name"],
         "is_admin": bool(current_user.get("is_admin", False)),
+        "plan": plan_name,
+        "audit_count": sub["audit_count"] if sub else None,
+        "audit_limit": _PLAN_LIMITS.get(plan_name) if plan_name else None,
     }
+
+
+@router.post("/api-key", response_model=ApiKeyCreatedOut, status_code=status.HTTP_201_CREATED)
+def create_api_key(
+    body: ApiKeyCreateRequest,
+    current_user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    raw_key = secrets.token_urlsafe(32)
+    key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
+    key_id = str(uuid.uuid4())
+    record = create_api_key_record(key_id, current_user["id"], body.name, key_hash)
+    return {**record, "key": raw_key}
+
+
+@router.get("/api-keys", response_model=list[ApiKeyOut])
+def get_api_keys(current_user: dict[str, Any] = Depends(get_current_user)) -> list[dict[str, Any]]:
+    return list_api_keys(current_user["id"])
+
+
+@router.delete("/api-keys/{key_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_api_key(
+    key_id: str,
+    current_user: dict[str, Any] = Depends(get_current_user),
+) -> None:
+    deleted = revoke_api_key(key_id, current_user["id"])
+    if not deleted:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="API key not found")

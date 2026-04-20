@@ -19,3 +19,21 @@ class UserOut(BaseModel):
     email: str
     name: str
     is_admin: bool = False
+    plan: str | None = None
+    audit_count: int | None = None
+    audit_limit: int | None = None
+
+
+class ApiKeyCreateRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
+
+
+class ApiKeyOut(BaseModel):
+    id: str
+    name: str
+    created_at: str
+    last_used_at: str | None = None
+
+
+class ApiKeyCreatedOut(ApiKeyOut):
+    key: str  # raw key — returned once only at creation

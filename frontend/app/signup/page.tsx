@@ -48,6 +48,10 @@ const authStyles = `
     padding: 32px 56px;
     position: relative;
     overflow-y: auto;
+    scrollbar-width: none;
+  }
+  .auth-left::-webkit-scrollbar {
+    display: none;
   }
   .auth-left::before {
     content: '';
@@ -144,6 +148,10 @@ const authStyles = `
     padding: 32px 40px;
     background: var(--auth-bg);
     overflow-y: auto;
+    scrollbar-width: none;
+  }
+  .auth-right::-webkit-scrollbar {
+    display: none;
   }
   .auth-form-card {
     width: 100%; max-width: 420px;
