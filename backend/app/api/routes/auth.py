@@ -20,8 +20,10 @@ from app.schemas.auth import (
     ApiKeyCreateRequest,
     ApiKeyCreatedOut,
     ApiKeyOut,
+    ChangePasswordRequest,
     SigninRequest,
     SignupRequest,
+    UpdateProfileRequest,
     UserOut,
 )
 from app.store.history_store import (
@@ -30,8 +32,11 @@ from app.store.history_store import (
     get_admin_setting,
     get_subscription_by_user,
     get_user_by_email,
+    get_user_by_id,
     list_api_keys,
     revoke_api_key,
+    update_user_name,
+    update_user_password,
 )
 
 router = APIRouter()
@@ -135,6 +140,37 @@ def me(current_user: dict[str, Any] = Depends(get_current_user)) -> dict[str, An
         "audit_count": sub["audit_count"] if sub else None,
         "audit_limit": _PLAN_LIMITS.get(plan_name) if plan_name else None,
     }
+
+
+@router.patch("/me", response_model=UserOut)
+def update_me(
+    body: UpdateProfileRequest,
+    current_user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    update_user_name(current_user["id"], body.name)
+    sub = get_subscription_by_user(current_user["id"])
+    plan_name = sub["plan"] if sub else None
+    return {
+        "id": current_user["id"],
+        "email": current_user["email"],
+        "name": body.name,
+        "is_admin": bool(current_user.get("is_admin", False)),
+        "plan": plan_name,
+        "audit_count": sub["audit_count"] if sub else None,
+        "audit_limit": _PLAN_LIMITS.get(plan_name) if plan_name else None,
+    }
+
+
+@router.post("/change-password", status_code=status.HTTP_204_NO_CONTENT)
+def change_password(
+    body: ChangePasswordRequest,
+    current_user: dict[str, Any] = Depends(get_current_user),
+) -> None:
+    user = get_user_by_id(current_user["id"])
+    if not user or not bcrypt.checkpw(body.current_password.encode(), user["password_hash"].encode()):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Current password is incorrect")
+    new_hash = bcrypt.hashpw(body.new_password.encode(), bcrypt.gensalt()).decode()
+    update_user_password(current_user["id"], new_hash)
 
 
 @router.post("/api-key", response_model=ApiKeyCreatedOut, status_code=status.HTTP_201_CREATED)

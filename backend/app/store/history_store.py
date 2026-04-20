@@ -648,6 +648,28 @@ def get_user_by_id(user_id: str) -> dict[str, Any] | None:
         conn.close()
 
 
+def update_user_name(user_id: str, name: str) -> None:
+    """Update a user's display name."""
+    with _lock:
+        conn = _connect()
+        try:
+            conn.execute("UPDATE users SET name = ? WHERE id = ?", (name, user_id))
+            conn.commit()
+        finally:
+            conn.close()
+
+
+def update_user_password(user_id: str, password_hash: str) -> None:
+    """Replace a user's password hash."""
+    with _lock:
+        conn = _connect()
+        try:
+            conn.execute("UPDATE users SET password_hash = ? WHERE id = ?", (password_hash, user_id))
+            conn.commit()
+        finally:
+            conn.close()
+
+
 # ---------------------------------------------------------------------------
 # Subscription CRUD
 # ---------------------------------------------------------------------------

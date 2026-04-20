@@ -699,6 +699,65 @@ export async function signOut(): Promise<void> {
   await apiFetch(`${API_BASE}/auth/logout`, { method: "POST" });
 }
 
+export async function updateProfile(name: string): Promise<void> {
+  const res = await apiFetch(`${API_BASE}/auth/me`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Failed to update profile: ${res.status}`);
+  }
+}
+
+export async function changePassword(currentPassword: string, newPassword: string): Promise<void> {
+  const res = await apiFetch(`${API_BASE}/auth/change-password`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Failed to change password: ${res.status}`);
+  }
+}
+
+export interface ApiKey {
+  id: string;
+  name: string;
+  created_at: string;
+  last_used_at: string | null;
+}
+
+export interface ApiKeyCreated extends ApiKey {
+  key: string;
+}
+
+export async function fetchApiKeys(): Promise<ApiKey[]> {
+  const res = await apiFetch(`${API_BASE}/auth/api-keys`);
+  if (!res.ok) throw new Error(`Failed to fetch API keys: ${res.status}`);
+  return (await res.json()) as ApiKey[];
+}
+
+export async function createApiKey(name: string): Promise<ApiKeyCreated> {
+  const res = await apiFetch(`${API_BASE}/auth/api-key`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Failed to create API key: ${res.status}`);
+  }
+  return (await res.json()) as ApiKeyCreated;
+}
+
+export async function revokeApiKey(keyId: string): Promise<void> {
+  const res = await apiFetch(`${API_BASE}/auth/api-keys/${keyId}`, { method: "DELETE" });
+  if (!res.ok && res.status !== 204) throw new Error(`Failed to revoke API key: ${res.status}`);
+}
+
 export async function fetchCurrentUser(): Promise<AuthUser | null> {
   const res = await apiFetch(`${API_BASE}/auth/me`);
   if (res.status === 401) return null;
