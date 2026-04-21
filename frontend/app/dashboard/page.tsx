@@ -1576,7 +1576,7 @@ export default function Home() {
                   )}
                 </span>
               )}
-              {audit?.audit_status === "completed" && <span>· Audit complete</span>}
+              {audit?.audit_status === "completed" && <span>· Audit completed</span>}
               {geo?.geo_status === "completed" && geo.score && (
                 <span className="font-medium text-[var(--accent)]">
                   · GEO Score: {geo.score.overall_score}/100 ({geo.score.grade})
