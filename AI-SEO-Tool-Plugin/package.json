@@ -1,0 +1,13 @@
+{
+  "name": "ai-seo-tool",
+  "version": "1.0.0",
+  "description": "Connect your WordPress site to AI SEO Tool for AI citation readiness audits.",
+  "scripts": {
+    "build": "wp-scripts build",
+    "start": "wp-scripts start",
+    "lint:js": "wp-scripts lint-js"
+  },
+  "devDependencies": {
+    "@wordpress/scripts": "^32.0.0"
+  }
+}
