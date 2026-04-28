@@ -279,7 +279,6 @@ function CrawlHistoryChart({ items }: { items: HistoryItem[] }) {
         ))}
         <line x1={PAD.left} y1={PAD.top + innerH} x2={PAD.left + innerW} y2={PAD.top + innerH} stroke="var(--border)" strokeWidth="0.5" />
         <line x1={PAD.left} y1={PAD.top} x2={PAD.left} y2={PAD.top + innerH} stroke="var(--border)" strokeWidth="0.5" />
-        <text x={W / 2} y={H - 1} textAnchor="middle" fontSize="7.5" fill="#94a3b8">Past 30 Audits</text>
         <text x={9} y={H / 2 - 4} textAnchor="middle" fontSize="7" fill="#94a3b8" transform={`rotate(-90, 9, ${H / 2 - 4})`}>Score</text>
       </svg>
     </div>
@@ -598,7 +597,7 @@ export default function Home() {
         setOverview(ov);
         setSelectedPage(null);
       } else if (s.status === "failed") {
-        setError("Crawl failed.");
+        if (!s.cloudflare_protected) setError("Crawl failed.");
       } else if (s.status === "processing" || s.status === "queued") {
         const [pages, ov] = await Promise.all([getPages(id), getOverview(id)]);
         setPagesData(pages);
@@ -690,13 +689,19 @@ export default function Home() {
     setError(null);
     setLoading(true);
     setIsAnalyzing(true);
+    setSiteId(null);
+    setSite(null);
     setPagesData(null);
     setOverview(null);
     setSelectedPage(null);
     setAudit(null);
     setGeo(null);
+    setSearch("");
+    setDetailSearch("");
     setPageNum(0);
     setMainTab("dashboard");
+    setColFilters(defaultFilters);
+    setDraftFilters(defaultFilters);
     try {
       const result = await startAnalysis(url.trim());
       setSiteId(result.site_id);
@@ -986,6 +991,7 @@ export default function Home() {
           </div>
         )}
 
+
         {/* ── Tab content ───────────────────────────────────────────────── */}
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
 
@@ -1039,6 +1045,43 @@ export default function Home() {
                         </div>
                       ))}
                     </div>
+                  </div>
+                </div>
+              ) : site.cloudflare_protected && site.status === "failed" ? (
+                <div className="flex flex-1 items-center justify-center">
+                  <div className="text-center space-y-5 max-w-lg px-6">
+                    <div className="flex justify-center">
+                      <div style={{
+                        width: 72, height: 72, borderRadius: 20,
+                        background: "linear-gradient(135deg, #f59e0b, #d97706)",
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        fontSize: 36, boxShadow: "0 8px 24px rgba(245,158,11,.3)"
+                      }}>🛡️</div>
+                    </div>
+                    <div>
+                      <h2 className="text-xl font-black tracking-tight mb-2" style={{ color: "#0f172a", fontFamily: "Inter, sans-serif" }}>
+                        Blocked by Cloudflare
+                      </h2>
+                      <p className="text-sm" style={{ color: "#64748b", lineHeight: 1.7 }}>
+                        This site uses Cloudflare&apos;s Managed Challenge, which actively blocks automated crawlers.
+                        No pages, scores, or audit data could be collected.
+                      </p>
+                    </div>
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 px-5 py-4 text-left space-y-2">
+                      <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: "#92400e" }}>What you can do</p>
+                      <ul className="text-sm space-y-1.5" style={{ color: "#78350f" }}>
+                        <li className="flex items-start gap-2"><span className="mt-0.5">•</span><span>Ask the site owner to whitelist <code className="rounded px-1 py-0.5 text-xs bg-amber-100">AI-SEO-Bot</code> in their Cloudflare firewall rules</span></li>
+                        <li className="flex items-start gap-2"><span className="mt-0.5">•</span><span>Try a different URL on the same domain that may not be behind the challenge</span></li>
+                        <li className="flex items-start gap-2"><span className="mt-0.5">•</span><span>Temporarily disable the Managed Challenge for crawl bots in the Cloudflare dashboard</span></li>
+                      </ul>
+                    </div>
+                    <button
+                      onClick={handleClear}
+                      className="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-white"
+                      style={{ background: "linear-gradient(135deg, #0d9488, #16a34a)", boxShadow: "0 4px 12px rgba(13,148,136,.3)" }}
+                    >
+                      Try another URL
+                    </button>
                   </div>
                 </div>
               ) : (
@@ -1590,6 +1633,9 @@ export default function Home() {
               <span className="capitalize">{site.status}</span>
               {site.robots_allowed === false && (
                 <span className="text-amber-600">· Crawling disallowed by robots.txt</span>
+              )}
+              {site.cloudflare_protected && (
+                <span className="text-amber-600">· Cloudflare protected</span>
               )}
               {pagesData && (
                 <span>

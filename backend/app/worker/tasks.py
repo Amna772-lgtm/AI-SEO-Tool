@@ -3,7 +3,7 @@ import threading
 import uuid
 
 from app.worker.celery_app import celery
-from app.analyzers.crawler import crawl_shallow, crawl_sampled, detect_spa, fetch_page
+from app.analyzers.crawler import crawl_shallow, crawl_sampled, detect_spa, fetch_page, is_cloudflare_block
 from app.analyzers.audit import run_url_checks, run_page_checks
 from app.analyzers.page_inventory import build_inventory, hierarchical_select
 from app.store.crawl_store import (
@@ -53,14 +53,16 @@ def process_site(url: str, task_id: str, robots_allowed: bool = True, ai_crawler
         meta_with_inv["inventory_strategy"] = inventory.strategy
         set_meta(task_id, meta_with_inv)
 
-        # ── SPA Detection — quick homepage fetch before main crawl ───────────
+        # ── SPA + Cloudflare Detection — quick homepage fetch before main crawl ─
         renderer = None
         spa_info: dict = {"is_spa": False, "confidence": 0.0, "signals": []}
+        cloudflare_protected = False
         try:
             from app.analyzers.playwright_renderer import PlaywrightRenderer, PLAYWRIGHT_AVAILABLE
             if PLAYWRIGHT_AVAILABLE:
                 _resp, _ = fetch_page(url, follow_redirects=True)
-                if _resp.status_code == 200 and _resp.text:
+                cloudflare_protected = is_cloudflare_block(_resp)
+                if not cloudflare_protected and _resp.status_code == 200 and _resp.text:
                     spa_info = detect_spa(_resp.text)
                     if spa_info["is_spa"]:
                         renderer = PlaywrightRenderer()
@@ -72,7 +74,13 @@ def process_site(url: str, task_id: str, robots_allowed: bool = True, ai_crawler
         meta_after_inv = get_meta(task_id) or {}
         meta_after_inv["js_rendering"] = spa_info["is_spa"]
         meta_after_inv["spa_signals"] = spa_info.get("signals", [])
+        meta_after_inv["cloudflare_protected"] = cloudflare_protected
         set_meta(task_id, meta_after_inv)
+
+        if cloudflare_protected:
+            meta_after_inv["status"] = "failed"
+            set_meta(task_id, meta_after_inv)
+            return
 
         # Start URL-only audit checks (HTTPS, sitemap, PSI) in parallel with the crawl.
         url_checks: dict = {}

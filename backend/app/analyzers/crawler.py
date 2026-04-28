@@ -18,6 +18,7 @@ from bs4 import BeautifulSoup
 from app.utils.url_validator import normalize_url
 
 
+
 def detect_spa(html: str) -> dict:
     """
     Detect if a page is likely a client-side rendered SPA (React CSR, Vue CSR, Angular).
@@ -147,6 +148,27 @@ STATUS_TEXT = {
 def _get_status_text(status_code: int) -> str:
     """Return standard status text for a status code."""
     return STATUS_TEXT.get(status_code) or f"Status {status_code}"
+
+
+def is_cloudflare_block(response) -> bool:
+    """Return True when Cloudflare is actively challenging or blocking the response."""
+    h = response.headers
+    # cf-mitigated is only set when CF actively intercepts (not on normal CF-proxied responses)
+    if h.get("cf-mitigated"):
+        return True
+    # 403 + cf-ray header is the standard Cloudflare block pattern
+    if response.status_code == 403 and h.get("cf-ray"):
+        return True
+    # HTML challenge page patterns (JS challenge, Managed Challenge, Turnstile)
+    if response.status_code in (200, 403, 503):
+        t = response.text.lower()
+        if "cloudflare" in t and any(x in t for x in (
+            "just a moment", "checking your browser", "ray id", "enable javascript",
+            "performing security verification", "verifying you are human",
+            "security service to protect",
+        )):
+            return True
+    return False
 
 
 def _get_http_version(response: httpx.Response) -> str | None:

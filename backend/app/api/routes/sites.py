@@ -56,6 +56,7 @@ def get_site(task_id: str, current_user: dict[str, Any] = Depends(get_current_us
         "inventory_sections": meta.get("inventory_sections"),
         "inventory_strategy": meta.get("inventory_strategy"),
         "inventory_sample_size": meta.get("inventory_sample_size"),
+        "cloudflare_protected": meta.get("cloudflare_protected", False),
     }
 
 

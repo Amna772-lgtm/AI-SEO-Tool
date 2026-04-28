@@ -45,6 +45,7 @@ export interface Site {
   inventory_sample_size?: number | null;
   js_rendering?: boolean | null;
   spa_signals?: string[] | null;
+  cloudflare_protected?: boolean;
 }
 
 export interface PageRow {

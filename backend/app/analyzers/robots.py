@@ -7,6 +7,7 @@ from urllib.robotparser import RobotFileParser
 import httpx
 from io import StringIO
 
+
 # Our crawler's user-agent (must match crawler.py)
 CRAWLER_USER_AGENT = "AI-SEO-Bot/1.0"
 
