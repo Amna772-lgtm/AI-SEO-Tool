@@ -1155,40 +1155,50 @@ export default function Home() {
                       )}
                     </div>
 
-                    {/* Site Health */}
+                    {/* AI Crawler Access */}
                     <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4" style={{ boxShadow: "var(--card-shadow)" }}>
                       <div className="mb-2 flex items-center justify-between">
-                        <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">Site Health</p>
-                        <div className="flex h-7 w-7 items-center justify-center rounded-lg" style={{ background: "#f0fdf4" }}>
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">AI Crawler Access</p>
+                        <div className="flex h-7 w-7 items-center justify-center rounded-lg" style={{ background: "#eff6ff" }}>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                            <circle cx="12" cy="16" r="1"/>
+                          </svg>
                         </div>
                       </div>
-                      {audit?.audit ? (() => {
-                        const checks = [audit.audit.https.passed, audit.audit.sitemap.found, audit.audit.broken_links.count === 0, audit.audit.missing_canonicals.missing_count === 0];
-                        const passed = checks.filter(Boolean).length;
-                        const pct = Math.round((passed / checks.length) * 100);
-                        const color = pct === 100 ? "#16a34a" : pct >= 75 ? "#f59e0b" : "#ef4444";
-                        const label = pct === 100 ? "Excellent" : pct >= 75 ? "Good" : pct >= 50 ? "Fair" : "Poor";
-                        const r = 24, cx = 30, cy = 30, C = 2 * Math.PI * r;
+                      {site.ai_crawler_access ? (() => {
+                        const bots = [
+                          { key: "GPTBot", label: "GPTBot" },
+                          { key: "ChatGPT-User", label: "ChatGPT-User" },
+                          { key: "Google-Extended", label: "Google-Extended" },
+                          { key: "PerplexityBot", label: "PerplexityBot" },
+                          { key: "Anthropic-AI", label: "Anthropic-AI" },
+                          { key: "Claude-Web", label: "Claude-Web" },
+                        ];
+                        const allowed = bots.filter(b => site.ai_crawler_access![b.key] !== false).length;
                         return (
-                          <div className="flex items-center gap-3">
-                            <svg width="60" height="60" viewBox="0 0 60 60" className="shrink-0">
-                              <circle cx={cx} cy={cy} r={r} fill="none" stroke="var(--border)" strokeWidth="6" />
-                              <circle cx={cx} cy={cy} r={r} fill="none" stroke={color} strokeWidth="6"
-                                strokeDasharray={pct === 100 ? undefined : `${(pct / 100) * C} ${C}`}
-                                transform={`rotate(-90 ${cx} ${cy})`} />
-                              <text x={cx} y={cy + 5} textAnchor="middle" fontSize="12" fontWeight="800" fill={color}>{pct}%</text>
-                            </svg>
-                            <div>
-                              <p className="text-sm font-bold" style={{ color: "#0f172a" }}>{passed} / {checks.length} Checks</p>
-                              <span className="mt-1 inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold"
-                                style={{ background: pct === 100 ? "#f0fdf4" : pct >= 75 ? "#fffbeb" : "#fef2f2", color }}>{label}</span>
+                          <div>
+                            <p className="mb-2 text-sm font-bold" style={{ color: "#0f172a" }}>
+                              {allowed}/{bots.length}{" "}
+                              <span className="text-xs font-normal text-[var(--muted)]">allowed</span>
+                            </p>
+                            <div className="grid grid-cols-2 gap-x-2 gap-y-1">
+                              {bots.map(b => {
+                                const ok = site.ai_crawler_access![b.key] !== false;
+                                return (
+                                  <div key={b.key} className="flex items-center gap-1">
+                                    <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: ok ? "#16a34a" : "#ef4444" }} />
+                                    <span className="truncate text-[10px]" style={{ color: ok ? "#0f172a" : "#ef4444" }}>{b.label}</span>
+                                  </div>
+                                );
+                              })}
                             </div>
                           </div>
                         );
                       })() : (
                         <div className="flex h-14 items-center gap-2 text-xs text-[var(--muted)]">
-                          {site.status === "completed" ? <><div className="h-3 w-3 animate-spin rounded-full border-2 border-[var(--border)] border-t-[var(--accent)]" />Analyzing…</> : "Awaiting crawl"}
+                          {site.status === "completed" ? "No data" : "Awaiting crawl"}
                         </div>
                       )}
                     </div>
