@@ -324,10 +324,14 @@ export interface EeatResult {
   has_about_page: boolean;
   has_contact_page: boolean;
   has_privacy_policy: boolean;
+  has_terms_page: boolean;
   has_author_pages: boolean;
   has_case_studies: boolean;
   has_faq_page: boolean;
+  has_editorial_policy: boolean;
+  has_support_page: boolean;
   author_credentials_found: boolean;
+  author_social_profiles_found: boolean;
   citations_found: boolean;
   content_freshness: boolean;
   expertise_signals: string[];

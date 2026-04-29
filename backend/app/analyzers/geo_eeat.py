@@ -11,15 +11,23 @@ from bs4 import BeautifulSoup
 
 # URL path patterns that indicate trust/authority pages
 _TRUST_URL_PATTERNS = {
-    "privacy_policy":  [r"/privacy", r"/privacy-policy", r"/data-policy"],
-    "terms":           [r"/terms", r"/terms-of-service", r"/terms-and-conditions", r"/tos"],
-    "contact":         [r"/contact", r"/contact-us", r"/get-in-touch", r"/reach-us"],
-    "about":           [r"/about", r"/about-us", r"/our-story", r"/who-we-are"],
-    "author":          [r"/author/", r"/authors/", r"/team/", r"/staff/", r"/people/"],
-    "case_studies":    [r"/case-stud", r"/success-stor", r"/client-stor"],
-    "blog":            [r"/blog", r"/articles", r"/insights"],
-    "faq":             [r"/faq", r"/faqs", r"/frequently-asked"],
+    "privacy_policy":   [r"/privacy", r"/privacy-policy", r"/data-policy"],
+    "terms":            [r"/terms", r"/terms-of-service", r"/terms-and-conditions", r"/tos"],
+    "contact":          [r"/contact", r"/contact-us", r"/get-in-touch", r"/reach-us"],
+    "about":            [r"/about", r"/about-us", r"/our-story", r"/who-we-are"],
+    "author":           [r"/author/", r"/authors/", r"/team/", r"/staff/", r"/people/"],
+    "case_studies":     [r"/case-stud", r"/success-stor", r"/client-stor"],
+    "blog":             [r"/blog", r"/articles", r"/insights"],
+    "faq":              [r"/faq", r"/faqs", r"/frequently-asked"],
+    "editorial_policy": [r"/editorial", r"/editorial-policy", r"/editorial-guidelines", r"/guidelines"],
+    "support":          [r"/support", r"/help", r"/help-center", r"/customer-service", r"/customer-support"],
 }
+
+# Social profile links on author/team pages
+_AUTHOR_SOCIAL_RE = re.compile(
+    r'href=["\']https?://(www\.)?(linkedin\.com|twitter\.com|x\.com|github\.com)/\S+',
+    re.I,
+)
 
 # HTML text patterns for expertise signals
 _EXPERTISE_PATTERNS = [
@@ -273,6 +281,9 @@ def _check_html_signals(homepage_html: str, about_html: str = "") -> dict:
             author_found = True
             break
 
+    # Author social profiles (LinkedIn, Twitter/X, GitHub linked from author sections)
+    author_social_found = bool(_AUTHOR_SOCIAL_RE.search(html_str))
+
     # Citation patterns
     for pat in _CITATION_PATTERNS:
         if re.search(pat, text, re.I):
@@ -290,6 +301,7 @@ def _check_html_signals(homepage_html: str, about_html: str = "") -> dict:
         "expertise_signals": list(set(expertise_signals))[:5],
         "trust_text_signals": list(set(trust_signals))[:5],
         "author_credentials_found": author_found,
+        "author_social_profiles_found": author_social_found,
         "citations_found": citations_found,
         "content_freshness": freshness,
     }
@@ -362,6 +374,27 @@ def _compute_eeat_score(url_signals: dict[str, bool], html_signals: dict, freshn
         score += 2
         present.append("FAQ page found")
 
+    # Editorial policy (5 pts)
+    if url_signals.get("editorial_policy"):
+        score += 5
+        present.append("Editorial policy page found")
+    else:
+        missing.append("No editorial policy / guidelines page")
+
+    # Support / help page (5 pts)
+    if url_signals.get("support"):
+        score += 5
+        present.append("Support / help page found")
+    else:
+        missing.append("No support or help page")
+
+    # Author social profiles (8 pts)
+    if html_signals.get("author_social_profiles_found"):
+        score += 8
+        present.append("Author social profiles linked")
+    else:
+        missing.append("No author social profile links found")
+
     return min(score, 100), present, missing
 
 
@@ -394,10 +427,14 @@ def analyze_eeat(
         "has_about_page": url_signals.get("about", False),
         "has_contact_page": url_signals.get("contact", False),
         "has_privacy_policy": url_signals.get("privacy_policy", False),
+        "has_terms_page": url_signals.get("terms", False),
         "has_author_pages": url_signals.get("author", False),
         "has_case_studies": url_signals.get("case_studies", False),
         "has_faq_page": url_signals.get("faq", False),
+        "has_editorial_policy": url_signals.get("editorial_policy", False),
+        "has_support_page": url_signals.get("support", False),
         "author_credentials_found": html_signals["author_credentials_found"],
+        "author_social_profiles_found": html_signals["author_social_profiles_found"],
         "citations_found": html_signals["citations_found"],
         "content_freshness": html_signals["content_freshness"],
         "expertise_signals": html_signals["expertise_signals"],

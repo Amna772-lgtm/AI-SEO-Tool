@@ -172,6 +172,30 @@ def _rule_based_suggestions(
                 "impact": "Medium",
                 "category": "eeat",
             })
+        if not eeat.get("has_editorial_policy"):
+            important.append({
+                "title": "Add an Editorial Policy Page",
+                "description": "An editorial or content guidelines page signals that your content follows a rigorous, trustworthy process — a key proxy trust signal for AI engines.",
+                "fix": "Create an /editorial-policy page describing your editorial standards, fact-checking process, and content update policy. Link it in your footer.",
+                "impact": "Medium",
+                "category": "eeat",
+            })
+        if not eeat.get("has_support_page"):
+            important.append({
+                "title": "Add a Support or Help Page",
+                "description": "A dedicated support or help page demonstrates that real people stand behind the site and can assist users — a credibility signal AI citation engines recognize.",
+                "fix": "Create a /support or /help page with contact options, a knowledge base, or a support form. Link it from your header or footer.",
+                "impact": "Medium",
+                "category": "eeat",
+            })
+        if not eeat.get("author_social_profiles_found"):
+            optional.append({
+                "title": "Link Author Social Profiles",
+                "description": "No LinkedIn, Twitter/X, or GitHub links were found on author or team pages. Social profiles strengthen author identity and entity recognition.",
+                "fix": "Add LinkedIn (and optionally Twitter/X or GitHub) links to each author's bio page or team page profile card.",
+                "impact": "Low",
+                "category": "eeat",
+            })
 
     # Content checks
     if content:

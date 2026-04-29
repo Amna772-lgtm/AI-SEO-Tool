@@ -104,7 +104,7 @@ def _analyze_answer_quality(pages_html: list[tuple[str, str]]) -> dict:
     total = len(answer_lengths)
     if total == 0:
         return {
-            "score": 20,
+            "score": 0,
             "bluf_ratio": 0.0,
             "avg_answer_length": 0,
             "self_contained_ratio": 0.0,
