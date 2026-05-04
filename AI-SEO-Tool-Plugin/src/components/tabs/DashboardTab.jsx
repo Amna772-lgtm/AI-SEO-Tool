@@ -236,7 +236,7 @@ export default function DashboardTab( { siteId, data, plan } ) {
 
         fetchData();
         return () => { cancelled = true; };
-    }, [ siteId ] );
+    }, [ siteId, data?.status ] );
 
     const statusCounts = pages.reduce( ( acc, page ) => {
         const code = page.status_code || 0;
@@ -355,7 +355,7 @@ export default function DashboardTab( { siteId, data, plan } ) {
                         ].map( ( { label, value, pass } ) => (
                             <div key={ label } style={ {
                                 display: 'flex', alignItems: 'center', gap: '10px',
-                                padding: '10px 12px', background: '#f8fafc',
+                                padding: '14px 12px', background: '#f8fafc',
                                 borderRadius: '8px', border: '1px solid #e2e8f0',
                             } }>
                                 { audit ? ( pass ? <TechPassIcon /> : <TechFailIcon /> ) : (

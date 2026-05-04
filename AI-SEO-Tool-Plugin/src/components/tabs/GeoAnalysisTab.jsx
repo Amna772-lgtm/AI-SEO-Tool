@@ -225,82 +225,117 @@ function SubTabContent( { tab, geo } ) {
 
     switch ( tab ) {
         case 'schema':
-            return <MetricList items={ [
-                { label: __( 'Coverage', 'ai-seo-tool' ), value: `${ schema.coverage_pct || 0 }%` },
-                { label: __( 'Formats Present', 'ai-seo-tool' ), value: ( schema.formats_present || [] ).join( ', ' ) || '—' },
-                { label: __( 'Types Detected', 'ai-seo-tool' ), value: ( schema.types_detected || [] ).slice( 0, 5 ).join( ', ' ) || '—' },
-                { label: __( 'Missing Types', 'ai-seo-tool' ), value: ( schema.missing_recommended || [] ).join( ', ' ) || __( 'None', 'ai-seo-tool' ) },
-            ] } />;
+            return (
+                <div style={ { display: 'flex', flexDirection: 'column', gap: '12px' } }>
+                    <ScoreBar label={ __( 'Schema Coverage', 'ai-seo-tool' ) } value={ schema.coverage_pct || 0 } suffix="%" />
+                    <MetricRow label={ __( 'Formats Present', 'ai-seo-tool' ) } value={ ( schema.formats_present || [] ).join( ', ' ) || '—' } />
+                    <TagList label={ __( 'Types Detected', 'ai-seo-tool' ) } tags={ ( schema.types_detected || [] ).slice( 0, 8 ) } color="#0d9488" />
+                    <TagList label={ __( 'Missing Types', 'ai-seo-tool' ) } tags={ schema.missing_recommended || [] } color="#dc2626" empty={ __( 'None — great!', 'ai-seo-tool' ) } />
+                </div>
+            );
 
         case 'content':
-            return <MetricList items={ [
-                { label: __( 'Avg Word Count', 'ai-seo-tool' ), value: Math.round( content.avg_word_count || 0 ) },
-                { label: __( 'Reading Level', 'ai-seo-tool' ), value: content.reading_level || '—' },
-                { label: __( 'FAQ Pages', 'ai-seo-tool' ), value: content.faq_pages || 0 },
-                { label: __( 'Thin Pages (<300 words)', 'ai-seo-tool' ), value: content.thin_pages || 0 },
-                { label: __( 'Tone Score', 'ai-seo-tool' ), value: content.tone_score || '—' },
-            ] } />;
+            return (
+                <div style={ { display: 'flex', flexDirection: 'column', gap: '12px' } }>
+                    <MetricRow label={ __( 'Avg Word Count', 'ai-seo-tool' ) }          value={ Math.round( content.avg_word_count || 0 ) } highlight />
+                    <MetricRow label={ __( 'Reading Level', 'ai-seo-tool' ) }           value={ content.reading_level || '—' } />
+                    <MetricRow label={ __( 'Tone Score', 'ai-seo-tool' ) }              value={ content.tone_score || '—' } />
+                    <div style={ { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' } }>
+                        <StatCard label={ __( 'FAQ Pages', 'ai-seo-tool' ) }            value={ content.faq_pages || 0 } icon="❓" />
+                        <StatCard label={ __( 'Thin Pages', 'ai-seo-tool' ) }           value={ content.thin_pages || 0 } icon="📄" warn={ ( content.thin_pages || 0 ) > 0 } />
+                    </div>
+                </div>
+            );
 
         case 'eeat':
-            return <MetricList items={ [
-                { label: __( 'E-E-A-T Score', 'ai-seo-tool' ), value: `${ eeat.score || 0 } / 100` },
-                { label: __( 'Trust Pages', 'ai-seo-tool' ), value: ( eeat.trust_pages_present || [] ).join( ', ' ) || '—' },
-                { label: __( 'Expertise Signals', 'ai-seo-tool' ), value: ( eeat.expertise_signals || [] ).join( ', ' ) || '—' },
-                { label: __( 'Blog Cadence', 'ai-seo-tool' ), value: eeat.blog_cadence || '—' },
-            ] } />;
+            return (
+                <div style={ { display: 'flex', flexDirection: 'column', gap: '12px' } }>
+                    <ScoreBar label={ __( 'E-E-A-T Score', 'ai-seo-tool' ) } value={ eeat.score || 0 } suffix="/100" />
+                    <MetricRow label={ __( 'Blog Cadence', 'ai-seo-tool' ) } value={ eeat.blog_cadence || '—' } />
+                    <TagList label={ __( 'Trust Pages', 'ai-seo-tool' ) }       tags={ eeat.trust_pages_present || [] } color="#16a34a" empty={ __( 'None detected', 'ai-seo-tool' ) } />
+                    <TagList label={ __( 'Expertise Signals', 'ai-seo-tool' ) } tags={ eeat.expertise_signals || [] }  color="#0d9488" empty={ __( 'None detected', 'ai-seo-tool' ) } />
+                </div>
+            );
 
         case 'nlp':
-            return <MetricList items={ [
-                { label: __( 'Snippet Readiness', 'ai-seo-tool' ), value: nlp.snippet_readiness || '—' },
-                { label: __( 'Primary Intent', 'ai-seo-tool' ), value: nlp.primary_intent || '—' },
-                { label: __( 'Question Density', 'ai-seo-tool' ), value: nlp.question_density || '—' },
-                { label: __( 'Answer Quality Score', 'ai-seo-tool' ), value: Math.round( nlp.answer_quality_score || 0 ) },
-                { label: __( 'Synonym Richness', 'ai-seo-tool' ), value: nlp.synonym_richness || '—' },
-            ] } />;
+            return (
+                <div style={ { display: 'flex', flexDirection: 'column', gap: '12px' } }>
+                    <ReadinessTag label={ __( 'Snippet Readiness', 'ai-seo-tool' ) } value={ nlp.snippet_readiness } />
+                    <MetricRow label={ __( 'Primary Intent', 'ai-seo-tool' ) }    value={ nlp.primary_intent || '—' } />
+                    <MetricRow label={ __( 'Question Density', 'ai-seo-tool' ) }  value={ nlp.question_density || '—' } />
+                    <MetricRow label={ __( 'Synonym Richness', 'ai-seo-tool' ) }  value={ nlp.synonym_richness || '—' } />
+                    <ScoreBar  label={ __( 'Answer Quality', 'ai-seo-tool' ) }    value={ Math.round( nlp.answer_quality_score || 0 ) } suffix="/100" />
+                </div>
+            );
 
-        case 'visibility':
-            return <MetricList items={ [
-                { label: __( 'Overall Mention Rate', 'ai-seo-tool' ), value: `${ Math.round( visibility.overall_mention_rate || 0 ) }%` },
-                { label: __( 'Visibility Label', 'ai-seo-tool' ), value: visibility.visibility_label || '—' },
-                ...Object.entries( visibility.engine_mention_rates || {} ).map( ( [ engine, rate ] ) => ( {
-                    label: ENGINE_DISPLAY_NAMES[ engine ] || engine,
-                    value: `${ Math.round( rate * 100 ) }%`,
-                } ) ),
-            ] } />;
+        case 'visibility': {
+            const engines = Object.entries( visibility.engine_mention_rates || {} );
+            return (
+                <div style={ { display: 'flex', flexDirection: 'column', gap: '12px' } }>
+                    <ReadinessTag label={ __( 'Visibility', 'ai-seo-tool' ) } value={ visibility.visibility_label } />
+                    <ScoreBar label={ __( 'Overall Mention Rate', 'ai-seo-tool' ) } value={ Math.round( visibility.overall_mention_rate || 0 ) } suffix="%" />
+                    { engines.length > 0 && (
+                        <div style={ { display: 'flex', flexDirection: 'column', gap: '6px' } }>
+                            { engines.map( ( [ engine, rate ] ) => (
+                                <ScoreBar key={ engine } label={ ENGINE_DISPLAY_NAMES[ engine ] || engine } value={ Math.round( ( rate || 0 ) * 100 ) } suffix="%" small />
+                            ) ) }
+                        </div>
+                    ) }
+                </div>
+            );
+        }
 
         case 'entity':
-            return <MetricList items={ [
-                { label: __( 'Entity Score', 'ai-seo-tool' ), value: `${ entity.score || 0 } / 100` },
-                { label: __( 'Establishment', 'ai-seo-tool' ), value: entity.establishment_label || '—' },
-                { label: __( 'Wikipedia', 'ai-seo-tool' ), value: entity.wikipedia_found ? __( 'Found', 'ai-seo-tool' ) : __( 'Not found', 'ai-seo-tool' ) },
-                { label: __( 'sameAs Profiles', 'ai-seo-tool' ), value: ( entity.same_as_profiles || [] ).length },
-            ] } />;
+            return (
+                <div style={ { display: 'flex', flexDirection: 'column', gap: '12px' } }>
+                    <ScoreBar label={ __( 'Entity Score', 'ai-seo-tool' ) } value={ entity.score || 0 } suffix="/100" />
+                    <MetricRow label={ __( 'Establishment', 'ai-seo-tool' ) } value={ entity.establishment_label || '—' } highlight />
+                    <MetricRow
+                        label={ __( 'Wikipedia', 'ai-seo-tool' ) }
+                        value={ entity.wikipedia_found ? __( '✅ Found', 'ai-seo-tool' ) : __( '❌ Not found', 'ai-seo-tool' ) }
+                    />
+                    <MetricRow label={ __( 'sameAs Profiles', 'ai-seo-tool' ) } value={ ( entity.same_as_profiles || [] ).length } />
+                </div>
+            );
 
         case 'pages': {
             const sorted = [ ...( Array.isArray( pages ) ? pages : [] ) ].sort( ( a, b ) => ( a.score || 0 ) - ( b.score || 0 ) );
             if ( sorted.length === 0 ) {
-                return <p style={ { color: '#757575', fontSize: '13px' } }>{ __( 'No per-page scores available.', 'ai-seo-tool' ) }</p>;
+                return (
+                    <p style={ { color: '#94a3b8', fontSize: '13px', textAlign: 'center', padding: '24px 0' } }>
+                        { __( 'No per-page scores available.', 'ai-seo-tool' ) }
+                    </p>
+                );
             }
             return (
-                <div style={ { overflowX: 'auto' } }>
-                    <table className="wp-list-table widefat fixed striped" style={ { marginBottom: 0 } }>
-                        <thead>
-                            <tr>
-                                <th scope="col">{ __( 'URL', 'ai-seo-tool' ) }</th>
-                                <th scope="col">{ __( 'Score', 'ai-seo-tool' ) }</th>
-                                <th scope="col">{ __( 'Grade', 'ai-seo-tool' ) }</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            { sorted.slice( 0, 50 ).map( ( p, i ) => (
-                                <tr key={ p.url || i }>
-                                    <td style={ { fontSize: '12px', wordBreak: 'break-all' } }>{ p.url || '—' }</td>
-                                    <td>{ Math.round( p.score || 0 ) }</td>
-                                    <td>{ p.grade || '—' }</td>
-                                </tr>
-                            ) ) }
-                        </tbody>
-                    </table>
+                <div style={ { display: 'flex', flexDirection: 'column', gap: '6px' } }>
+                    { sorted.slice( 0, 50 ).map( ( p, i ) => {
+                        const s     = Math.round( p.score || 0 );
+                        const color = s >= 80 ? '#16a34a' : s >= 65 ? '#ca8a04' : s >= 50 ? '#ea580c' : '#dc2626';
+                        return (
+                            <div key={ p.url || i } style={ {
+                                display: 'flex', alignItems: 'center', gap: '12px',
+                                padding: '10px 12px', background: '#f8fafc',
+                                borderRadius: '8px', border: '1px solid #e2e8f0',
+                            } }>
+                                <span style={ {
+                                    fontSize: '13px', fontWeight: 700, color,
+                                    minWidth: '28px', textAlign: 'right',
+                                } }>{ s }</span>
+                                { p.grade && (
+                                    <span style={ {
+                                        width: '20px', height: '20px', borderRadius: '50%',
+                                        background: color, color: '#fff',
+                                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                                        fontSize: '10px', fontWeight: 700, flexShrink: 0,
+                                    } }>{ p.grade }</span>
+                                ) }
+                                <span style={ { fontSize: '12px', color: '#374151', wordBreak: 'break-all', flex: 1 } }>
+                                    { p.url || '—' }
+                                </span>
+                            </div>
+                        );
+                    } ) }
                 </div>
             );
         }
@@ -310,16 +345,91 @@ function SubTabContent( { tab, geo } ) {
     }
 }
 
-/** Simple metric list for sub-tab content. */
-function MetricList( { items } ) {
+// ── Design helpers ────────────────────────────────────────────────────────────
+
+function ScoreBar( { label, value, suffix = '', small = false } ) {
+    const pct   = Math.min( Math.max( value, 0 ), 100 );
+    const color = pct >= 80 ? '#16a34a' : pct >= 65 ? '#ca8a04' : pct >= 50 ? '#ea580c' : '#dc2626';
     return (
-        <dl style={ { margin: 0 } }>
-            { items.map( ( { label, value } ) => (
-                <div key={ label } style={ { display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #f0f0f1' } }>
-                    <dt style={ { fontSize: '13px', color: '#757575' } }>{ label }</dt>
-                    <dd style={ { fontSize: '13px', fontWeight: 600, margin: 0 } }>{ value }</dd>
+        <div>
+            <div style={ { display: 'flex', justifyContent: 'space-between', marginBottom: '5px' } }>
+                <span style={ { fontSize: small ? '12px' : '13px', color: '#374151', fontWeight: 500 } }>{ label }</span>
+                <span style={ { fontSize: small ? '12px' : '13px', fontWeight: 700, color } }>{ value }{ suffix }</span>
+            </div>
+            <div style={ { height: small ? '4px' : '6px', borderRadius: '9999px', background: '#e2e8f0', overflow: 'hidden' } }>
+                <div style={ {
+                    height: '100%', width: `${ pct }%`,
+                    background: `linear-gradient(90deg, ${ color }99, ${ color })`,
+                    borderRadius: '9999px', transition: 'width 0.6s ease',
+                } } />
+            </div>
+        </div>
+    );
+}
+
+function MetricRow( { label, value, highlight = false } ) {
+    return (
+        <div style={ {
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            padding: '9px 12px', background: '#f8fafc',
+            borderRadius: '8px', border: '1px solid #e2e8f0',
+        } }>
+            <span style={ { fontSize: '13px', color: '#6b7280' } }>{ label }</span>
+            <span style={ { fontSize: '13px', fontWeight: highlight ? 700 : 600, color: '#1e293b' } }>{ value }</span>
+        </div>
+    );
+}
+
+function StatCard( { label, value, icon, warn = false } ) {
+    return (
+        <div style={ {
+            padding: '12px', borderRadius: '10px', textAlign: 'center',
+            background: warn ? '#fef2f2' : '#f0fdf4',
+            border: `1px solid ${ warn ? '#fecaca' : '#bbf7d0' }`,
+        } }>
+            <div style={ { fontSize: '20px', marginBottom: '4px' } }>{ icon }</div>
+            <div style={ { fontSize: '22px', fontWeight: 800, color: warn ? '#dc2626' : '#16a34a' } }>{ value }</div>
+            <div style={ { fontSize: '11px', color: '#6b7280', marginTop: '2px' } }>{ label }</div>
+        </div>
+    );
+}
+
+function TagList( { label, tags, color, empty } ) {
+    return (
+        <div>
+            <div style={ { fontSize: '12px', color: '#6b7280', fontWeight: 600, marginBottom: '6px' } }>{ label }</div>
+            { tags.length === 0 ? (
+                <span style={ { fontSize: '12px', color: '#94a3b8', fontStyle: 'italic' } }>{ empty || '—' }</span>
+            ) : (
+                <div style={ { display: 'flex', flexWrap: 'wrap', gap: '6px' } }>
+                    { tags.map( ( tag ) => (
+                        <span key={ tag } style={ {
+                            fontSize: '11px', fontWeight: 600, color,
+                            background: color + '15',
+                            border: `1px solid ${ color }33`,
+                            borderRadius: '6px', padding: '3px 8px',
+                        } }>{ tag }</span>
+                    ) ) }
                 </div>
-            ) ) }
-        </dl>
+            ) }
+        </div>
+    );
+}
+
+function ReadinessTag( { label, value } ) {
+    if ( ! value ) return <MetricRow label={ label } value="—" />;
+    const colorMap = { Excellent: '#16a34a', Good: '#0d9488', Fair: '#ca8a04', Poor: '#dc2626' };
+    const bgMap    = { Excellent: '#f0fdf4', Good: '#f0fdfa', Fair: '#fefce8', Poor: '#fef2f2' };
+    const color = colorMap[ value ] || '#6b7280';
+    const bg    = bgMap[ value ]    || '#f8fafc';
+    return (
+        <div style={ {
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            padding: '10px 12px', background: bg, borderRadius: '8px',
+            border: `1px solid ${ color }33`,
+        } }>
+            <span style={ { fontSize: '13px', color: '#6b7280' } }>{ label }</span>
+            <span style={ { fontSize: '13px', fontWeight: 700, color } }>{ value }</span>
+        </div>
     );
 }

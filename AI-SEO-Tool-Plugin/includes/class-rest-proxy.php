@@ -85,6 +85,102 @@ class AI_SEO_Tool_REST_Proxy {
             'callback'            => array( __CLASS__, 'get_settings' ),
             'permission_callback' => array( __CLASS__, 'check_permission' ),
         ) );
+
+        // ── GEO sub-endpoints ──
+
+        register_rest_route( 'ai-seo-tool/v1', '/sites/(?P<id>[a-zA-Z0-9\-]+)/geo/suggestions', array(
+            'methods'             => 'GET',
+            'callback'            => array( __CLASS__, 'proxy_geo_suggestions' ),
+            'permission_callback' => array( __CLASS__, 'check_permission' ),
+        ) );
+
+        register_rest_route( 'ai-seo-tool/v1', '/sites/(?P<id>[a-zA-Z0-9\-]+)/geo/schema', array(
+            'methods'             => 'GET',
+            'callback'            => array( __CLASS__, 'proxy_geo_schema' ),
+            'permission_callback' => array( __CLASS__, 'check_permission' ),
+        ) );
+
+        register_rest_route( 'ai-seo-tool/v1', '/sites/(?P<id>[a-zA-Z0-9\-]+)/geo/content', array(
+            'methods'             => 'GET',
+            'callback'            => array( __CLASS__, 'proxy_geo_content' ),
+            'permission_callback' => array( __CLASS__, 'check_permission' ),
+        ) );
+
+        register_rest_route( 'ai-seo-tool/v1', '/sites/(?P<id>[a-zA-Z0-9\-]+)/geo/eeat', array(
+            'methods'             => 'GET',
+            'callback'            => array( __CLASS__, 'proxy_geo_eeat' ),
+            'permission_callback' => array( __CLASS__, 'check_permission' ),
+        ) );
+
+        register_rest_route( 'ai-seo-tool/v1', '/sites/(?P<id>[a-zA-Z0-9\-]+)/geo/nlp', array(
+            'methods'             => 'GET',
+            'callback'            => array( __CLASS__, 'proxy_geo_nlp' ),
+            'permission_callback' => array( __CLASS__, 'check_permission' ),
+        ) );
+
+        register_rest_route( 'ai-seo-tool/v1', '/sites/(?P<id>[a-zA-Z0-9\-]+)/geo/probe', array(
+            'methods'             => 'GET',
+            'callback'            => array( __CLASS__, 'proxy_geo_probe' ),
+            'permission_callback' => array( __CLASS__, 'check_permission' ),
+        ) );
+
+        register_rest_route( 'ai-seo-tool/v1', '/sites/(?P<id>[a-zA-Z0-9\-]+)/geo/entity', array(
+            'methods'             => 'GET',
+            'callback'            => array( __CLASS__, 'proxy_geo_entity' ),
+            'permission_callback' => array( __CLASS__, 'check_permission' ),
+        ) );
+
+        register_rest_route( 'ai-seo-tool/v1', '/sites/(?P<id>[a-zA-Z0-9\-]+)/geo/pages', array(
+            'methods'             => 'GET',
+            'callback'            => array( __CLASS__, 'proxy_geo_pages' ),
+            'permission_callback' => array( __CLASS__, 'check_permission' ),
+        ) );
+
+        // ── Schedules CRUD ──
+
+        register_rest_route( 'ai-seo-tool/v1', '/schedules', array(
+            'methods'             => 'GET',
+            'callback'            => array( __CLASS__, 'proxy_schedules_list' ),
+            'permission_callback' => array( __CLASS__, 'check_permission' ),
+        ) );
+
+        register_rest_route( 'ai-seo-tool/v1', '/schedules', array(
+            'methods'             => 'POST',
+            'callback'            => array( __CLASS__, 'proxy_schedules_create' ),
+            'permission_callback' => array( __CLASS__, 'check_permission' ),
+        ) );
+
+        register_rest_route( 'ai-seo-tool/v1', '/schedules/(?P<id>[a-zA-Z0-9\-]+)', array(
+            'methods'             => 'GET',
+            'callback'            => array( __CLASS__, 'proxy_schedules_get' ),
+            'permission_callback' => array( __CLASS__, 'check_permission' ),
+        ) );
+
+        register_rest_route( 'ai-seo-tool/v1', '/schedules/(?P<id>[a-zA-Z0-9\-]+)', array(
+            'methods'             => 'PATCH',
+            'callback'            => array( __CLASS__, 'proxy_schedules_update' ),
+            'permission_callback' => array( __CLASS__, 'check_permission' ),
+        ) );
+
+        register_rest_route( 'ai-seo-tool/v1', '/schedules/(?P<id>[a-zA-Z0-9\-]+)', array(
+            'methods'             => 'DELETE',
+            'callback'            => array( __CLASS__, 'proxy_schedules_delete' ),
+            'permission_callback' => array( __CLASS__, 'check_permission' ),
+        ) );
+
+        register_rest_route( 'ai-seo-tool/v1', '/schedules/(?P<id>[a-zA-Z0-9\-]+)/trigger', array(
+            'methods'             => 'POST',
+            'callback'            => array( __CLASS__, 'proxy_schedules_trigger' ),
+            'permission_callback' => array( __CLASS__, 'check_permission' ),
+        ) );
+
+        // ── History ──
+
+        register_rest_route( 'ai-seo-tool/v1', '/history/(?P<id>[a-zA-Z0-9\-]+)', array(
+            'methods'             => 'DELETE',
+            'callback'            => array( __CLASS__, 'proxy_history_delete' ),
+            'permission_callback' => array( __CLASS__, 'check_permission' ),
+        ) );
     }
 
     public static function check_permission() {
@@ -129,6 +225,59 @@ class AI_SEO_Tool_REST_Proxy {
                 'Content-Type'  => 'application/json',
             ),
             'body'    => wp_json_encode( $body ),
+            'timeout' => 30,
+        ) );
+        return self::format_response( $response );
+    }
+
+    private static function proxy_patch( string $path, array $body = array() ): \WP_REST_Response {
+        $api_key = self::get_api_key();
+        $backend = self::get_backend_url();
+        if ( empty( $api_key ) ) {
+            return new \WP_REST_Response( array( 'error' => 'Not connected. Configure your API key in Settings.' ), 401 );
+        }
+        $response = wp_remote_request( $backend . $path, array(
+            'method'  => 'PATCH',
+            'headers' => array(
+                'Authorization' => 'Bearer ' . $api_key,
+                'Content-Type'  => 'application/json',
+            ),
+            'body'    => wp_json_encode( $body ),
+            'timeout' => 30,
+        ) );
+        return self::format_response( $response );
+    }
+
+    private static function proxy_put( string $path, array $body = array() ): \WP_REST_Response {
+        $api_key = self::get_api_key();
+        $backend = self::get_backend_url();
+        if ( empty( $api_key ) ) {
+            return new \WP_REST_Response( array( 'error' => 'Not connected. Configure your API key in Settings.' ), 401 );
+        }
+        $response = wp_remote_request( $backend . $path, array(
+            'method'  => 'PUT',
+            'headers' => array(
+                'Authorization' => 'Bearer ' . $api_key,
+                'Content-Type'  => 'application/json',
+            ),
+            'body'    => wp_json_encode( $body ),
+            'timeout' => 30,
+        ) );
+        return self::format_response( $response );
+    }
+
+    private static function proxy_delete( string $path ): \WP_REST_Response {
+        $api_key = self::get_api_key();
+        $backend = self::get_backend_url();
+        if ( empty( $api_key ) ) {
+            return new \WP_REST_Response( array( 'error' => 'Not connected. Configure your API key in Settings.' ), 401 );
+        }
+        $response = wp_remote_request( $backend . $path, array(
+            'method'  => 'DELETE',
+            'headers' => array(
+                'Authorization' => 'Bearer ' . $api_key,
+                'Content-Type'  => 'application/json',
+            ),
             'timeout' => 30,
         ) );
         return self::format_response( $response );
@@ -245,5 +394,84 @@ class AI_SEO_Tool_REST_Proxy {
             'backend_url' => AI_SEO_TOOL_BACKEND_URL,
             'site_url'    => get_site_url(),
         ), 200 );
+    }
+
+    // ── GEO sub-endpoint callbacks ──
+
+    public static function proxy_geo_suggestions( \WP_REST_Request $request ): \WP_REST_Response {
+        $id = $request->get_param( 'id' );
+        return self::proxy_get( '/sites/' . sanitize_text_field( $id ) . '/geo/suggestions' );
+    }
+
+    public static function proxy_geo_schema( \WP_REST_Request $request ): \WP_REST_Response {
+        $id = $request->get_param( 'id' );
+        return self::proxy_get( '/sites/' . sanitize_text_field( $id ) . '/geo/schema' );
+    }
+
+    public static function proxy_geo_content( \WP_REST_Request $request ): \WP_REST_Response {
+        $id = $request->get_param( 'id' );
+        return self::proxy_get( '/sites/' . sanitize_text_field( $id ) . '/geo/content' );
+    }
+
+    public static function proxy_geo_eeat( \WP_REST_Request $request ): \WP_REST_Response {
+        $id = $request->get_param( 'id' );
+        return self::proxy_get( '/sites/' . sanitize_text_field( $id ) . '/geo/eeat' );
+    }
+
+    public static function proxy_geo_nlp( \WP_REST_Request $request ): \WP_REST_Response {
+        $id = $request->get_param( 'id' );
+        return self::proxy_get( '/sites/' . sanitize_text_field( $id ) . '/geo/nlp' );
+    }
+
+    public static function proxy_geo_probe( \WP_REST_Request $request ): \WP_REST_Response {
+        $id = $request->get_param( 'id' );
+        return self::proxy_get( '/sites/' . sanitize_text_field( $id ) . '/geo/probe' );
+    }
+
+    public static function proxy_geo_entity( \WP_REST_Request $request ): \WP_REST_Response {
+        $id = $request->get_param( 'id' );
+        return self::proxy_get( '/sites/' . sanitize_text_field( $id ) . '/geo/entity' );
+    }
+
+    public static function proxy_geo_pages( \WP_REST_Request $request ): \WP_REST_Response {
+        $id = $request->get_param( 'id' );
+        return self::proxy_get( '/sites/' . sanitize_text_field( $id ) . '/geo/pages' );
+    }
+
+    // ── Schedules callbacks ──
+
+    public static function proxy_schedules_list( \WP_REST_Request $request ): \WP_REST_Response {
+        return self::proxy_get( '/schedules/' );
+    }
+
+    public static function proxy_schedules_create( \WP_REST_Request $request ): \WP_REST_Response {
+        return self::proxy_post( '/schedules/', $request->get_json_params() ?? array() );
+    }
+
+    public static function proxy_schedules_get( \WP_REST_Request $request ): \WP_REST_Response {
+        $id = $request->get_param( 'id' );
+        return self::proxy_get( '/schedules/' . sanitize_text_field( $id ) );
+    }
+
+    public static function proxy_schedules_update( \WP_REST_Request $request ): \WP_REST_Response {
+        $id = $request->get_param( 'id' );
+        return self::proxy_patch( '/schedules/' . sanitize_text_field( $id ), $request->get_json_params() ?? array() );
+    }
+
+    public static function proxy_schedules_delete( \WP_REST_Request $request ): \WP_REST_Response {
+        $id = $request->get_param( 'id' );
+        return self::proxy_delete( '/schedules/' . sanitize_text_field( $id ) );
+    }
+
+    public static function proxy_schedules_trigger( \WP_REST_Request $request ): \WP_REST_Response {
+        $id = $request->get_param( 'id' );
+        return self::proxy_post( '/schedules/' . sanitize_text_field( $id ) . '/trigger' );
+    }
+
+    // ── History callbacks ──
+
+    public static function proxy_history_delete( \WP_REST_Request $request ): \WP_REST_Response {
+        $id = $request->get_param( 'id' );
+        return self::proxy_delete( '/history/' . sanitize_text_field( $id ) );
     }
 }

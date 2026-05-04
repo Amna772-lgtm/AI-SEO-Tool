@@ -24,14 +24,16 @@ import DashboardTab from './tabs/DashboardTab';
 import GeoAnalysisTab from './tabs/GeoAnalysisTab';
 import TechnicalAuditTab from './tabs/TechnicalAuditTab';
 import HistoryTab from './tabs/HistoryTab';
+import SchedulesTab from './tabs/SchedulesTab';
 
 /** Maps WP admin sub-menu slug to tab name. */
 const PAGE_TO_TAB = {
-    'ai-seo-tool':           'dashboard',
-    'ai-seo-tool-geo':       'geo',
-    'ai-seo-tool-technical': 'technical',
-    'ai-seo-tool-history':   'history',
-    'ai-seo-tool-settings':  'settings',
+    'ai-seo-tool':            'dashboard',
+    'ai-seo-tool-geo':        'geo',
+    'ai-seo-tool-technical':  'technical',
+    'ai-seo-tool-history':    'history',
+    'ai-seo-tool-schedules':  'schedules',
+    'ai-seo-tool-settings':   'settings',
 };
 
 const SESSION_KEY_SITE_ID  = 'ai_seo_tool_site_id';
@@ -249,146 +251,229 @@ export default function DashboardScreen( { currentPage, onDisconnected } ) {
     const initialTabName = PAGE_TO_TAB[ currentPage ] || 'dashboard';
 
     const tabs = [
-        { name: 'dashboard', title: __( 'Dashboard', 'ai-seo-tool' ) },
-        { name: 'geo',       title: __( 'GEO Analysis', 'ai-seo-tool' ) },
+        { name: 'dashboard', title: __( 'Dashboard',      'ai-seo-tool' ) },
+        { name: 'geo',       title: __( 'GEO Analysis',   'ai-seo-tool' ) },
         { name: 'technical', title: __( 'Technical Audit', 'ai-seo-tool' ) },
-        { name: 'history',   title: __( 'History', 'ai-seo-tool' ) },
+        { name: 'history',   title: __( 'History',        'ai-seo-tool' ) },
+        { name: 'schedules', title: __( 'Schedules',      'ai-seo-tool' ) },
     ];
 
     return (
         <div style={ { marginTop: '0' } }>
             <AppHeader plan={ plan } />
 
-            {/* Analyze Card */}
-            <div style={ {
-                background: '#ffffff',
-                border: '1px solid #e2e8f0',
-                borderRadius: '12px',
-                padding: '28px 32px',
-                marginBottom: '24px',
-                textAlign: 'center',
-                boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
-            } }>
-                { planLoading ? (
-                    <div style={ { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '8px 0' } }>
-                        <Spinner />
-                        <span style={ { color: '#6b7280', fontSize: '13px' } }>{ __( 'Loading account info…', 'ai-seo-tool' ) }</span>
+            {/* Analyze Card — compact bar when results exist, full card otherwise */}
+            { isComplete && ! isRunning && ! isFailed ? (
+                <div style={ {
+                    background: '#ffffff',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '10px',
+                    padding: '12px 20px',
+                    marginBottom: '24px',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '16px',
+                    flexWrap: 'wrap',
+                } }>
+                    {/* Left: domain + last scan */}
+                    <div style={ { display: 'flex', alignItems: 'center', gap: '8px' } }>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <circle cx="12" cy="12" r="10"/>
+                            <line x1="2" y1="12" x2="22" y2="12"/>
+                            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+                        </svg>
+                        <span style={ { fontWeight: 600, fontSize: '14px', color: '#1e293b' } }>{ domain }</span>
+                        { lastScan && (
+                            <span style={ { color: '#94a3b8', fontSize: '12px' } }>
+                                { sprintf( __( 'Last scan: %s', 'ai-seo-tool' ), lastScan ) }
+                            </span>
+                        ) }
                     </div>
-                ) : planError ? (
-                    <Notice status="error" isDismissible={ false }>{ planError }</Notice>
-                ) : plan ? (
-                    <>
-                        {/* Site URL + last scan */}
-                        { domain && (
-                            <div style={ { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '4px' } }>
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                    <circle cx="12" cy="12" r="10"/>
-                                    <line x1="2" y1="12" x2="22" y2="12"/>
-                                    <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
-                                </svg>
-                                <span style={ { fontWeight: 600, fontSize: '14px', color: '#1e293b' } }>{ domain }</span>
-                                { lastScan && (
-                                    <span style={ { color: '#94a3b8', fontSize: '12px' } }>
-                                        { sprintf( __( 'Last scan: %s', 'ai-seo-tool' ), lastScan ) }
-                                    </span>
-                                ) }
-                            </div>
-                        ) }
-                        <p style={ { color: '#6b7280', fontSize: '13px', margin: '4px 0 20px' } }>
-                            { __( 'Run a full GEO + Technical audit', 'ai-seo-tool' ) }
-                        </p>
 
+                    {/* Right: usage text + Re-analyze / Upgrade button */}
+                    <div style={ { display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' } }>
+                        <span style={ { fontSize: '12px', color: '#64748b' } }>
+                            { isUnlimited
+                                ? sprintf( __( '%d of Unlimited audits used this month', 'ai-seo-tool' ), auditCount )
+                                : sprintf( __( '%1$d of %2$d audits used this month', 'ai-seo-tool' ), auditCount, auditLimit )
+                            }
+                        </span>
+                        { analyzeError && (
+                            <Notice status="error" isDismissible={ false } style={ { marginBottom: 0 } }>
+                                { analyzeError }
+                            </Notice>
+                        ) }
                         { quotaExhausted ? (
-                            <>
-                                <Notice status="warning" isDismissible={ false }>
-                                    { sprintf(
-                                        __( "You've used all %d audits this period. Upgrade your plan to run more audits.", 'ai-seo-tool' ),
-                                        plan.audit_limit
-                                    ) }
-                                </Notice>
-                                <Button
-                                    variant="primary"
-                                    onClick={ () => window.open( 'http://localhost:3000/select-plan', '_blank' ) }
-                                    style={ { marginTop: '12px', backgroundColor: '#0d9488', borderColor: '#0d9488' } }
-                                >
-                                    { __( 'Upgrade Plan', 'ai-seo-tool' ) }
-                                </Button>
-                            </>
-                        ) : isRunning ? (
-                            <AnalysisProgress status={ status } />
-                        ) : isFailed ? (
-                            <>
-                                <Notice status="error" isDismissible={ false }>
-                                    { pollError || __( 'Audit failed. Check the AI SEO Tool backend logs for details.', 'ai-seo-tool' ) }
-                                </Notice>
-                                <Button variant="secondary" onClick={ handleTryAgain } style={ { marginTop: '12px' } }>
-                                    { __( 'Try Again', 'ai-seo-tool' ) }
-                                </Button>
-                            </>
+                            <Button
+                                variant="primary"
+                                onClick={ () => window.open( 'http://localhost:3000/select-plan', '_blank' ) }
+                                style={ { backgroundColor: '#0d9488', borderColor: '#0d9488' } }
+                            >
+                                { __( 'Upgrade Plan', 'ai-seo-tool' ) }
+                            </Button>
                         ) : (
-                            <>
-                                { analyzeError && (
-                                    <Notice status="error" isDismissible={ false } style={ { marginBottom: '12px' } }>
-                                        { analyzeError }
-                                    </Notice>
-                                ) }
-                                <button
-                                    onClick={ handleAnalyze }
-                                    disabled={ quotaExhausted }
-                                    style={ {
-                                        display: 'inline-flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        gap: '8px',
-                                        padding: '10px 36px',
-                                        background: 'linear-gradient(135deg, #0d9488 0%, #0f766e 100%)',
-                                        color: '#ffffff',
-                                        border: 'none',
-                                        borderRadius: '6px',
-                                        fontSize: '14px',
-                                        fontWeight: 600,
-                                        cursor: quotaExhausted ? 'not-allowed' : 'pointer',
-                                        opacity: quotaExhausted ? 0.6 : 1,
-                                        boxShadow: '0 2px 8px rgba(13,148,136,0.35)',
-                                        transition: 'opacity 0.15s, box-shadow 0.15s',
-                                        minWidth: '220px',
-                                    } }
-                                    onMouseEnter={ ( e ) => { if ( ! quotaExhausted ) e.currentTarget.style.boxShadow = '0 4px 12px rgba(13,148,136,0.5)'; } }
-                                    onMouseLeave={ ( e ) => { e.currentTarget.style.boxShadow = '0 2px 8px rgba(13,148,136,0.35)'; } }
-                                >
-                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                                        <path d="M12 2L9.5 8.5 3 11l6.5 2.5L12 22l2.5-8.5L21 11l-6.5-2.5z"/>
+                            <button
+                                onClick={ handleAnalyze }
+                                style={ {
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '6px',
+                                    padding: '7px 18px',
+                                    background: 'linear-gradient(135deg, #0d9488 0%, #0f766e 100%)',
+                                    color: '#ffffff',
+                                    border: 'none',
+                                    borderRadius: '6px',
+                                    fontSize: '13px',
+                                    fontWeight: 600,
+                                    cursor: 'pointer',
+                                    boxShadow: '0 1px 4px rgba(13,148,136,0.3)',
+                                    transition: 'box-shadow 0.15s',
+                                    whiteSpace: 'nowrap',
+                                } }
+                                onMouseEnter={ ( e ) => { e.currentTarget.style.boxShadow = '0 3px 8px rgba(13,148,136,0.5)'; } }
+                                onMouseLeave={ ( e ) => { e.currentTarget.style.boxShadow = '0 1px 4px rgba(13,148,136,0.3)'; } }
+                            >
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M12 2L9.5 8.5 3 11l6.5 2.5L12 22l2.5-8.5L21 11l-6.5-2.5z"/>
+                                </svg>
+                                { __( 'Re-analyze', 'ai-seo-tool' ) }
+                            </button>
+                        ) }
+                    </div>
+                </div>
+            ) : (
+                <div style={ {
+                    background: '#ffffff',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '12px',
+                    padding: '28px 32px',
+                    marginBottom: '24px',
+                    textAlign: 'center',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+                } }>
+                    { planLoading ? (
+                        <div style={ { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '8px 0' } }>
+                            <Spinner />
+                            <span style={ { color: '#6b7280', fontSize: '13px' } }>{ __( 'Loading account info…', 'ai-seo-tool' ) }</span>
+                        </div>
+                    ) : planError ? (
+                        <Notice status="error" isDismissible={ false }>{ planError }</Notice>
+                    ) : plan ? (
+                        <>
+                            {/* Site URL + last scan */}
+                            { domain && (
+                                <div style={ { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '4px' } }>
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                        <circle cx="12" cy="12" r="10"/>
+                                        <line x1="2" y1="12" x2="22" y2="12"/>
+                                        <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
                                     </svg>
-                                    { __( 'Analyze This Site', 'ai-seo-tool' ) }
-                                </button>
-                            </>
-                        ) }
-
-                        {/* Usage bar */}
-                        { ! isRunning && (
-                            <div style={ { marginTop: '16px' } }>
-                                <div style={ { fontSize: '12px', color: '#6b7280', marginBottom: '6px' } }>
-                                    { isUnlimited
-                                        ? sprintf( __( '%d of Unlimited audits used this month', 'ai-seo-tool' ), auditCount )
-                                        : sprintf( __( '%1$d of %2$d audits used this month', 'ai-seo-tool' ), auditCount, auditLimit )
-                                    }
+                                    <span style={ { fontWeight: 600, fontSize: '14px', color: '#1e293b' } }>{ domain }</span>
+                                    { lastScan && (
+                                        <span style={ { color: '#94a3b8', fontSize: '12px' } }>
+                                            { sprintf( __( 'Last scan: %s', 'ai-seo-tool' ), lastScan ) }
+                                        </span>
+                                    ) }
                                 </div>
-                                { ! isUnlimited && (
-                                    <div style={ { height: '4px', background: '#e2e8f0', borderRadius: '2px', maxWidth: '280px', margin: '0 auto' } }>
-                                        <div style={ {
-                                            height: '100%',
-                                            width: `${ usagePct }%`,
-                                            background: usagePct >= 90 ? '#dc2626' : '#0d9488',
-                                            borderRadius: '2px',
-                                            transition: 'width 0.3s',
-                                        } } />
+                            ) }
+                            <p style={ { color: '#6b7280', fontSize: '13px', margin: '4px 0 20px' } }>
+                                { __( 'Run a full GEO + Technical audit', 'ai-seo-tool' ) }
+                            </p>
+
+                            { quotaExhausted ? (
+                                <>
+                                    <Notice status="warning" isDismissible={ false }>
+                                        { sprintf(
+                                            __( "You've used all %d audits this period. Upgrade your plan to run more audits.", 'ai-seo-tool' ),
+                                            plan.audit_limit
+                                        ) }
+                                    </Notice>
+                                    <Button
+                                        variant="primary"
+                                        onClick={ () => window.open( 'http://localhost:3000/select-plan', '_blank' ) }
+                                        style={ { marginTop: '12px', backgroundColor: '#0d9488', borderColor: '#0d9488' } }
+                                    >
+                                        { __( 'Upgrade Plan', 'ai-seo-tool' ) }
+                                    </Button>
+                                </>
+                            ) : isRunning ? (
+                                <AnalysisProgress status={ status } />
+                            ) : isFailed ? (
+                                <>
+                                    <Notice status="error" isDismissible={ false }>
+                                        { pollError || __( 'Audit failed. Check the AI SEO Tool backend logs for details.', 'ai-seo-tool' ) }
+                                    </Notice>
+                                    <Button variant="secondary" onClick={ handleTryAgain } style={ { marginTop: '12px' } }>
+                                        { __( 'Try Again', 'ai-seo-tool' ) }
+                                    </Button>
+                                </>
+                            ) : (
+                                <>
+                                    { analyzeError && (
+                                        <Notice status="error" isDismissible={ false } style={ { marginBottom: '12px' } }>
+                                            { analyzeError }
+                                        </Notice>
+                                    ) }
+                                    <button
+                                        onClick={ handleAnalyze }
+                                        disabled={ quotaExhausted }
+                                        style={ {
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            gap: '8px',
+                                            padding: '10px 36px',
+                                            background: 'linear-gradient(135deg, #0d9488 0%, #0f766e 100%)',
+                                            color: '#ffffff',
+                                            border: 'none',
+                                            borderRadius: '6px',
+                                            fontSize: '14px',
+                                            fontWeight: 600,
+                                            cursor: quotaExhausted ? 'not-allowed' : 'pointer',
+                                            opacity: quotaExhausted ? 0.6 : 1,
+                                            boxShadow: '0 2px 8px rgba(13,148,136,0.35)',
+                                            transition: 'opacity 0.15s, box-shadow 0.15s',
+                                            minWidth: '220px',
+                                        } }
+                                        onMouseEnter={ ( e ) => { if ( ! quotaExhausted ) e.currentTarget.style.boxShadow = '0 4px 12px rgba(13,148,136,0.5)'; } }
+                                        onMouseLeave={ ( e ) => { e.currentTarget.style.boxShadow = '0 2px 8px rgba(13,148,136,0.35)'; } }
+                                    >
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                                            <path d="M12 2L9.5 8.5 3 11l6.5 2.5L12 22l2.5-8.5L21 11l-6.5-2.5z"/>
+                                        </svg>
+                                        { __( 'Analyze This Site', 'ai-seo-tool' ) }
+                                    </button>
+                                </>
+                            ) }
+
+                            {/* Usage bar */}
+                            { ! isRunning && (
+                                <div style={ { marginTop: '16px' } }>
+                                    <div style={ { fontSize: '12px', color: '#6b7280', marginBottom: '6px' } }>
+                                        { isUnlimited
+                                            ? sprintf( __( '%d of Unlimited audits used this month', 'ai-seo-tool' ), auditCount )
+                                            : sprintf( __( '%1$d of %2$d audits used this month', 'ai-seo-tool' ), auditCount, auditLimit )
+                                        }
                                     </div>
-                                ) }
-                            </div>
-                        ) }
-                    </>
-                ) : null }
-            </div>
+                                    { ! isUnlimited && (
+                                        <div style={ { height: '4px', background: '#e2e8f0', borderRadius: '2px', maxWidth: '280px', margin: '0 auto' } }>
+                                            <div style={ {
+                                                height: '100%',
+                                                width: `${ usagePct }%`,
+                                                background: usagePct >= 90 ? '#dc2626' : '#0d9488',
+                                                borderRadius: '2px',
+                                                transition: 'width 0.3s',
+                                            } } />
+                                        </div>
+                                    ) }
+                                </div>
+                            ) }
+                        </>
+                    ) : null }
+                </div>
+            ) }
 
             {/* Results Tab Panel */}
             <TabPanel
@@ -411,11 +496,16 @@ export default function DashboardScreen( { currentPage, onDisconnected } ) {
                                 { tab.name === 'history' && (
                                     <HistoryTab plan={ plan } />
                                 ) }
+                                { tab.name === 'schedules' && (
+                                    <SchedulesTab />
+                                ) }
                             </>
                         ) : (
                             <>
                                 { tab.name === 'history' ? (
                                     <HistoryTab plan={ plan } />
+                                ) : tab.name === 'schedules' ? (
+                                    <SchedulesTab />
                                 ) : (
                                     <EmptyState />
                                 ) }

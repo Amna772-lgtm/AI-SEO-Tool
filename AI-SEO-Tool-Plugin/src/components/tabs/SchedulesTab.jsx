@@ -1,0 +1,430 @@
+/**
+ * AI SEO Tool — SchedulesTab
+ * Manage the single recurring audit schedule for this WordPress site.
+ *
+ * @package AI_SEO_Tool
+ * @license GPL-2.0-or-later
+ */
+import { useState, useEffect } from '@wordpress/element';
+import apiFetch from '@wordpress/api-fetch';
+import {
+    Card,
+    CardBody,
+    Button,
+    Notice,
+    Spinner,
+    SelectControl,
+} from '@wordpress/components';
+import { __ } from '@wordpress/i18n';
+
+const WP_SITE_URL = window.aiSeoTool?.siteUrl || '';
+
+const DAYS_OF_WEEK = [
+    { label: __( 'Monday',    'ai-seo-tool' ), value: '1' },
+    { label: __( 'Tuesday',   'ai-seo-tool' ), value: '2' },
+    { label: __( 'Wednesday', 'ai-seo-tool' ), value: '3' },
+    { label: __( 'Thursday',  'ai-seo-tool' ), value: '4' },
+    { label: __( 'Friday',    'ai-seo-tool' ), value: '5' },
+    { label: __( 'Saturday',  'ai-seo-tool' ), value: '6' },
+    { label: __( 'Sunday',    'ai-seo-tool' ), value: '0' },
+];
+
+const HOURS = Array.from( { length: 24 }, ( _, i ) => ( {
+    label: `${ String( i ).padStart( 2, '0' ) }:00 UTC`,
+    value: String( i ),
+} ) );
+
+const DAYS_OF_MONTH = Array.from( { length: 28 }, ( _, i ) => ( {
+    label: String( i + 1 ),
+    value: String( i + 1 ),
+} ) );
+
+function emptyForm() {
+    return { frequency: 'weekly', hour: '9', day_of_week: '1', day_of_month: '1' };
+}
+
+function scheduleToForm( s ) {
+    return {
+        frequency:    s.frequency    || 'weekly',
+        hour:         String( s.hour ?? 9 ),
+        day_of_week:  String( s.day_of_week  ?? 1 ),
+        day_of_month: String( s.day_of_month ?? 1 ),
+    };
+}
+
+function formatNextRun( dateStr ) {
+    if ( ! dateStr ) return '—';
+    const d    = new Date( dateStr );
+    if ( isNaN( d ) ) return '—';
+    const diff = Math.floor( ( d - Date.now() ) / 1000 );
+    if ( diff <= 0 )    return __( 'Due now', 'ai-seo-tool' );
+    if ( diff < 3600 )  return `${ Math.ceil( diff / 60 ) } min`;
+    if ( diff < 86400 ) return `${ Math.ceil( diff / 3600 ) } hr`;
+    return `${ Math.ceil( diff / 86400 ) } days`;
+}
+
+function formatDate( dateStr ) {
+    if ( ! dateStr ) return __( 'Never', 'ai-seo-tool' );
+    const d = new Date( dateStr );
+    return isNaN( d ) ? '—' : d.toLocaleDateString();
+}
+
+function frequencyLabel( s ) {
+    if ( ! s ) return '—';
+    const day = DAYS_OF_WEEK.find( ( d ) => d.value === String( s.day_of_week ) );
+    const month = s.day_of_month;
+    const hour = String( s.hour ?? 0 ).padStart( 2, '0' ) + ':00 UTC';
+    switch ( s.frequency ) {
+        case 'daily':   return `${ __( 'Every day at', 'ai-seo-tool' ) } ${ hour }`;
+        case 'weekly':  return `${ __( 'Every', 'ai-seo-tool' ) } ${ day?.label || '' } ${ __( 'at', 'ai-seo-tool' ) } ${ hour }`;
+        case 'monthly': return `${ __( 'Day', 'ai-seo-tool' ) } ${ month } ${ __( 'of every month at', 'ai-seo-tool' ) } ${ hour }`;
+        default:        return s.frequency;
+    }
+}
+
+// ── Form ─────────────────────────────────────────────────────────────────────
+
+function ScheduleForm( { form, onChange, onSave, onCancel, saving, error, isEditing } ) {
+    return (
+        <div style={ { marginTop: isEditing ? '20px' : '0' } }>
+            { isEditing && (
+                <hr style={ { border: 'none', borderTop: '1px solid #e2e8f0', margin: '0 0 20px' } } />
+            ) }
+
+            <h3 style={ { margin: '0 0 16px', fontSize: '13px', fontWeight: 600, color: '#1e293b' } }>
+                { isEditing ? __( 'Edit Schedule', 'ai-seo-tool' ) : __( 'Set Up Schedule', 'ai-seo-tool' ) }
+            </h3>
+
+            { error && (
+                <Notice status="error" isDismissible={ false } style={ { marginBottom: '12px' } }>
+                    { error }
+                </Notice>
+            ) }
+
+            {/* Locked site URL */}
+            <div style={ { marginBottom: '16px' } }>
+                <div style={ { fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#757575', marginBottom: '4px' } }>
+                    { __( 'Site', 'ai-seo-tool' ) }
+                </div>
+                <div style={ { fontSize: '13px', color: '#1e293b', padding: '7px 10px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '4px' } }>
+                    { WP_SITE_URL }
+                </div>
+            </div>
+
+            <SelectControl
+                label={ __( 'Frequency', 'ai-seo-tool' ) }
+                value={ form.frequency }
+                options={ [
+                    { label: __( 'Daily',   'ai-seo-tool' ), value: 'daily'   },
+                    { label: __( 'Weekly',  'ai-seo-tool' ), value: 'weekly'  },
+                    { label: __( 'Monthly', 'ai-seo-tool' ), value: 'monthly' },
+                ] }
+                onChange={ ( v ) => onChange( { ...form, frequency: v } ) }
+            />
+
+            { form.frequency === 'weekly' && (
+                <SelectControl
+                    label={ __( 'Day of Week', 'ai-seo-tool' ) }
+                    value={ form.day_of_week }
+                    options={ DAYS_OF_WEEK }
+                    onChange={ ( v ) => onChange( { ...form, day_of_week: v } ) }
+                />
+            ) }
+
+            { form.frequency === 'monthly' && (
+                <SelectControl
+                    label={ __( 'Day of Month', 'ai-seo-tool' ) }
+                    value={ form.day_of_month }
+                    options={ DAYS_OF_MONTH }
+                    onChange={ ( v ) => onChange( { ...form, day_of_month: v } ) }
+                />
+            ) }
+
+            <SelectControl
+                label={ __( 'Hour (UTC)', 'ai-seo-tool' ) }
+                value={ form.hour }
+                options={ HOURS }
+                onChange={ ( v ) => onChange( { ...form, hour: v } ) }
+            />
+
+            <div style={ { display: 'flex', gap: '8px', marginTop: '8px' } }>
+                <Button
+                    variant="primary"
+                    onClick={ onSave }
+                    disabled={ saving }
+                    style={ { backgroundColor: '#0d9488', borderColor: '#0d9488' } }
+                >
+                    { saving ? <Spinner /> : __( 'Save Schedule', 'ai-seo-tool' ) }
+                </Button>
+                { isEditing && (
+                    <Button variant="secondary" onClick={ onCancel } disabled={ saving }>
+                        { __( 'Cancel', 'ai-seo-tool' ) }
+                    </Button>
+                ) }
+            </div>
+        </div>
+    );
+}
+
+// ── Main component ────────────────────────────────────────────────────────────
+
+export default function SchedulesTab() {
+    const [ schedule,      setSchedule      ] = useState( null );
+    const [ loading,       setLoading       ] = useState( true );
+    const [ error,         setError         ] = useState( null );
+    const [ editing,       setEditing       ] = useState( false );
+    const [ form,          setForm          ] = useState( emptyForm() );
+    const [ saving,        setSaving        ] = useState( false );
+    const [ formError,     setFormError     ] = useState( null );
+    const [ triggering,    setTriggering    ] = useState( false );
+    const [ toggleLoading, setToggleLoading ] = useState( false );
+    const [ deleting,      setDeleting      ] = useState( false );
+
+    useEffect( () => {
+        let cancelled = false;
+        apiFetch( { path: '/ai-seo-tool/v1/schedules' } )
+            .then( ( res ) => {
+                if ( cancelled ) return;
+                const all = Array.isArray( res ) ? res : ( res?.schedules || [] );
+                const match = all.find( ( s ) => {
+                    try { return new URL( s.url ).hostname === new URL( WP_SITE_URL ).hostname; }
+                    catch { return s.url === WP_SITE_URL; }
+                } );
+                setSchedule( match || null );
+            } )
+            .catch( ( err ) => { if ( ! cancelled ) setError( err.message || __( 'Failed to load schedule.', 'ai-seo-tool' ) ); } )
+            .finally( () => { if ( ! cancelled ) setLoading( false ); } );
+        return () => { cancelled = true; };
+    }, [] );
+
+    const handleSave = async () => {
+        setSaving( true );
+        setFormError( null );
+        const hour         = parseInt( form.hour, 10 );
+        const day_of_week  = parseInt( form.day_of_week, 10 );
+        const day_of_month = parseInt( form.day_of_month, 10 );
+        try {
+            if ( schedule ) {
+                const patch = {
+                    frequency:    form.frequency,
+                    hour,
+                    day_of_week:  form.frequency === 'weekly'  ? day_of_week  : null,
+                    day_of_month: form.frequency === 'monthly' ? day_of_month : null,
+                };
+                const updated = await apiFetch( { path: `/ai-seo-tool/v1/schedules/${ schedule.id }`, method: 'PATCH', data: patch } );
+                setSchedule( updated );
+                setEditing( false );
+            } else {
+                const payload = {
+                    url:          WP_SITE_URL,
+                    frequency:    form.frequency,
+                    hour,
+                    day_of_week:  form.frequency === 'weekly'  ? day_of_week  : null,
+                    day_of_month: form.frequency === 'monthly' ? day_of_month : null,
+                };
+                const created = await apiFetch( { path: '/ai-seo-tool/v1/schedules', method: 'POST', data: payload } );
+                setSchedule( created );
+            }
+        } catch ( err ) {
+            setFormError( err.message || __( 'Failed to save schedule.', 'ai-seo-tool' ) );
+        } finally {
+            setSaving( false );
+        }
+    };
+
+    const handleToggle = async () => {
+        if ( ! schedule ) return;
+        setToggleLoading( true );
+        try {
+            await apiFetch( { path: `/ai-seo-tool/v1/schedules/${ schedule.id }`, method: 'PATCH', data: { enabled: ! schedule.enabled } } );
+            setSchedule( ( prev ) => ( { ...prev, enabled: ! prev.enabled } ) );
+        } catch { /* snaps back silently */ }
+        finally { setToggleLoading( false ); }
+    };
+
+    const handleDelete = async () => {
+        // eslint-disable-next-line no-alert
+        if ( ! window.confirm( __( 'Remove the recurring schedule for this site?', 'ai-seo-tool' ) ) ) return;
+        setDeleting( true );
+        try {
+            await apiFetch( { path: `/ai-seo-tool/v1/schedules/${ schedule.id }`, method: 'DELETE' } );
+            setSchedule( null );
+            setEditing( false );
+            setForm( emptyForm() );
+        } catch ( err ) {
+            setError( err.message || __( 'Failed to delete schedule.', 'ai-seo-tool' ) );
+        } finally {
+            setDeleting( false );
+        }
+    };
+
+    const handleTrigger = async () => {
+        setTriggering( true );
+        try {
+            await apiFetch( { path: `/ai-seo-tool/v1/schedules/${ schedule.id }/trigger`, method: 'POST' } );
+        } catch ( err ) {
+            setError( err.message || __( 'Failed to trigger audit.', 'ai-seo-tool' ) );
+        } finally {
+            setTriggering( false );
+        }
+    };
+
+    const startEdit = () => {
+        setForm( scheduleToForm( schedule ) );
+        setFormError( null );
+        setEditing( true );
+    };
+
+    // ── Loading ───────────────────────────────────────────────────────────────
+
+    if ( loading ) {
+        return (
+            <div style={ { display: 'flex', alignItems: 'center', gap: '8px', padding: '24px' } }>
+                <Spinner />
+                <span>{ __( 'Loading schedule…', 'ai-seo-tool' ) }</span>
+            </div>
+        );
+    }
+
+    return (
+        <div style={ { maxWidth: '560px' } }>
+            { error && (
+                <Notice status="error" isDismissible onRemove={ () => setError( null ) } style={ { marginBottom: '16px' } }>
+                    { error }
+                </Notice>
+            ) }
+
+            <Card>
+                <CardBody style={ { padding: '24px' } }>
+
+                    { /* ── No schedule yet ── */ }
+                    { ! schedule && (
+                        <>
+                            <div style={ { textAlign: 'center', padding: '8px 0 24px' } }>
+                                <div style={ {
+                                    width: '52px', height: '52px', background: '#f0fdfa', borderRadius: '50%',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px',
+                                } }>
+                                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0d9488" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                        <circle cx="12" cy="12" r="10"/>
+                                        <polyline points="12 6 12 12 16 14"/>
+                                    </svg>
+                                </div>
+                                <h3 style={ { margin: '0 0 6px', fontSize: '15px', fontWeight: 600, color: '#1e293b' } }>
+                                    { __( 'No schedule set', 'ai-seo-tool' ) }
+                                </h3>
+                                <p style={ { margin: 0, fontSize: '13px', color: '#6b7280' } }>
+                                    { __( 'Automatically re-audit this site on a recurring schedule.', 'ai-seo-tool' ) }
+                                </p>
+                            </div>
+                            <ScheduleForm
+                                form={ form }
+                                onChange={ setForm }
+                                onSave={ handleSave }
+                                onCancel={ null }
+                                saving={ saving }
+                                error={ formError }
+                                isEditing={ false }
+                            />
+                        </>
+                    ) }
+
+                    { /* ── Schedule exists ── */ }
+                    { schedule && (
+                        <>
+                            {/* Header row */}
+                            <div style={ { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' } }>
+                                <div>
+                                    <div style={ { fontSize: '13px', fontWeight: 700, color: '#1e293b', marginBottom: '4px' } }>
+                                        { __( 'Recurring Audit', 'ai-seo-tool' ) }
+                                    </div>
+                                    <div style={ { fontSize: '12px', color: '#6b7280' } }>{ WP_SITE_URL }</div>
+                                </div>
+
+                                {/* Enabled toggle */}
+                                <div style={ { display: 'flex', alignItems: 'center', gap: '8px' } }>
+                                    <span style={ { fontSize: '12px', color: '#6b7280' } }>
+                                        { schedule.enabled ? __( 'Active', 'ai-seo-tool' ) : __( 'Paused', 'ai-seo-tool' ) }
+                                    </span>
+                                    <button
+                                        onClick={ handleToggle }
+                                        disabled={ toggleLoading }
+                                        style={ {
+                                            width: '44px', height: '24px', borderRadius: '12px', border: 'none',
+                                            background: schedule.enabled ? '#0d9488' : '#d1d5db',
+                                            cursor: toggleLoading ? 'not-allowed' : 'pointer',
+                                            position: 'relative', transition: 'background 0.2s',
+                                            opacity: toggleLoading ? 0.6 : 1, flexShrink: 0,
+                                        } }
+                                    >
+                                        <span style={ {
+                                            position: 'absolute', top: '4px',
+                                            left: schedule.enabled ? '23px' : '4px',
+                                            width: '16px', height: '16px', borderRadius: '50%',
+                                            background: '#fff', transition: 'left 0.2s',
+                                        } } />
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Schedule details */}
+                            <div style={ {
+                                background: '#f8fafc', border: '1px solid #e2e8f0',
+                                borderRadius: '8px', padding: '16px', marginBottom: '20px',
+                            } }>
+                                <div style={ { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' } }>
+                                    <Stat label={ __( 'Runs', 'ai-seo-tool' ) }        value={ frequencyLabel( schedule ) } span />
+                                    <Stat label={ __( 'Next run', 'ai-seo-tool' ) }    value={ formatNextRun( schedule.next_run ) } />
+                                    <Stat label={ __( 'Last run', 'ai-seo-tool' ) }    value={ formatDate( schedule.last_run ) } />
+                                </div>
+                            </div>
+
+                            {/* Action buttons */}
+                            { ! editing && (
+                                <div style={ { display: 'flex', gap: '8px', flexWrap: 'wrap' } }>
+                                    <Button
+                                        variant="primary"
+                                        onClick={ handleTrigger }
+                                        disabled={ triggering }
+                                        style={ { backgroundColor: '#0d9488', borderColor: '#0d9488' } }
+                                    >
+                                        { triggering ? <><Spinner />{ __( ' Running…', 'ai-seo-tool' ) }</> : __( 'Run Now', 'ai-seo-tool' ) }
+                                    </Button>
+                                    <Button variant="secondary" onClick={ startEdit }>
+                                        { __( 'Edit', 'ai-seo-tool' ) }
+                                    </Button>
+                                    <Button variant="secondary" isDestructive onClick={ handleDelete } disabled={ deleting }>
+                                        { deleting ? <Spinner /> : __( 'Delete', 'ai-seo-tool' ) }
+                                    </Button>
+                                </div>
+                            ) }
+
+                            {/* Inline edit form */}
+                            { editing && (
+                                <ScheduleForm
+                                    form={ form }
+                                    onChange={ setForm }
+                                    onSave={ handleSave }
+                                    onCancel={ () => setEditing( false ) }
+                                    saving={ saving }
+                                    error={ formError }
+                                    isEditing={ true }
+                                />
+                            ) }
+                        </>
+                    ) }
+
+                </CardBody>
+            </Card>
+        </div>
+    );
+}
+
+function Stat( { label, value, span } ) {
+    return (
+        <div style={ span ? { gridColumn: '1 / -1' } : {} }>
+            <div style={ { fontSize: '11px', color: '#6b7280', fontWeight: 500, marginBottom: '3px' } }>{ label }</div>
+            <div style={ { fontSize: '13px', fontWeight: 600, color: '#1e293b' } }>{ value }</div>
+        </div>
+    );
+}
