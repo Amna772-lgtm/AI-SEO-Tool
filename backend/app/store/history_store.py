@@ -505,9 +505,13 @@ def update_schedule(
         or new_dow != current["day_of_week"]
         or new_dom != current["day_of_month"]
     )
+    next_run_is_stale = (
+        current["next_run_at"] is None
+        or datetime.fromisoformat(current["next_run_at"]) <= datetime.now(timezone.utc)
+    )
     new_next_run = (
         _compute_next_run(new_freq, new_hour, new_dow, new_dom)
-        if scheduling_changed
+        if scheduling_changed or (new_enabled and next_run_is_stale)
         else current["next_run_at"]
     )
 

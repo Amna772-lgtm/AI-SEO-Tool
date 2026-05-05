@@ -5645,14 +5645,14 @@ function SchedulesTab() {
             },
             children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_4__.jsx)("button", {
               onClick: handleTrigger,
-              disabled: triggering,
+              disabled: !schedule.enabled || triggering,
               style: {
                 ...BTN_PRIMARY,
-                opacity: triggering ? 0.7 : 1,
-                cursor: triggering ? 'not-allowed' : 'pointer'
+                opacity: !schedule.enabled || triggering ? 0.35 : 1,
+                cursor: !schedule.enabled || triggering ? 'not-allowed' : 'pointer'
               },
               onMouseEnter: e => {
-                if (!triggering) e.currentTarget.style.boxShadow = '0 3px 8px rgba(13,148,136,0.5)';
+                if (schedule.enabled && !triggering) e.currentTarget.style.boxShadow = '0 3px 8px rgba(13,148,136,0.5)';
               },
               onMouseLeave: e => {
                 e.currentTarget.style.boxShadow = '0 1px 4px rgba(13,148,136,0.3)';
@@ -5662,10 +5662,18 @@ function SchedulesTab() {
               }) : (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Run Now', 'ai-seo-tool')
             }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_4__.jsx)("button", {
               onClick: startEdit,
-              style: BTN_SECONDARY,
+              disabled: !schedule.enabled,
+              title: schedule.enabled ? undefined : (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Enable schedule to edit', 'ai-seo-tool'),
+              style: {
+                ...BTN_SECONDARY,
+                opacity: !schedule.enabled ? 0.35 : 1,
+                cursor: !schedule.enabled ? 'not-allowed' : 'pointer'
+              },
               onMouseEnter: e => {
-                e.currentTarget.style.borderColor = '#0d9488';
-                e.currentTarget.style.boxShadow = '0 2px 6px rgba(0,0,0,0.1)';
+                if (schedule.enabled) {
+                  e.currentTarget.style.borderColor = '#0d9488';
+                  e.currentTarget.style.boxShadow = '0 2px 6px rgba(0,0,0,0.1)';
+                }
               },
               onMouseLeave: e => {
                 e.currentTarget.style.borderColor = '#e2e8f0';

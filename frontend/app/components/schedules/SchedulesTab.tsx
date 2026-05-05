@@ -480,7 +480,7 @@ function Toggle({ enabled, onToggle }: { enabled: boolean; onToggle: () => void 
   );
 }
 
-// ── Schedule Row (table view) ─────────────────────────────────────────────────
+// ── Schedule Card ─────────────────────────────────────────────────────────────
 
 interface RowProps {
   schedule: Schedule;
@@ -494,146 +494,141 @@ interface RowProps {
   onCancelDelete: () => void;
 }
 
-function ScheduleRow({
+function ScheduleCard({
   schedule: s,
   onToggle, onEdit, onDelete, onRunNow,
   runStatus, confirmingDelete, onRequestDelete, onCancelDelete,
 }: RowProps) {
-  const fc  = FREQ_CONFIG[s.frequency] ?? FREQ_CONFIG.weekly;
   const soon    = isNextRunSoon(s.next_run_at);
   const overdue = isOverdue(s.next_run_at);
-
   const nextRunColor = overdue ? "#f43f5e" : soon ? "#f59e0b" : "var(--foreground)";
+
+  const btnBase: React.CSSProperties = {
+    borderRadius: 6,
+    fontSize: 13,
+    fontWeight: 600,
+    padding: "7px 16px",
+    cursor: "pointer",
+    border: "none",
+    transition: "opacity 0.15s, box-shadow 0.15s",
+  };
 
   return (
     <div
-      className="group flex items-center gap-4 px-5 py-4 transition-colors"
       style={{
-        borderBottom: "1px solid var(--border)",
         background: "var(--surface)",
-        opacity: s.enabled ? 1 : 0.55,
+        border: "1px solid var(--border)",
+        borderRadius: 12,
+        padding: "20px",
+        display: "flex",
+        flexDirection: "column",
+        gap: 16,
+        boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
       }}
     >
-      {/* Status indicator */}
-      <div className="flex-shrink-0">
-        <div
-          className="rounded-full"
-          style={{
-            width: 9,
-            height: 9,
-            background: s.enabled ? "#10b981" : "var(--border-dark)",
-            boxShadow: s.enabled ? "0 0 0 3px #10b98120" : "none",
-          }}
-        />
+      {/* Header: domain + url (left) | status label + toggle (right) */}
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: "var(--foreground)", marginBottom: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {s.domain}
+          </div>
+          <div style={{ fontSize: 12, color: "#0d9488", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {s.url}
+          </div>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+          <span style={{ fontSize: 12, color: "var(--muted)" }}>{s.enabled ? "Active" : "Paused"}</span>
+          <Toggle enabled={s.enabled} onToggle={onToggle} />
+        </div>
       </div>
 
-      {/* Domain + URL */}
-      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <span className="truncate text-xs font-bold" style={{ color: "var(--foreground)" }}>
-          {s.domain}
-        </span>
-        <span className="truncate text-xs font-mono" style={{ color: "var(--muted)", maxWidth: 280 }}>
-          {s.url}
-        </span>
+      {/* Details inner box */}
+      <div
+        style={{
+          background: "var(--surface-elevated)",
+          border: "1px solid var(--border)",
+          borderRadius: 8,
+          padding: "14px 16px",
+        }}
+      >
+        {/* Runs — full width */}
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: 11, color: "var(--muted)", marginBottom: 4 }}>Runs</div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)" }}>{frequencySummary(s)}</div>
+        </div>
+        {/* Next run + Last run — 2 columns */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+          <div>
+            <div style={{ fontSize: 11, color: "var(--muted)", marginBottom: 4 }}>Next run</div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: nextRunColor }} title={s.next_run_at}>
+              {overdue ? formatDate(s.next_run_at) : formatNextRun(s.next_run_at)}
+            </div>
+          </div>
+          <div>
+            <div style={{ fontSize: 11, color: "var(--muted)", marginBottom: 4 }}>Last run</div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)" }}>
+              {s.last_run_at ? formatDateShort(s.last_run_at) : "Never"}
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* Frequency badge */}
-      <div className="hidden sm:block flex-shrink-0 w-28">
-        <span
-          className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold"
-          style={{ background: fc.bg, color: fc.color }}
-        >
-          <span className="rounded-full" style={{ width: 5, height: 5, background: fc.color, display: "inline-block" }} />
-          {fc.label}
-        </span>
-      </div>
-
-      {/* Schedule summary */}
-      <div className="hidden md:block flex-shrink-0 w-44">
-        <span className="text-xs" style={{ color: "var(--muted)" }}>
-          {frequencySummary(s)}
-        </span>
-      </div>
-
-      {/* Next run */}
-      <div className="flex-shrink-0 w-24 text-right hidden sm:block">
-        <span className="text-xs font-semibold" style={{ color: nextRunColor }} title={s.next_run_at}>
-          {formatNextRun(s.next_run_at)}
-        </span>
-        {overdue && (
-          <div className="text-[10px]" style={{ color: "#f43f5e" }}>check scheduler</div>
-        )}
-      </div>
-
-      {/* Last run */}
-      <div className="flex-shrink-0 w-24 text-right hidden lg:block">
-        <span className="text-xs" style={{ color: "var(--muted)" }}>
-          {formatDateShort(s.last_run_at)}
-        </span>
-      </div>
-
-      {/* Actions */}
-      <div className="flex flex-shrink-0 items-center gap-2">
-        <Toggle enabled={s.enabled} onToggle={onToggle} />
-
+      {/* Action buttons */}
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
         {/* Run Now */}
         <button
           onClick={onRunNow}
-          disabled={runStatus === "running"}
-          className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-white transition-all"
+          disabled={!s.enabled || runStatus === "running"}
           style={{
+            ...btnBase,
             background:
               runStatus === "done"    ? "#10b981" :
               runStatus === "skipped" ? "#f59e0b" :
               runStatus === "error"   ? "#f43f5e" :
-              runStatus === "running" ? "var(--border-dark)" :
-              "linear-gradient(135deg, #0d9488, #16a34a)",
-            opacity: runStatus === "running" ? 0.7 : 1,
-            minWidth: 72,
-            justifyContent: "center",
-            display: "flex",
+              "linear-gradient(135deg, #0d9488 0%, #0f766e 100%)",
+            color: "#fff",
+            boxShadow: (!s.enabled || runStatus === "running") ? "none" : "0 1px 4px rgba(13,148,136,0.3)",
+            opacity: (!s.enabled || runStatus === "running") ? 0.45 : 1,
+            cursor: (!s.enabled || runStatus === "running") ? "not-allowed" : "pointer",
           }}
         >
-          {runStatus === "idle" && <PlayIcon size={10} color="white" />}
-          <span>
-            {runStatus === "running" ? "Running…"
-              : runStatus === "done"    ? "Queued ✓"
-              : runStatus === "skipped" ? "Skipped"
-              : runStatus === "error"   ? "Error"
-              : "Run Now"}
-          </span>
+          {runStatus === "running" ? "Running…"
+            : runStatus === "done"    ? "Queued ✓"
+            : runStatus === "skipped" ? "Skipped"
+            : runStatus === "error"   ? "Error"
+            : "Run Now"}
         </button>
 
         {/* Edit */}
         <button
           onClick={onEdit}
-          title="Edit schedule"
-          className="flex items-center justify-center rounded-lg transition-colors"
+          disabled={!s.enabled}
+          title={s.enabled ? undefined : "Enable schedule to edit"}
           style={{
-            width: 30, height: 30,
+            ...btnBase,
+            background: "var(--surface)",
+            color: s.enabled ? "var(--foreground)" : "var(--muted)",
             border: "1px solid var(--border)",
-            color: "var(--muted)",
-            background: "transparent",
+            opacity: s.enabled ? 1 : 0.45,
+            cursor: s.enabled ? "pointer" : "not-allowed",
           }}
         >
-          <PencilIcon size={13} />
+          Edit
         </button>
 
         {/* Delete / Confirm */}
         {confirmingDelete ? (
-          <div className="flex items-center gap-1">
-            <span className="text-xs font-medium" style={{ color: "#f43f5e" }}>Delete?</span>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: "#f43f5e" }}>Delete?</span>
             <button
               onClick={onDelete}
-              className="rounded-lg px-2 py-1 text-xs font-bold text-white"
-              style={{ background: "#f43f5e" }}
+              style={{ ...btnBase, background: "#f43f5e", color: "#fff", padding: "5px 12px", fontSize: 12 }}
             >
               Yes
             </button>
             <button
               onClick={onCancelDelete}
-              className="rounded-lg px-2 py-1 text-xs font-medium"
-              style={{ border: "1px solid var(--border)", color: "var(--muted)", background: "transparent" }}
+              style={{ ...btnBase, background: "var(--surface)", color: "var(--muted)", border: "1px solid var(--border)", padding: "5px 12px", fontSize: 12 }}
             >
               No
             </button>
@@ -641,16 +636,14 @@ function ScheduleRow({
         ) : (
           <button
             onClick={onRequestDelete}
-            title="Delete schedule"
-            className="flex items-center justify-center rounded-lg transition-colors"
             style={{
-              width: 30, height: 30,
-              border: "1px solid var(--border)",
-              color: "#f43f5e",
-              background: "transparent",
+              ...btnBase,
+              background: "var(--surface)",
+              color: "#dc2626",
+              border: "1px solid #fecaca",
             }}
           >
-            <TrashIcon size={13} />
+            Delete
           </button>
         )}
       </div>
@@ -724,9 +717,11 @@ export function SchedulesTab({ initialDomain }: Props) {
   const [editTarget, setEditTarget]     = useState<Schedule | null>(null);
   const [runStatus, setRunStatus]       = useState<Record<string, "running" | "done" | "skipped" | "error">>({});
   const [pendingDelete, setPendingDelete] = useState<Record<string, boolean>>({});
-  const [domainFilter, setDomainFilter] = useState<string>("all");
+  const [domainFilter, setDomainFilter] = useState<string>("");
   const [freqFilter, setFreqFilter]     = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [pendingFreq, setPendingFreq]     = useState<string>("all");
+  const [pendingStatus, setPendingStatus] = useState<string>("all");
 
   const load = useCallback(async () => {
     try {
@@ -783,19 +778,11 @@ export function SchedulesTab({ initialDomain }: Props) {
     .filter((s) => s.last_run_at)
     .sort((a, b) => new Date(b.last_run_at!).getTime() - new Date(a.last_run_at!).getTime())[0];
 
-  // Unique domains for filter
-  const uniqueDomains = Array.from(new Set(schedules.map((s) => s.domain))).sort();
-
   // Filtered list
   const filtered = schedules
-    .filter((s) => domainFilter === "all" || s.domain === domainFilter)
+    .filter((s) => !domainFilter || s.domain.toLowerCase().includes(domainFilter.toLowerCase()) || s.url.toLowerCase().includes(domainFilter.toLowerCase()))
     .filter((s) => freqFilter   === "all" || s.frequency === freqFilter)
     .filter((s) => statusFilter === "all" || (statusFilter === "active" ? s.enabled : !s.enabled));
-
-  const domainOptions = [
-    { value: "all", label: `All domains` },
-    ...uniqueDomains.map((d) => ({ value: d, label: d })),
-  ];
 
   const freqOptions = [
     { value: "all",     label: "All frequencies" },
@@ -811,7 +798,7 @@ export function SchedulesTab({ initialDomain }: Props) {
   ];
 
   return (
-    <div className="flex flex-col gap-0" style={{ minHeight: 0 }}>
+    <div className="flex flex-col gap-0" style={{ minHeight: 0, height: "100%", overflow: "hidden" }}>
       {/* ── Page header ───────────────────────────────────────────────────── */}
       <div
         className="flex items-center justify-between gap-4 px-5 py-4"
@@ -902,28 +889,123 @@ export function SchedulesTab({ initialDomain }: Props) {
       {/* ── Filters ───────────────────────────────────────────────────────── */}
       {!loading && !error && schedules.length > 0 && (
         <div
-          className="flex flex-wrap items-center gap-3 px-5 py-3"
+          className="flex items-center gap-3 px-5 py-3"
           style={{ borderBottom: "1px solid var(--border)", background: "var(--surface-elevated)" }}
         >
-          <span className="text-xs font-medium" style={{ color: "var(--muted)" }}>Filter:</span>
-          {uniqueDomains.length > 1 && (
-            <FilterPills options={domainOptions} selected={domainFilter} onSelect={setDomainFilter} />
-          )}
-          <FilterPills options={freqOptions} selected={freqFilter} onSelect={setFreqFilter} />
-          <FilterPills options={statusOptions} selected={statusFilter} onSelect={setStatusFilter} />
-          {(domainFilter !== "all" || freqFilter !== "all" || statusFilter !== "all") && (
-            <button
-              onClick={() => { setDomainFilter("all"); setFreqFilter("all"); setStatusFilter("all"); }}
-              className="text-xs underline"
-              style={{ color: "var(--muted)" }}
+          {/* Filters + actions */}
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Search input */}
+            <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+              <svg
+                width="13" height="13" viewBox="0 0 24 24" fill="none"
+                stroke="var(--muted)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+                style={{ position: "absolute", left: 9, pointerEvents: "none" }}
+              >
+                <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+              </svg>
+              <input
+                type="text"
+                placeholder="Search domains…"
+                value={domainFilter}
+                onChange={(e) => setDomainFilter(e.target.value)}
+                style={{
+                  fontSize: 12,
+                  paddingLeft: 28,
+                  paddingRight: domainFilter ? 26 : 10,
+                  paddingTop: 6,
+                  paddingBottom: 6,
+                  borderRadius: 8,
+                  border: "1px solid var(--border)",
+                  background: "var(--surface)",
+                  color: "var(--foreground)",
+                  outline: "none",
+                  width: 180,
+                }}
+              />
+              {domainFilter && (
+                <button
+                  onClick={() => setDomainFilter("")}
+                  style={{ position: "absolute", right: 8, background: "none", border: "none", cursor: "pointer", color: "var(--muted)", fontSize: 14, lineHeight: 1, padding: 0 }}
+                >
+                  ×
+                </button>
+              )}
+            </div>
+
+            {/* Frequency dropdown */}
+            <select
+              value={pendingFreq}
+              onChange={(e) => setPendingFreq(e.target.value)}
+              style={{
+                fontSize: 12,
+                padding: "6px 28px 6px 10px",
+                borderRadius: 8,
+                border: "1px solid var(--border)",
+                background: "var(--surface)",
+                color: "var(--foreground)",
+                outline: "none",
+                cursor: "pointer",
+                appearance: "none",
+                backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`,
+                backgroundRepeat: "no-repeat",
+                backgroundPosition: "right 8px center",
+              }}
             >
-              Clear all
+              <option value="all">All frequencies</option>
+              <option value="daily">Daily</option>
+              <option value="weekly">Weekly</option>
+              <option value="monthly">Monthly</option>
+            </select>
+
+            {/* Status dropdown */}
+            <select
+              value={pendingStatus}
+              onChange={(e) => setPendingStatus(e.target.value)}
+              style={{
+                fontSize: 12,
+                padding: "6px 28px 6px 10px",
+                borderRadius: 8,
+                border: "1px solid var(--border)",
+                background: "var(--surface)",
+                color: "var(--foreground)",
+                outline: "none",
+                cursor: "pointer",
+                appearance: "none",
+                backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`,
+                backgroundRepeat: "no-repeat",
+                backgroundPosition: "right 8px center",
+              }}
+            >
+              <option value="all">All statuses</option>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+            </select>
+
+            {/* Apply + Clear */}
+            <button
+              onClick={() => { setFreqFilter(pendingFreq); setStatusFilter(pendingStatus); }}
+              className="text-xs font-semibold text-white rounded-lg px-4 py-1.5"
+              style={{ background: "linear-gradient(135deg, #0d9488, #16a34a)", boxShadow: "0 1px 4px rgba(13,148,136,0.3)" }}
+            >
+              Apply
             </button>
-          )}
+            <button
+              onClick={() => {
+                setDomainFilter("");
+                setPendingFreq("all"); setPendingStatus("all");
+                setFreqFilter("all"); setStatusFilter("all");
+              }}
+              className="text-xs font-semibold rounded-lg px-4 py-1.5"
+              style={{ border: "1px solid var(--border)", color: "var(--muted)", background: "var(--surface)" }}
+            >
+              Clear
+            </button>
+          </div>
         </div>
       )}
 
       {/* ── Content ───────────────────────────────────────────────────────── */}
+      <div style={{ flex: 1, overflowY: "auto", minHeight: 0 }}>
       {loading ? (
         <div
           className="overflow-hidden rounded-none"
@@ -1003,47 +1085,32 @@ export function SchedulesTab({ initialDomain }: Props) {
           </button>
         </div>
       ) : (
-        /* ── Table ── */
-        <div style={{ background: "var(--surface)" }}>
-          {/* Table header */}
-          <div
-            className="flex items-center gap-4 px-5 py-2.5"
-            style={{ background: "var(--surface-elevated)", borderBottom: "1px solid var(--border)" }}
-          >
-            <div style={{ width: 9, flexShrink: 0 }} />
-            <div className="flex-1 text-[10px] font-semibold uppercase tracking-wide" style={{ color: "var(--muted)" }}>Site</div>
-            <div className="hidden sm:block text-[10px] font-semibold uppercase tracking-wide" style={{ color: "var(--muted)", width: 112 }}>Frequency</div>
-            <div className="hidden md:block text-[10px] font-semibold uppercase tracking-wide" style={{ color: "var(--muted)", width: 176 }}>Schedule</div>
-            <div className="hidden sm:block text-right text-[10px] font-semibold uppercase tracking-wide" style={{ color: "var(--muted)", width: 96 }}>Next run</div>
-            <div className="hidden lg:block text-right text-[10px] font-semibold uppercase tracking-wide" style={{ color: "var(--muted)", width: 96 }}>Last run</div>
-            <div className="text-right text-[10px] font-semibold uppercase tracking-wide flex-shrink-0" style={{ color: "var(--muted)" }}>Actions</div>
+        /* ── Cards ── */
+        <div style={{ padding: "16px 20px 8px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, marginBottom: 12 }}>
+            {filtered.map((s) => (
+              <ScheduleCard
+                key={s.id}
+                schedule={s}
+                runStatus={runStatus[s.id] ?? "idle"}
+                confirmingDelete={!!pendingDelete[s.id]}
+                onToggle={() => handleToggle(s)}
+                onEdit={() => setEditTarget(s)}
+                onRunNow={() => handleRunNow(s.id)}
+                onRequestDelete={() => setPendingDelete((prev) => ({ ...prev, [s.id]: true }))}
+                onCancelDelete={() => setPendingDelete((prev) => { const n = { ...prev }; delete n[s.id]; return n; })}
+                onDelete={() => handleDelete(s.id)}
+              />
+            ))}
           </div>
-
-          {filtered.map((s) => (
-            <ScheduleRow
-              key={s.id}
-              schedule={s}
-              runStatus={runStatus[s.id] ?? "idle"}
-              confirmingDelete={!!pendingDelete[s.id]}
-              onToggle={() => handleToggle(s)}
-              onEdit={() => setEditTarget(s)}
-              onRunNow={() => handleRunNow(s.id)}
-              onRequestDelete={() => setPendingDelete((prev) => ({ ...prev, [s.id]: true }))}
-              onCancelDelete={() => setPendingDelete((prev) => { const n = { ...prev }; delete n[s.id]; return n; })}
-              onDelete={() => handleDelete(s.id)}
-            />
-          ))}
-
-          {/* Footer count */}
-          <div
-            className="px-5 py-3 text-xs"
-            style={{ color: "var(--muted)", borderTop: "1px solid var(--border)", background: "var(--surface-elevated)" }}
-          >
+          <div className="text-xs" style={{ color: "var(--muted)" }}>
             Showing {filtered.length} of {schedules.length} schedule{schedules.length !== 1 ? "s" : ""}
             {inactiveCount > 0 && ` · ${inactiveCount} inactive`}
           </div>
         </div>
       )}
+
+      </div>{/* end scrollable content */}
 
       {/* Modals */}
       {showCreate && (
