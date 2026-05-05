@@ -21,6 +21,7 @@ export default function UpgradeModal() {
     const handler = (e: Event) => {
       const ce = e as CustomEvent<QuotaDetail>;
       const d = (ce.detail as any)?.detail || ce.detail || {};
+      if ((d as any).plan === "agency") return; // already on top plan
       setDetail(d);
       setOpen(true);
     };

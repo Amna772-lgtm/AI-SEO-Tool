@@ -250,6 +250,12 @@ function SecuritySection() {
 
 // ── Plan Section ───────────────────────────────────────────────────────────────
 
+const PLAN_FEATURES: Record<string, string[]> = {
+  free: ["1 audit total", "Basic SEO checks", "Technical audit"],
+  pro: ["10 audits / month", "Full GEO analysis", "Per-page scores", "Actionable recommendations"],
+  agency: ["Unlimited audits", "Full GEO analysis", "Per-page scores", "Scheduled re-audits", "Priority support"],
+};
+
 function PlanSection() {
   const { user, subscription } = useAuth();
   const plan = subscription?.plan ?? (user as (typeof user & { plan?: string }) | null)?.plan ?? "free";
@@ -258,9 +264,11 @@ function PlanSection() {
   const planColor: Record<string, string> = { free: "#64748b", pro: "#0d9488", agency: "#7c3aed" };
   const auditLimit = subscription?.plan === "pro" ? 10 : subscription?.plan === "agency" ? null : 1;
   const auditCount = subscription?.audit_count ?? 0;
+  const features = PLAN_FEATURES[plan] ?? PLAN_FEATURES.free;
 
   return (
     <SectionCard title="Plan & Usage">
+      {/* Plan badge + audit counter */}
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
         <span style={{
           display: "inline-flex", alignItems: "center",
@@ -274,37 +282,80 @@ function PlanSection() {
         </span>
         <span style={{ fontSize: "0.82rem", color: "var(--muted)" }}>
           {auditLimit === null
-            ? `${auditCount} audits used (unlimited)`
+            ? `${auditCount} audits used · unlimited`
             : `${auditCount} / ${auditLimit} audits used`}
         </span>
       </div>
 
+      {/* Progress bar for limited plans */}
       {auditLimit !== null && (
-        <div style={{ height: 6, borderRadius: 99, background: "var(--surface-elevated)", overflow: "hidden", marginBottom: 16 }}>
+        <div style={{ height: 6, borderRadius: 99, background: "var(--surface-elevated)", overflow: "hidden", marginBottom: 14 }}>
           <div style={{
             height: "100%",
             borderRadius: 99,
-            background: "linear-gradient(135deg, #0d9488, #16a34a)",
+            background: auditCount >= auditLimit
+              ? "linear-gradient(135deg, #ef4444, #dc2626)"
+              : "linear-gradient(135deg, #0d9488, #16a34a)",
             width: `${Math.min(100, (auditCount / auditLimit) * 100)}%`,
             transition: "width .4s ease",
           }} />
         </div>
       )}
 
-      {plan === "free" && (
-        <p style={{ fontSize: "0.82rem", color: "var(--muted)", margin: "0 0 14px" }}>
-          Upgrade to <strong style={{ color: "#0d9488" }}>Pro</strong> or <strong style={{ color: "#7c3aed" }}>Agency</strong> for more audits and advanced features.
-        </p>
+      {/* Plan features */}
+      <ul style={{ margin: "0 0 14px", padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 4 }}>
+        {features.map(f => (
+          <li key={f} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "0.8rem", color: "var(--muted)" }}>
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+              <circle cx="6" cy="6" r="6" fill={planColor[plan] + "30"} />
+              <path d="M3.5 6l2 2 3-3" stroke={planColor[plan]} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            {f}
+          </li>
+        ))}
+      </ul>
+
+      {/* Agency — already on the best plan */}
+      {plan === "agency" && (
+        <div style={{
+          padding: "8px 12px", borderRadius: 8,
+          background: "#7c3aed15", border: "1px solid #7c3aed30",
+          fontSize: "0.8rem", color: "#7c3aed", fontWeight: 600,
+        }}>
+          You&apos;re on the highest tier — enjoy unlimited audits.
+        </div>
       )}
-      <button
-        type="button"
-        style={{ ...btnGradient, alignSelf: "flex-start" }}
-        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = "translateY(-1px)"; (e.currentTarget as HTMLElement).style.boxShadow = "0 6px 24px rgba(13,148,136,.45)"; }}
-        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = ""; (e.currentTarget as HTMLElement).style.boxShadow = "0 4px 16px rgba(13,148,136,.3)"; }}
-        onClick={() => window.dispatchEvent(new CustomEvent("quota:exceeded", { detail: { plan } }))}
-      >
-        Upgrade Plan
-      </button>
+
+      {/* Free — show upgrade prompt */}
+      {plan === "free" && (
+        <>
+          <p style={{ fontSize: "0.8rem", color: "var(--muted)", margin: "0 0 10px" }}>
+            Upgrade to <strong style={{ color: "#0d9488" }}>Pro</strong> or <strong style={{ color: "#7c3aed" }}>Agency</strong> for more audits and advanced features.
+          </p>
+          <button
+            type="button"
+            style={{ ...btnGradient, alignSelf: "flex-start" }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = "translateY(-1px)"; (e.currentTarget as HTMLElement).style.boxShadow = "0 6px 24px rgba(13,148,136,.45)"; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = ""; (e.currentTarget as HTMLElement).style.boxShadow = "0 4px 16px rgba(13,148,136,.3)"; }}
+            onClick={() => window.dispatchEvent(new CustomEvent("quota:exceeded", { detail: { plan } }))}
+          >
+            Upgrade Plan
+          </button>
+        </>
+      )}
+
+      {/* Pro — offer Agency upgrade */}
+      {plan === "pro" && (
+        <button
+          type="button"
+          style={{ ...btnGradient, background: "linear-gradient(135deg, #7c3aed, #6d28d9)", alignSelf: "flex-start" }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = "translateY(-1px)"; (e.currentTarget as HTMLElement).style.boxShadow = "0 6px 24px rgba(124,58,237,.45)"; }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = ""; (e.currentTarget as HTMLElement).style.boxShadow = "0 4px 16px rgba(124,58,237,.3)"; }}
+          onClick={() => window.dispatchEvent(new CustomEvent("quota:exceeded", { detail: { plan } }))}
+        >
+          Upgrade to Agency
+        </button>
+      )}
     </SectionCard>
   );
 }
