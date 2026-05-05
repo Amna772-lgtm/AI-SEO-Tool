@@ -11,6 +11,22 @@ import { Spinner, Notice } from '@wordpress/components';
 import { __ } from '@wordpress/i18n';
 import { getScoreColor } from '../GeoScoreRing';
 
+const SECURITY_HEADERS = [
+    { key: 'hsts',                    label: 'HSTS',                    desc: 'Forces HTTPS connections' },
+    { key: 'content_security_policy', label: 'Content Security Policy', desc: 'Prevents XSS attacks' },
+    { key: 'x_frame_options',         label: 'X-Frame-Options',         desc: 'Blocks clickjacking' },
+    { key: 'x_content_type_options',  label: 'X-Content-Type-Options',  desc: 'Prevents MIME sniffing' },
+    { key: 'referrer_policy',         label: 'Referrer-Policy',         desc: 'Controls referrer info' },
+];
+
+const CWV_METRICS = [
+    { key: 'fcp',         label: 'FCP',         desc: 'First Contentful Paint' },
+    { key: 'lcp',         label: 'LCP',         desc: 'Largest Contentful Paint' },
+    { key: 'tbt',         label: 'TBT',         desc: 'Total Blocking Time' },
+    { key: 'cls',         label: 'CLS',         desc: 'Cumulative Layout Shift' },
+    { key: 'speed_index', label: 'Speed Index', desc: 'Visual load speed' },
+];
+
 // ─── Semi-circle gauge ───────────────────────────────────────────────────────
 
 function SemiCircleGauge( { score, grade } ) {
@@ -27,14 +43,12 @@ function SemiCircleGauge( { score, grade } ) {
     return (
         <div style={ { display: 'flex', flexDirection: 'column', alignItems: 'center' } }>
             <svg width="120" height="78" viewBox="0 0 120 78">
-                {/* Background arc */}
                 <circle
                     cx={ cx } cy={ cy } r={ r }
                     fill="none" stroke="#e2e8f0" strokeWidth={ sw }
                     strokeDasharray={ `${ halfC } ${ halfC }` }
                     transform={ `rotate(180 ${ cx } ${ cy })` }
                 />
-                {/* Score arc */}
                 <circle
                     cx={ cx } cy={ cy } r={ r }
                     fill="none" stroke={ color } strokeWidth={ sw }
@@ -43,16 +57,13 @@ function SemiCircleGauge( { score, grade } ) {
                     transform={ `rotate(180 ${ cx } ${ cy })` }
                     style={ { transition: 'stroke-dasharray 0.8s ease' } }
                 />
-                {/* Score number */}
                 <text x="60" y="62" textAnchor="middle" fill={ color } fontSize="26" fontWeight="700">
                     { score || 0 }
                 </text>
-                {/* /100 label */}
                 <text x="60" y="75" textAnchor="middle" fill="#94a3b8" fontSize="10">
                     /100
                 </text>
             </svg>
-            {/* Grade badge */}
             { grade && (
                 <div style={ {
                     width: '28px', height: '28px', borderRadius: '50%',
@@ -87,37 +98,6 @@ function TechFailIcon() {
             <circle cx="12" cy="12" r="10" fill="#dc2626"/>
             <path d="M8 8l8 8M16 8l-8 8" stroke="#fff" strokeWidth="2.2" strokeLinecap="round"/>
         </svg>
-    );
-}
-
-function TechCard( { label, value, pass } ) {
-    return (
-        <div style={ {
-            background: '#ffffff',
-            border: '1px solid #e2e8f0',
-            borderRadius: '10px',
-            padding: '14px 16px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '12px',
-            boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
-            flex: 1,
-        } }>
-            { pass ? <TechPassIcon /> : <TechFailIcon /> }
-            <div>
-                <div style={ {
-                    fontSize: '10px', fontWeight: 700, letterSpacing: '0.06em',
-                    textTransform: 'uppercase',
-                    color: pass ? '#16a34a' : '#dc2626',
-                    marginBottom: '2px',
-                } }>
-                    { label }
-                </div>
-                <div style={ { fontSize: '13px', fontWeight: 600, color: '#1e293b' } }>
-                    { value }
-                </div>
-            </div>
-        </div>
     );
 }
 
@@ -221,7 +201,7 @@ export default function DashboardTab( { siteId, data, plan } ) {
                 if ( ! cancelled ) {
                     setPages( Array.isArray( pagesRes?.pages ) ? pagesRes.pages : [] );
                     setGeo( geoRes );
-                    setAudit( auditRes );
+                    setAudit( auditRes?.audit ?? null );
                 }
             } catch ( err ) {
                 if ( ! cancelled ) {
@@ -253,10 +233,20 @@ export default function DashboardTab( { siteId, data, plan } ) {
     // Technical health values
     const httpsOk      = audit?.https?.secure === true;
     const sitemapOk    = !! audit?.sitemap?.found;
-    const brokenCount  = audit?.broken_links?.count ?? ( Array.isArray( audit?.broken_links?.links ) ? audit.broken_links.links.length : null );
+    const brokenCount  = audit?.broken_links?.count ?? ( Array.isArray( audit?.broken_links?.urls ) ? audit.broken_links.urls.length : null );
     const brokenOk     = brokenCount === 0;
-    const missingCanon = audit?.missing_canonicals?.count ?? ( Array.isArray( audit?.missing_canonicals?.pages ) ? audit.missing_canonicals.pages.length : null );
+    const missingCanon = audit?.missing_canonicals?.missing_count ?? ( Array.isArray( audit?.missing_canonicals?.urls ) ? audit.missing_canonicals.urls.length : null );
     const canonicalsOk = missingCanon === 0;
+
+    const securityHeaders = audit?.security_headers || {};
+    const pagespeed       = audit?.pagespeed        || {};
+    const headersPassing  = SECURITY_HEADERS.filter( ( h ) => !! securityHeaders[ h.key ] ).length;
+    const desktopScore    = Math.round( pagespeed.desktop?.performance_score || pagespeed.desktop?.score || 0 );
+    const mobileScore     = Math.round( pagespeed.mobile?.performance_score  || pagespeed.mobile?.score  || 0 );
+
+    const htmlPages      = pages.filter( ( p ) => p.type === 'internal' && ( ! p.content_type || p.content_type.includes( 'html' ) ) );
+    const missingMetaDesc = htmlPages.filter( ( p ) => ! p.meta_descp ).length;
+    const missingH1       = htmlPages.filter( ( p ) => ! p.h1 ).length;
 
     if ( loading ) {
         return (
@@ -344,13 +334,13 @@ export default function DashboardTab( { siteId, data, plan } ) {
                             },
                             {
                                 label: __( 'Broken Links', 'ai-seo-tool' ),
-                                value: audit ? ( brokenOk ? __( 'None Found', 'ai-seo-tool' ) : `${ brokenCount } found` ) : '—',
-                                pass: brokenOk,
+                                value: audit ? ( brokenCount == null ? '—' : brokenOk ? __( 'None Found', 'ai-seo-tool' ) : `${ brokenCount } found` ) : '—',
+                                pass: brokenCount == null ? null : brokenOk,
                             },
                             {
                                 label: __( 'Canonicals', 'ai-seo-tool' ),
-                                value: audit ? ( canonicalsOk ? __( 'OK', 'ai-seo-tool' ) : `${ missingCanon } missing` ) : '—',
-                                pass: canonicalsOk,
+                                value: audit ? ( missingCanon == null ? '—' : canonicalsOk ? __( 'OK', 'ai-seo-tool' ) : `${ missingCanon } missing` ) : '—',
+                                pass: missingCanon == null ? null : canonicalsOk,
                             },
                         ].map( ( { label, value, pass } ) => (
                             <div key={ label } style={ {
@@ -358,13 +348,17 @@ export default function DashboardTab( { siteId, data, plan } ) {
                                 padding: '14px 12px', background: '#f8fafc',
                                 borderRadius: '8px', border: '1px solid #e2e8f0',
                             } }>
-                                { audit ? ( pass ? <TechPassIcon /> : <TechFailIcon /> ) : (
+                                { audit ? (
+                                    pass === null
+                                        ? <div style={ { width: 22, height: 22, borderRadius: '50%', background: '#e2e8f0' } } />
+                                        : pass ? <TechPassIcon /> : <TechFailIcon />
+                                ) : (
                                     <div style={ { width: 22, height: 22, borderRadius: '50%', background: '#e2e8f0' } } />
                                 ) }
                                 <div>
                                     <div style={ {
                                         fontSize: '13px', fontWeight: 700, lineHeight: 1.1,
-                                        color: audit ? ( pass ? '#16a34a' : '#dc2626' ) : '#94a3b8',
+                                        color: audit ? ( pass === null ? '#94a3b8' : pass ? '#16a34a' : '#dc2626' ) : '#94a3b8',
                                     } }>
                                         { value }
                                     </div>
@@ -372,6 +366,116 @@ export default function DashboardTab( { siteId, data, plan } ) {
                                 </div>
                             </div>
                         ) ) }
+                    </div>
+                </div>
+            </div>
+
+            {/* PageSpeed · Security Headers · Issues row */}
+            <div style={ { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '28px' } }>
+
+                {/* PageSpeed card */}
+                <div style={ { ...cardStyle, padding: '14px 16px' } }>
+                    <div style={ { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' } }>
+                        <span style={ cardTitleStyle }>{ __( 'PageSpeed Insights', 'ai-seo-tool' ) }</span>
+                    </div>
+                    <div style={ { display: 'flex', gap: '8px', marginBottom: '10px' } }>
+                        { [ { label: __( 'Desktop', 'ai-seo-tool' ), score: desktopScore }, { label: __( 'Mobile', 'ai-seo-tool' ), score: mobileScore } ].map( ( { label, score } ) => {
+                            const col = score >= 90 ? '#16a34a' : score >= 50 ? '#ca8a04' : '#dc2626';
+                            return (
+                                <div key={ label } style={ { flex: 1, background: '#f8fafc', borderRadius: '6px', padding: '6px 8px', textAlign: 'center', border: '1px solid #e2e8f0' } }>
+                                    <div style={ { fontSize: '10px', fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '3px' } }>{ label }</div>
+                                    <div style={ { fontSize: '20px', fontWeight: 800, color: col, lineHeight: 1 } }>{ audit ? score : '—' }</div>
+                                    <div style={ { fontSize: '10px', color: '#94a3b8', marginTop: '1px' } }>/100</div>
+                                </div>
+                            );
+                        } ) }
+                    </div>
+                    { audit && ( pagespeed.desktop || pagespeed.mobile ) && (
+                        <div>
+                            { CWV_METRICS.map( ( { key, label }, i ) => (
+                                <div key={ key } style={ { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '3px 0', borderBottom: i < CWV_METRICS.length - 1 ? '1px solid #f1f5f9' : 'none' } }>
+                                    <span style={ { fontSize: '11px', fontWeight: 600, color: '#374151' } }>{ label }</span>
+                                    <div style={ { display: 'flex', gap: '10px' } }>
+                                        <span style={ { fontSize: '11px', color: '#6b7280', minWidth: '34px', textAlign: 'right' } }>{ pagespeed.desktop?.[ key ] ?? '—' }</span>
+                                        <span style={ { fontSize: '11px', color: '#6b7280', minWidth: '34px', textAlign: 'right' } }>{ pagespeed.mobile?.[ key ] ?? '—' }</span>
+                                    </div>
+                                </div>
+                            ) ) }
+                        </div>
+                    ) }
+                </div>
+
+                {/* Security Headers card */}
+                <div style={ { ...cardStyle, padding: '14px 16px', display: 'flex', flexDirection: 'column' } }>
+                    <div style={ { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' } }>
+                        <span style={ cardTitleStyle }>{ __( 'Security Headers', 'ai-seo-tool' ) }</span>
+                        { audit && (
+                            <span style={ {
+                                fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '8px',
+                                background: headersPassing === SECURITY_HEADERS.length ? '#dcfce7' : '#fef9c3',
+                                color:      headersPassing === SECURITY_HEADERS.length ? '#16a34a' : '#ca8a04',
+                                border:     `1px solid ${ headersPassing === SECURITY_HEADERS.length ? '#bbf7d0' : '#fde68a' }`,
+                            } }>{ `${ headersPassing }/${ SECURITY_HEADERS.length }` }</span>
+                        ) }
+                    </div>
+                    <div style={ { flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' } }>
+                        { SECURITY_HEADERS.map( ( { key, label, desc } ) => {
+                            const pass = audit ? !! securityHeaders[ key ] : null;
+                            return (
+                                <div key={ key } style={ { display: 'flex', alignItems: 'center', gap: '8px', padding: '4px 0' } }>
+                                    { pass === null
+                                        ? <div style={ { width: 12, height: 12, borderRadius: '50%', background: '#e2e8f0', flexShrink: 0 } } />
+                                        : (
+                                            <svg width="12" height="12" viewBox="0 0 12 12" style={ { flexShrink: 0 } }>
+                                                <circle cx="6" cy="6" r="6" fill={ pass ? '#16a34a' : '#ef4444' }/>
+                                                { pass
+                                                    ? <path d="M3 6l2 2 4-4" stroke="#fff" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+                                                    : <path d="M4 4l4 4M8 4l-4 4" stroke="#fff" strokeWidth="1.4" strokeLinecap="round"/>
+                                                }
+                                            </svg>
+                                        )
+                                    }
+                                    <div style={ { minWidth: 0, flex: 1 } }>
+                                        <span style={ { fontSize: '12px', fontWeight: 600, color: '#1e293b' } }>{ label }</span>
+                                        <span style={ { fontSize: '10px', color: '#94a3b8', marginLeft: '5px' } }>{ desc }</span>
+                                    </div>
+                                    <span style={ { fontSize: '10px', fontWeight: 600, flexShrink: 0, color: pass ? '#16a34a' : '#dc2626' } }>
+                                        { pass === null ? '' : pass ? __( 'OK', 'ai-seo-tool' ) : __( 'Missing', 'ai-seo-tool' ) }
+                                    </span>
+                                </div>
+                            );
+                        } ) }
+                    </div>
+                </div>
+
+                {/* Issues Breakdown card */}
+                <div style={ { ...cardStyle, padding: '14px 16px', display: 'flex', flexDirection: 'column' } }>
+                    <div style={ { marginBottom: '10px' } }>
+                        <span style={ cardTitleStyle }>{ __( 'Issues Breakdown', 'ai-seo-tool' ) }</span>
+                    </div>
+                    <div style={ { flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' } }>
+                        { [
+                            { label: __( 'Broken Links',       'ai-seo-tool' ), count: brokenCount ?? 0,    color: '#f59e0b' },
+                            { label: __( 'Missing Canonicals', 'ai-seo-tool' ), count: missingCanon ?? 0,   color: '#8b5cf6' },
+                            { label: __( 'Missing Meta Desc',  'ai-seo-tool' ), count: missingMetaDesc,     color: '#3b82f6' },
+                            { label: __( 'Missing H1',         'ai-seo-tool' ), count: missingH1,           color: '#0ea5e9' },
+                            { label: __( 'Not Secure (HTTP)',  'ai-seo-tool' ), count: httpsOk ? 0 : 1,     color: '#ef4444' },
+                        ].map( ( { label, count, color } ) => (
+                            <div key={ label } style={ { display: 'flex', alignItems: 'center', gap: '10px', padding: '4px 0' } }>
+                                <div style={ { width: '8px', height: '8px', borderRadius: '50%', background: color, flexShrink: 0 } } />
+                                <span style={ { flex: 1, fontSize: '12px', color: '#374151' } }>{ label }</span>
+                                <span style={ {
+                                    fontSize: '12px', fontWeight: 700, minWidth: '24px', textAlign: 'right',
+                                    color: count === 0 ? '#16a34a' : color,
+                                } }>{ count === 0 ? '✓' : count }</span>
+                            </div>
+                        ) ) }
+                        <div style={ { paddingTop: '7px', borderTop: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' } }>
+                            <span style={ { fontSize: '11px', color: '#6b7280' } }>{ __( 'Total issues', 'ai-seo-tool' ) }</span>
+                            <span style={ { fontSize: '14px', fontWeight: 800, color: ( brokenCount ?? 0 ) + ( missingCanon ?? 0 ) + missingMetaDesc + missingH1 + ( httpsOk ? 0 : 1 ) === 0 ? '#16a34a' : '#ef4444' } }>
+                                { ( brokenCount ?? 0 ) + ( missingCanon ?? 0 ) + missingMetaDesc + missingH1 + ( httpsOk ? 0 : 1 ) }
+                            </span>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -391,12 +495,17 @@ export default function DashboardTab( { siteId, data, plan } ) {
                             <thead>
                                 <tr style={ { borderBottom: '1px solid #e2e8f0', background: '#f8fafc' } }>
                                     { [
-                                        { label: __( 'URL', 'ai-seo-tool' ),          w: '38%' },
-                                        { label: __( 'Status', 'ai-seo-tool' ),       w: '9%'  },
-                                        { label: __( 'Indexability', 'ai-seo-tool' ), w: '12%' },
-                                        { label: __( 'Title', 'ai-seo-tool' ),        w: '21%' },
-                                        { label: __( 'H1', 'ai-seo-tool' ),           w: '15%' },
-                                        { label: __( 'Depth', 'ai-seo-tool' ),        w: '5%'  },
+                                        { label: '#',                                          w: '3%'  },
+                                        { label: __( 'Address', 'ai-seo-tool' ),               w: '22%' },
+                                        { label: __( 'Type', 'ai-seo-tool' ),                  w: '7%'  },
+                                        { label: __( 'Status', 'ai-seo-tool' ),                w: '7%'  },
+                                        { label: __( 'Indexability', 'ai-seo-tool' ),          w: '9%'  },
+                                        { label: __( 'Title', 'ai-seo-tool' ),                 w: '13%' },
+                                        { label: __( 'Meta Desc', 'ai-seo-tool' ),             w: '11%' },
+                                        { label: __( 'H1', 'ai-seo-tool' ),                    w: '10%' },
+                                        { label: __( 'Canonical', 'ai-seo-tool' ),             w: '10%' },
+                                        { label: __( 'Resp. Time', 'ai-seo-tool' ),            w: '5%'  },
+                                        { label: __( 'Readability', 'ai-seo-tool' ),           w: '5%'  },
                                     ].map( ( { label, w } ) => (
                                         <th key={ label } style={ {
                                             padding: '10px 14px', textAlign: 'left',
@@ -412,7 +521,7 @@ export default function DashboardTab( { siteId, data, plan } ) {
                             <tbody>
                                 { pages.length === 0 ? (
                                     <tr>
-                                        <td colSpan="6" style={ { padding: '32px', textAlign: 'center', color: '#94a3b8' } }>
+                                        <td colSpan="11" style={ { padding: '32px', textAlign: 'center', color: '#94a3b8' } }>
                                             { __( 'No pages found.', 'ai-seo-tool' ) }
                                         </td>
                                     </tr>
@@ -421,40 +530,96 @@ export default function DashboardTab( { siteId, data, plan } ) {
                                         borderBottom: '1px solid #f1f5f9',
                                         background: idx % 2 === 0 ? '#ffffff' : '#fafafa',
                                     } }>
-                                        <td style={ { padding: '10px 14px', wordBreak: 'break-all' } }>
+                                        <td style={ { padding: '10px 14px', fontSize: '12px', color: '#94a3b8', textAlign: 'center' } }>
+                                            { idx + 1 }
+                                        </td>
+                                        <td style={ { padding: '10px 14px', maxWidth: '0' } }>
                                             <a
                                                 href={ page.address }
                                                 target="_blank"
                                                 rel="noreferrer"
-                                                style={ { color: '#0d9488', textDecoration: 'none', fontSize: '12px' } }
+                                                title={ page.address }
+                                                style={ {
+                                                    color: '#0d9488', textDecoration: 'none', fontSize: '12px',
+                                                    display: 'block', overflow: 'hidden',
+                                                    textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                                                } }
                                                 onMouseOver={ e => { e.currentTarget.style.textDecoration = 'underline'; } }
                                                 onMouseOut={ e => { e.currentTarget.style.textDecoration = 'none'; } }
                                             >
                                                 { page.address }
                                             </a>
                                         </td>
+                                        <td style={ { padding: '10px 14px', fontSize: '12px', color: '#374151' } }>
+                                            { page.type || <span style={ { color: '#94a3b8' } }>—</span> }
+                                        </td>
                                         <td style={ { padding: '10px 14px' } }>
                                             <StatusBadge code={ page.status_code } />
                                         </td>
                                         <td style={ { padding: '10px 14px' } }>
-                                            { page.indexability === 'Indexable' ? (
-                                                <span style={ { color: '#16a34a', fontSize: '12px', fontWeight: 500 } }>
-                                                    { __( 'Yes', 'ai-seo-tool' ) }
-                                                </span>
-                                            ) : (
-                                                <span style={ { color: '#dc2626', fontSize: '12px', fontWeight: 500 } }>
-                                                    { __( 'No', 'ai-seo-tool' ) }
-                                                </span>
-                                            ) }
+                                            <span style={ {
+                                                color: page.indexability === 'Indexable' ? '#16a34a' : '#dc2626',
+                                                fontSize: '12px', fontWeight: 500,
+                                            } }>
+                                                { page.indexability || <span style={ { color: '#94a3b8' } }>—</span> }
+                                            </span>
+                                        </td>
+                                        <td style={ { padding: '10px 14px', maxWidth: '0' } }>
+                                            <span
+                                                title={ page.title ?? '' }
+                                                style={ {
+                                                    display: 'block', overflow: 'hidden',
+                                                    textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                                                    fontSize: '12px', color: '#374151',
+                                                } }
+                                            >
+                                                { page.title || <span style={ { color: '#94a3b8' } }>—</span> }
+                                            </span>
+                                        </td>
+                                        <td style={ { padding: '10px 14px', maxWidth: '0' } }>
+                                            <span
+                                                title={ page.meta_descp ?? '' }
+                                                style={ {
+                                                    display: 'block', overflow: 'hidden',
+                                                    textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                                                    fontSize: '12px', color: '#6b7280',
+                                                } }
+                                            >
+                                                { page.meta_descp || <span style={ { color: '#94a3b8' } }>—</span> }
+                                            </span>
+                                        </td>
+                                        <td style={ { padding: '10px 14px', maxWidth: '0' } }>
+                                            <span
+                                                title={ page.h1 ?? '' }
+                                                style={ {
+                                                    display: 'block', overflow: 'hidden',
+                                                    textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                                                    fontSize: '12px', color: '#374151',
+                                                } }
+                                            >
+                                                { page.h1 || <span style={ { color: '#94a3b8' } }>—</span> }
+                                            </span>
+                                        </td>
+                                        <td style={ { padding: '10px 14px', maxWidth: '0' } }>
+                                            <span
+                                                title={ page.canonical ?? '' }
+                                                style={ {
+                                                    display: 'block', overflow: 'hidden',
+                                                    textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                                                    fontSize: '12px', color: '#6b7280',
+                                                } }
+                                            >
+                                                { page.canonical || <span style={ { color: '#94a3b8' } }>—</span> }
+                                            </span>
+                                        </td>
+                                        <td style={ { padding: '10px 14px', fontSize: '12px', color: '#374151', textAlign: 'right' } }>
+                                            { page.response_time != null
+                                                ? ( page.response_time / 1000 ).toFixed( 3 )
+                                                : <span style={ { color: '#94a3b8' } }>—</span>
+                                            }
                                         </td>
                                         <td style={ { padding: '10px 14px', fontSize: '12px', color: '#374151' } }>
-                                            { page.title || <span style={ { color: '#94a3b8' } }>—</span> }
-                                        </td>
-                                        <td style={ { padding: '10px 14px', fontSize: '12px', color: '#374151' } }>
-                                            { page.h1 || <span style={ { color: '#94a3b8' } }>—</span> }
-                                        </td>
-                                        <td style={ { padding: '10px 14px', fontSize: '12px', color: '#374151', textAlign: 'center' } }>
-                                            { page.crawl_depth ?? '—' }
+                                            { page.readability || <span style={ { color: '#94a3b8' } }>—</span> }
                                         </td>
                                     </tr>
                                 ) ) }
@@ -480,3 +645,4 @@ const cardTitleStyle = {
     fontWeight: 600,
     color: '#1e293b',
 };
+

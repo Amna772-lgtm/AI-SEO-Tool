@@ -10,7 +10,6 @@ import apiFetch from '@wordpress/api-fetch';
 import {
     Card,
     CardBody,
-    Button,
     Notice,
     Spinner,
     SelectControl,
@@ -18,6 +17,43 @@ import {
 import { __ } from '@wordpress/i18n';
 
 const WP_SITE_URL = window.aiSeoTool?.siteUrl || '';
+
+// ── Shared button styles (match Re-analyze btn in DashboardScreen) ────────────
+
+const btnBase = {
+    display: 'inline-flex', alignItems: 'center', gap: '6px',
+    borderRadius: '6px', fontSize: '13px', fontWeight: 600,
+    cursor: 'pointer', whiteSpace: 'nowrap', transition: 'box-shadow 0.15s',
+};
+
+const BTN_PRIMARY = {
+    ...btnBase,
+    padding: '7px 18px',
+    background: 'linear-gradient(135deg, #0d9488 0%, #0f766e 100%)',
+    color: '#ffffff',
+    border: 'none',
+    boxShadow: '0 1px 4px rgba(13,148,136,0.3)',
+};
+
+const BTN_SECONDARY = {
+    ...btnBase,
+    padding: '7px 16px',
+    background: '#ffffff',
+    color: '#374151',
+    border: '1px solid #e2e8f0',
+    boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+    transition: 'border-color 0.15s, box-shadow 0.15s',
+};
+
+const BTN_DESTRUCTIVE = {
+    ...btnBase,
+    padding: '7px 16px',
+    background: '#ffffff',
+    color: '#dc2626',
+    border: '1px solid #fecaca',
+    boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+    transition: 'background 0.15s, box-shadow 0.15s',
+};
 
 const DAYS_OF_WEEK = [
     { label: __( 'Monday',    'ai-seo-tool' ), value: '1' },
@@ -148,18 +184,25 @@ function ScheduleForm( { form, onChange, onSave, onCancel, saving, error, isEdit
             />
 
             <div style={ { display: 'flex', gap: '8px', marginTop: '8px' } }>
-                <Button
-                    variant="primary"
+                <button
                     onClick={ onSave }
                     disabled={ saving }
-                    style={ { backgroundColor: '#0d9488', borderColor: '#0d9488' } }
+                    style={ { ...BTN_PRIMARY, opacity: saving ? 0.7 : 1, cursor: saving ? 'not-allowed' : 'pointer' } }
+                    onMouseEnter={ ( e ) => { if ( ! saving ) e.currentTarget.style.boxShadow = '0 3px 8px rgba(13,148,136,0.5)'; } }
+                    onMouseLeave={ ( e ) => { e.currentTarget.style.boxShadow = '0 1px 4px rgba(13,148,136,0.3)'; } }
                 >
                     { saving ? <Spinner /> : __( 'Save Schedule', 'ai-seo-tool' ) }
-                </Button>
+                </button>
                 { isEditing && (
-                    <Button variant="secondary" onClick={ onCancel } disabled={ saving }>
+                    <button
+                        onClick={ onCancel }
+                        disabled={ saving }
+                        style={ { ...BTN_SECONDARY, opacity: saving ? 0.7 : 1, cursor: saving ? 'not-allowed' : 'pointer' } }
+                        onMouseEnter={ ( e ) => { if ( ! saving ) { e.currentTarget.style.borderColor = '#0d9488'; e.currentTarget.style.boxShadow = '0 2px 6px rgba(0,0,0,0.1)'; } } }
+                        onMouseLeave={ ( e ) => { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.06)'; } }
+                    >
                         { __( 'Cancel', 'ai-seo-tool' ) }
-                    </Button>
+                    </button>
                 ) }
             </div>
         </div>
@@ -382,20 +425,32 @@ export default function SchedulesTab() {
                             {/* Action buttons */}
                             { ! editing && (
                                 <div style={ { display: 'flex', gap: '8px', flexWrap: 'wrap' } }>
-                                    <Button
-                                        variant="primary"
+                                    <button
                                         onClick={ handleTrigger }
                                         disabled={ triggering }
-                                        style={ { backgroundColor: '#0d9488', borderColor: '#0d9488' } }
+                                        style={ { ...BTN_PRIMARY, opacity: triggering ? 0.7 : 1, cursor: triggering ? 'not-allowed' : 'pointer' } }
+                                        onMouseEnter={ ( e ) => { if ( ! triggering ) e.currentTarget.style.boxShadow = '0 3px 8px rgba(13,148,136,0.5)'; } }
+                                        onMouseLeave={ ( e ) => { e.currentTarget.style.boxShadow = '0 1px 4px rgba(13,148,136,0.3)'; } }
                                     >
                                         { triggering ? <><Spinner />{ __( ' Running…', 'ai-seo-tool' ) }</> : __( 'Run Now', 'ai-seo-tool' ) }
-                                    </Button>
-                                    <Button variant="secondary" onClick={ startEdit }>
+                                    </button>
+                                    <button
+                                        onClick={ startEdit }
+                                        style={ BTN_SECONDARY }
+                                        onMouseEnter={ ( e ) => { e.currentTarget.style.borderColor = '#0d9488'; e.currentTarget.style.boxShadow = '0 2px 6px rgba(0,0,0,0.1)'; } }
+                                        onMouseLeave={ ( e ) => { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.06)'; } }
+                                    >
                                         { __( 'Edit', 'ai-seo-tool' ) }
-                                    </Button>
-                                    <Button variant="secondary" isDestructive onClick={ handleDelete } disabled={ deleting }>
+                                    </button>
+                                    <button
+                                        onClick={ handleDelete }
+                                        disabled={ deleting }
+                                        style={ { ...BTN_DESTRUCTIVE, opacity: deleting ? 0.7 : 1, cursor: deleting ? 'not-allowed' : 'pointer' } }
+                                        onMouseEnter={ ( e ) => { if ( ! deleting ) { e.currentTarget.style.background = '#fef2f2'; e.currentTarget.style.boxShadow = '0 2px 6px rgba(220,38,38,0.15)'; } } }
+                                        onMouseLeave={ ( e ) => { e.currentTarget.style.background = '#ffffff'; e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.06)'; } }
+                                    >
                                         { deleting ? <Spinner /> : __( 'Delete', 'ai-seo-tool' ) }
-                                    </Button>
+                                    </button>
                                 </div>
                             ) }
 

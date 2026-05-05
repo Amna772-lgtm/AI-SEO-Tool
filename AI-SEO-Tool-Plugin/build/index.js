@@ -716,11 +716,10 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _AnalysisProgress__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ./AnalysisProgress */ "./src/components/AnalysisProgress.jsx");
 /* harmony import */ var _tabs_DashboardTab__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! ./tabs/DashboardTab */ "./src/components/tabs/DashboardTab.jsx");
 /* harmony import */ var _tabs_GeoAnalysisTab__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! ./tabs/GeoAnalysisTab */ "./src/components/tabs/GeoAnalysisTab.jsx");
-/* harmony import */ var _tabs_TechnicalAuditTab__WEBPACK_IMPORTED_MODULE_9__ = __webpack_require__(/*! ./tabs/TechnicalAuditTab */ "./src/components/tabs/TechnicalAuditTab.jsx");
-/* harmony import */ var _tabs_HistoryTab__WEBPACK_IMPORTED_MODULE_10__ = __webpack_require__(/*! ./tabs/HistoryTab */ "./src/components/tabs/HistoryTab.jsx");
-/* harmony import */ var _tabs_SchedulesTab__WEBPACK_IMPORTED_MODULE_11__ = __webpack_require__(/*! ./tabs/SchedulesTab */ "./src/components/tabs/SchedulesTab.jsx");
-/* harmony import */ var react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__ = __webpack_require__(/*! react/jsx-runtime */ "react/jsx-runtime");
-/* harmony import */ var react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12___default = /*#__PURE__*/__webpack_require__.n(react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__);
+/* harmony import */ var _tabs_HistoryTab__WEBPACK_IMPORTED_MODULE_9__ = __webpack_require__(/*! ./tabs/HistoryTab */ "./src/components/tabs/HistoryTab.jsx");
+/* harmony import */ var _tabs_SchedulesTab__WEBPACK_IMPORTED_MODULE_10__ = __webpack_require__(/*! ./tabs/SchedulesTab */ "./src/components/tabs/SchedulesTab.jsx");
+/* harmony import */ var react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__ = __webpack_require__(/*! react/jsx-runtime */ "react/jsx-runtime");
+/* harmony import */ var react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11___default = /*#__PURE__*/__webpack_require__.n(react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__);
 /**
  * AI SEO Tool — Dashboard Screen
  * Main dashboard with account info, analyze button, progress, and result tabs.
@@ -740,13 +739,11 @@ __webpack_require__.r(__webpack_exports__);
 
 
 
-
 /** Maps WP admin sub-menu slug to tab name. */
 
 const PAGE_TO_TAB = {
   'ai-seo-tool': 'dashboard',
   'ai-seo-tool-geo': 'geo',
-  'ai-seo-tool-technical': 'technical',
   'ai-seo-tool-history': 'history',
   'ai-seo-tool-schedules': 'schedules',
   'ai-seo-tool-settings': 'settings'
@@ -784,7 +781,7 @@ function AppHeader({
   const auditLimit = plan?.audit_limit;
   const isUnlimited = auditLimit === null || auditLimit === undefined;
   const usageLabel = isUnlimited ? (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.sprintf)((0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('%d / Unlimited audits used', 'ai-seo-tool'), auditCount) : (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.sprintf)((0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('%1$d / %2$d audits used', 'ai-seo-tool'), auditCount, auditLimit);
-  return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsxs)("div", {
+  return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsxs)("div", {
     style: {
       display: 'flex',
       alignItems: 'center',
@@ -798,21 +795,21 @@ function AppHeader({
       marginTop: '-8px',
       boxShadow: '0 1px 4px rgba(0,0,0,0.05)'
     },
-    children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsxs)("div", {
+    children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsxs)("div", {
       style: {
         display: 'flex',
         alignItems: 'center',
         gap: '8px'
       },
-      children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsx)("svg", {
+      children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)("svg", {
         width: "20",
         height: "20",
         viewBox: "0 0 24 24",
         fill: "#0d9488",
-        children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsx)("path", {
+        children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)("path", {
           d: "M12 2 L13.5 9.5 L21 12 L13.5 14.5 L12 22 L10.5 14.5 L3 12 L10.5 9.5 Z"
         })
-      }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsx)("span", {
+      }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)("span", {
         style: {
           fontSize: '16px',
           fontWeight: 700,
@@ -821,19 +818,19 @@ function AppHeader({
         },
         children: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('AI SEO Tool', 'ai-seo-tool')
       })]
-    }), plan && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsxs)("div", {
+    }), plan && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsxs)("div", {
       style: {
         display: 'flex',
         alignItems: 'center',
         gap: '12px'
       },
-      children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsxs)("div", {
+      children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsxs)("div", {
         style: {
           display: 'flex',
           alignItems: 'center',
           gap: '10px'
         },
-        children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsx)("div", {
+        children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)("div", {
           style: {
             width: '34px',
             height: '34px',
@@ -848,18 +845,18 @@ function AppHeader({
             flexShrink: 0
           },
           children: initial
-        }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsxs)("div", {
+        }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsxs)("div", {
           style: {
             lineHeight: 1.3
           },
-          children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsx)("div", {
+          children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)("div", {
             style: {
               fontSize: '13px',
               fontWeight: 600,
               color: '#1e293b'
             },
             children: name
-          }), email && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsx)("div", {
+          }), email && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)("div", {
             style: {
               fontSize: '11px',
               color: '#94a3b8'
@@ -867,7 +864,7 @@ function AppHeader({
             children: email
           })]
         })]
-      }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsx)("div", {
+      }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)("div", {
         style: {
           padding: '3px 10px',
           borderRadius: '12px',
@@ -878,7 +875,7 @@ function AppHeader({
           border: '1px solid #99f6e4'
         },
         children: planLabel
-      }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsx)("div", {
+      }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)("div", {
         style: {
           fontSize: '12px',
           color: '#64748b',
@@ -960,10 +957,10 @@ function DashboardScreen({
     };
   }, []);
   if (currentPage === 'ai-seo-tool-settings') {
-    return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsxs)(react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.Fragment, {
-      children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsx)(AppHeader, {
+    return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsxs)(react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.Fragment, {
+      children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)(AppHeader, {
         plan: plan
-      }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsx)(SettingsPage, {
+      }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)(SettingsPage, {
         onDisconnected: onDisconnected,
         disconnecting: disconnecting,
         setDisconnecting: setDisconnecting
@@ -1015,22 +1012,19 @@ function DashboardScreen({
     name: 'geo',
     title: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('GEO Analysis', 'ai-seo-tool')
   }, {
-    name: 'technical',
-    title: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Technical Audit', 'ai-seo-tool')
-  }, {
     name: 'history',
     title: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('History', 'ai-seo-tool')
   }, {
     name: 'schedules',
     title: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Schedules', 'ai-seo-tool')
   }];
-  return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsxs)("div", {
+  return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsxs)("div", {
     style: {
       marginTop: '0'
     },
-    children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsx)(AppHeader, {
+    children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)(AppHeader, {
       plan: plan
-    }), isComplete && !isRunning && !isFailed ? /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsxs)("div", {
+    }), isComplete && !isRunning && !isFailed ? /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsxs)("div", {
       style: {
         background: '#ffffff',
         border: '1px solid #e2e8f0',
@@ -1044,13 +1038,13 @@ function DashboardScreen({
         gap: '16px',
         flexWrap: 'wrap'
       },
-      children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsxs)("div", {
+      children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsxs)("div", {
         style: {
           display: 'flex',
           alignItems: 'center',
           gap: '8px'
         },
-        children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsxs)("svg", {
+        children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsxs)("svg", {
           width: "14",
           height: "14",
           viewBox: "0 0 24 24",
@@ -1059,53 +1053,53 @@ function DashboardScreen({
           strokeWidth: "2",
           strokeLinecap: "round",
           strokeLinejoin: "round",
-          children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsx)("circle", {
+          children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)("circle", {
             cx: "12",
             cy: "12",
             r: "10"
-          }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsx)("line", {
+          }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)("line", {
             x1: "2",
             y1: "12",
             x2: "22",
             y2: "12"
-          }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsx)("path", {
+          }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)("path", {
             d: "M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"
           })]
-        }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsx)("span", {
+        }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)("span", {
           style: {
             fontWeight: 600,
             fontSize: '14px',
             color: '#1e293b'
           },
           children: domain
-        }), lastScan && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsx)("span", {
+        }), lastScan && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)("span", {
           style: {
             color: '#94a3b8',
             fontSize: '12px'
           },
           children: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.sprintf)((0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Last scan: %s', 'ai-seo-tool'), lastScan)
         })]
-      }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsxs)("div", {
+      }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsxs)("div", {
         style: {
           display: 'flex',
           alignItems: 'center',
           gap: '16px',
           flexWrap: 'wrap'
         },
-        children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsx)("span", {
+        children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)("span", {
           style: {
             fontSize: '12px',
             color: '#64748b'
           },
           children: isUnlimited ? (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.sprintf)((0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('%d of Unlimited audits used this month', 'ai-seo-tool'), auditCount) : (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.sprintf)((0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('%1$d of %2$d audits used this month', 'ai-seo-tool'), auditCount, auditLimit)
-        }), analyzeError && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsx)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Notice, {
+        }), analyzeError && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Notice, {
           status: "error",
           isDismissible: false,
           style: {
             marginBottom: 0
           },
           children: analyzeError
-        }), quotaExhausted ? /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsx)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Button, {
+        }), quotaExhausted ? /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Button, {
           variant: "primary",
           onClick: () => window.open('http://localhost:3000/select-plan', '_blank'),
           style: {
@@ -1113,7 +1107,7 @@ function DashboardScreen({
             borderColor: '#0d9488'
           },
           children: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Upgrade Plan', 'ai-seo-tool')
-        }) : /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsxs)("button", {
+        }) : /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsxs)("button", {
           onClick: handleAnalyze,
           style: {
             display: 'inline-flex',
@@ -1137,18 +1131,18 @@ function DashboardScreen({
           onMouseLeave: e => {
             e.currentTarget.style.boxShadow = '0 1px 4px rgba(13,148,136,0.3)';
           },
-          children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsx)("svg", {
+          children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)("svg", {
             width: "12",
             height: "12",
             viewBox: "0 0 24 24",
             fill: "currentColor",
-            children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsx)("path", {
+            children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)("path", {
               d: "M12 2L9.5 8.5 3 11l6.5 2.5L12 22l2.5-8.5L21 11l-6.5-2.5z"
             })
           }), (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Re-analyze', 'ai-seo-tool')]
         })]
       })]
-    }) : /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsx)("div", {
+    }) : /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)("div", {
       style: {
         background: '#ffffff',
         border: '1px solid #e2e8f0',
@@ -1158,7 +1152,7 @@ function DashboardScreen({
         textAlign: 'center',
         boxShadow: '0 1px 3px rgba(0,0,0,0.06)'
       },
-      children: planLoading ? /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsxs)("div", {
+      children: planLoading ? /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsxs)("div", {
         style: {
           display: 'flex',
           alignItems: 'center',
@@ -1166,19 +1160,19 @@ function DashboardScreen({
           gap: '8px',
           padding: '8px 0'
         },
-        children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsx)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Spinner, {}), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsx)("span", {
+        children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Spinner, {}), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)("span", {
           style: {
             color: '#6b7280',
             fontSize: '13px'
           },
           children: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Loading account info…', 'ai-seo-tool')
         })]
-      }) : planError ? /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsx)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Notice, {
+      }) : planError ? /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Notice, {
         status: "error",
         isDismissible: false,
         children: planError
-      }) : plan ? /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsxs)(react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.Fragment, {
-        children: [domain && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsxs)("div", {
+      }) : plan ? /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsxs)(react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.Fragment, {
+        children: [domain && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsxs)("div", {
           style: {
             display: 'flex',
             alignItems: 'center',
@@ -1186,7 +1180,7 @@ function DashboardScreen({
             gap: '8px',
             marginBottom: '4px'
           },
-          children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsxs)("svg", {
+          children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsxs)("svg", {
             width: "14",
             height: "14",
             viewBox: "0 0 24 24",
@@ -1195,45 +1189,45 @@ function DashboardScreen({
             strokeWidth: "2",
             strokeLinecap: "round",
             strokeLinejoin: "round",
-            children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsx)("circle", {
+            children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)("circle", {
               cx: "12",
               cy: "12",
               r: "10"
-            }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsx)("line", {
+            }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)("line", {
               x1: "2",
               y1: "12",
               x2: "22",
               y2: "12"
-            }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsx)("path", {
+            }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)("path", {
               d: "M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"
             })]
-          }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsx)("span", {
+          }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)("span", {
             style: {
               fontWeight: 600,
               fontSize: '14px',
               color: '#1e293b'
             },
             children: domain
-          }), lastScan && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsx)("span", {
+          }), lastScan && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)("span", {
             style: {
               color: '#94a3b8',
               fontSize: '12px'
             },
             children: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.sprintf)((0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Last scan: %s', 'ai-seo-tool'), lastScan)
           })]
-        }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsx)("p", {
+        }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)("p", {
           style: {
             color: '#6b7280',
             fontSize: '13px',
             margin: '4px 0 20px'
           },
           children: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Run a full GEO + Technical audit', 'ai-seo-tool')
-        }), quotaExhausted ? /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsxs)(react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.Fragment, {
-          children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsx)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Notice, {
+        }), quotaExhausted ? /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsxs)(react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.Fragment, {
+          children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Notice, {
             status: "warning",
             isDismissible: false,
             children: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.sprintf)((0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)("You've used all %d audits this period. Upgrade your plan to run more audits.", 'ai-seo-tool'), plan.audit_limit)
-          }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsx)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Button, {
+          }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Button, {
             variant: "primary",
             onClick: () => window.open('http://localhost:3000/select-plan', '_blank'),
             style: {
@@ -1243,14 +1237,14 @@ function DashboardScreen({
             },
             children: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Upgrade Plan', 'ai-seo-tool')
           })]
-        }) : isRunning ? /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsx)(_AnalysisProgress__WEBPACK_IMPORTED_MODULE_6__["default"], {
+        }) : isRunning ? /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)(_AnalysisProgress__WEBPACK_IMPORTED_MODULE_6__["default"], {
           status: status
-        }) : isFailed ? /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsxs)(react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.Fragment, {
-          children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsx)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Notice, {
+        }) : isFailed ? /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsxs)(react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.Fragment, {
+          children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Notice, {
             status: "error",
             isDismissible: false,
             children: pollError || (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Audit failed. Check the AI SEO Tool backend logs for details.', 'ai-seo-tool')
-          }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsx)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Button, {
+          }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Button, {
             variant: "secondary",
             onClick: handleTryAgain,
             style: {
@@ -1258,15 +1252,15 @@ function DashboardScreen({
             },
             children: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Try Again', 'ai-seo-tool')
           })]
-        }) : /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsxs)(react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.Fragment, {
-          children: [analyzeError && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsx)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Notice, {
+        }) : /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsxs)(react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.Fragment, {
+          children: [analyzeError && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Notice, {
             status: "error",
             isDismissible: false,
             style: {
               marginBottom: '12px'
             },
             children: analyzeError
-          }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsxs)("button", {
+          }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsxs)("button", {
             onClick: handleAnalyze,
             disabled: quotaExhausted,
             style: {
@@ -1293,28 +1287,28 @@ function DashboardScreen({
             onMouseLeave: e => {
               e.currentTarget.style.boxShadow = '0 2px 8px rgba(13,148,136,0.35)';
             },
-            children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsx)("svg", {
+            children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)("svg", {
               width: "14",
               height: "14",
               viewBox: "0 0 24 24",
               fill: "currentColor",
-              children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsx)("path", {
+              children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)("path", {
                 d: "M12 2L9.5 8.5 3 11l6.5 2.5L12 22l2.5-8.5L21 11l-6.5-2.5z"
               })
             }), (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Analyze This Site', 'ai-seo-tool')]
           })]
-        }), !isRunning && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsxs)("div", {
+        }), !isRunning && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsxs)("div", {
           style: {
             marginTop: '16px'
           },
-          children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsx)("div", {
+          children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)("div", {
             style: {
               fontSize: '12px',
               color: '#6b7280',
               marginBottom: '6px'
             },
             children: isUnlimited ? (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.sprintf)((0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('%d of Unlimited audits used this month', 'ai-seo-tool'), auditCount) : (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.sprintf)((0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('%1$d of %2$d audits used this month', 'ai-seo-tool'), auditCount, auditLimit)
-          }), !isUnlimited && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsx)("div", {
+          }), !isUnlimited && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)("div", {
             style: {
               height: '4px',
               background: '#e2e8f0',
@@ -1322,7 +1316,7 @@ function DashboardScreen({
               maxWidth: '280px',
               margin: '0 auto'
             },
-            children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsx)("div", {
+            children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)("div", {
               style: {
                 height: '100%',
                 width: `${usagePct}%`,
@@ -1334,38 +1328,35 @@ function DashboardScreen({
           })]
         })]
       }) : null
-    }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsx)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.TabPanel, {
+    }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.TabPanel, {
       tabs: tabs,
       initialTabName: initialTabName,
-      children: tab => /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsx)("div", {
+      children: tab => /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)("div", {
         style: {
           padding: '24px 0'
         },
-        children: isComplete ? /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsxs)(react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.Fragment, {
-          children: [tab.name === 'dashboard' && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsx)(_tabs_DashboardTab__WEBPACK_IMPORTED_MODULE_7__["default"], {
+        children: isComplete ? /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsxs)(react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.Fragment, {
+          children: [tab.name === 'dashboard' && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)(_tabs_DashboardTab__WEBPACK_IMPORTED_MODULE_7__["default"], {
             siteId: siteId,
             data: analysisData,
             plan: plan
-          }), tab.name === 'geo' && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsx)(_tabs_GeoAnalysisTab__WEBPACK_IMPORTED_MODULE_8__["default"], {
+          }), tab.name === 'geo' && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)(_tabs_GeoAnalysisTab__WEBPACK_IMPORTED_MODULE_8__["default"], {
             siteId: siteId,
             plan: plan
-          }), tab.name === 'technical' && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsx)(_tabs_TechnicalAuditTab__WEBPACK_IMPORTED_MODULE_9__["default"], {
-            siteId: siteId,
+          }), tab.name === 'history' && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)(_tabs_HistoryTab__WEBPACK_IMPORTED_MODULE_9__["default"], {
             plan: plan
-          }), tab.name === 'history' && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsx)(_tabs_HistoryTab__WEBPACK_IMPORTED_MODULE_10__["default"], {
+          }), tab.name === 'schedules' && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)(_tabs_SchedulesTab__WEBPACK_IMPORTED_MODULE_10__["default"], {})]
+        }) : /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)(react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.Fragment, {
+          children: tab.name === 'history' ? /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)(_tabs_HistoryTab__WEBPACK_IMPORTED_MODULE_9__["default"], {
             plan: plan
-          }), tab.name === 'schedules' && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsx)(_tabs_SchedulesTab__WEBPACK_IMPORTED_MODULE_11__["default"], {})]
-        }) : /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsx)(react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.Fragment, {
-          children: tab.name === 'history' ? /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsx)(_tabs_HistoryTab__WEBPACK_IMPORTED_MODULE_10__["default"], {
-            plan: plan
-          }) : tab.name === 'schedules' ? /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsx)(_tabs_SchedulesTab__WEBPACK_IMPORTED_MODULE_11__["default"], {}) : /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsx)(EmptyState, {})
+          }) : tab.name === 'schedules' ? /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)(_tabs_SchedulesTab__WEBPACK_IMPORTED_MODULE_10__["default"], {}) : /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)(EmptyState, {})
         })
       })
     })]
   });
 }
 function EmptyState() {
-  return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsxs)("div", {
+  return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsxs)("div", {
     style: {
       background: '#ffffff',
       border: '1px solid #e2e8f0',
@@ -1374,7 +1365,7 @@ function EmptyState() {
       textAlign: 'center',
       boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
     },
-    children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsx)("div", {
+    children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)("div", {
       style: {
         width: '56px',
         height: '56px',
@@ -1385,7 +1376,7 @@ function EmptyState() {
         justifyContent: 'center',
         margin: '0 auto 16px'
       },
-      children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsxs)("svg", {
+      children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsxs)("svg", {
         width: "24",
         height: "24",
         viewBox: "0 0 24 24",
@@ -1394,18 +1385,18 @@ function EmptyState() {
         strokeWidth: "2",
         strokeLinecap: "round",
         strokeLinejoin: "round",
-        children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsx)("circle", {
+        children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)("circle", {
           cx: "11",
           cy: "11",
           r: "8"
-        }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsx)("line", {
+        }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)("line", {
           x1: "21",
           y1: "21",
           x2: "16.65",
           y2: "16.65"
         })]
       })
-    }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsx)("h3", {
+    }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)("h3", {
       style: {
         margin: '0 0 8px',
         fontSize: '16px',
@@ -1413,7 +1404,7 @@ function EmptyState() {
         color: '#1e293b'
       },
       children: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('No audits yet', 'ai-seo-tool')
-    }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsx)("p", {
+    }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)("p", {
       style: {
         color: '#6b7280',
         fontSize: '13px',
@@ -1446,28 +1437,28 @@ function SettingsPage({
       setDisconnecting(false);
     }
   };
-  return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsx)("div", {
+  return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)("div", {
     style: {
       marginTop: '24px',
       maxWidth: '480px'
     },
-    children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsxs)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Card, {
-      children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsx)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.CardHeader, {
-        children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsx)("h2", {
+    children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsxs)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Card, {
+      children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.CardHeader, {
+        children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)("h2", {
           style: {
             margin: 0
           },
           children: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Settings', 'ai-seo-tool')
         })
-      }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsxs)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.CardBody, {
+      }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsxs)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.CardBody, {
         style: {
           padding: '24px'
         },
-        children: [window.aiSeoTool?.mainAppUrl && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsxs)("div", {
+        children: [window.aiSeoTool?.mainAppUrl && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsxs)("div", {
           style: {
             marginBottom: '16px'
           },
-          children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsx)("div", {
+          children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)("div", {
             style: {
               fontSize: '11px',
               color: '#757575',
@@ -1476,26 +1467,26 @@ function SettingsPage({
               marginBottom: '4px'
             },
             children: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Backend URL', 'ai-seo-tool')
-          }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsx)("code", {
+          }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)("code", {
             style: {
               fontSize: '13px'
             },
             children: window.aiSeoTool.mainAppUrl
           })]
-        }), error && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsx)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Notice, {
+        }), error && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Notice, {
           status: "error",
           isDismissible: false,
           style: {
             marginBottom: '12px'
           },
           children: error
-        }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsx)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Button, {
+        }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Button, {
           variant: "secondary",
           isDestructive: true,
           onClick: handleDisconnect,
           disabled: disconnecting,
-          children: disconnecting ? /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsxs)(react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.Fragment, {
-            children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_12__.jsx)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Spinner, {}), (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Disconnecting…', 'ai-seo-tool')]
+          children: disconnecting ? /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsxs)(react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.Fragment, {
+            children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Spinner, {}), (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Disconnecting…', 'ai-seo-tool')]
           }) : (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Disconnect Plugin', 'ai-seo-tool')
         })]
       })]
@@ -1888,6 +1879,49 @@ __webpack_require__.r(__webpack_exports__);
 
 
 
+const SECURITY_HEADERS = [{
+  key: 'hsts',
+  label: 'HSTS',
+  desc: 'Forces HTTPS connections'
+}, {
+  key: 'content_security_policy',
+  label: 'Content Security Policy',
+  desc: 'Prevents XSS attacks'
+}, {
+  key: 'x_frame_options',
+  label: 'X-Frame-Options',
+  desc: 'Blocks clickjacking'
+}, {
+  key: 'x_content_type_options',
+  label: 'X-Content-Type-Options',
+  desc: 'Prevents MIME sniffing'
+}, {
+  key: 'referrer_policy',
+  label: 'Referrer-Policy',
+  desc: 'Controls referrer info'
+}];
+const CWV_METRICS = [{
+  key: 'fcp',
+  label: 'FCP',
+  desc: 'First Contentful Paint'
+}, {
+  key: 'lcp',
+  label: 'LCP',
+  desc: 'Largest Contentful Paint'
+}, {
+  key: 'tbt',
+  label: 'TBT',
+  desc: 'Total Blocking Time'
+}, {
+  key: 'cls',
+  label: 'CLS',
+  desc: 'Cumulative Layout Shift'
+}, {
+  key: 'speed_index',
+  label: 'Speed Index',
+  desc: 'Visual load speed'
+}];
+
 // ─── Semi-circle gauge ───────────────────────────────────────────────────────
 
 function SemiCircleGauge({
@@ -2015,45 +2049,6 @@ function TechFailIcon() {
       stroke: "#fff",
       strokeWidth: "2.2",
       strokeLinecap: "round"
-    })]
-  });
-}
-function TechCard({
-  label,
-  value,
-  pass
-}) {
-  return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_5__.jsxs)("div", {
-    style: {
-      background: '#ffffff',
-      border: '1px solid #e2e8f0',
-      borderRadius: '10px',
-      padding: '14px 16px',
-      display: 'flex',
-      alignItems: 'center',
-      gap: '12px',
-      boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
-      flex: 1
-    },
-    children: [pass ? /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_5__.jsx)(TechPassIcon, {}) : /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_5__.jsx)(TechFailIcon, {}), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_5__.jsxs)("div", {
-      children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_5__.jsx)("div", {
-        style: {
-          fontSize: '10px',
-          fontWeight: 700,
-          letterSpacing: '0.06em',
-          textTransform: 'uppercase',
-          color: pass ? '#16a34a' : '#dc2626',
-          marginBottom: '2px'
-        },
-        children: label
-      }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_5__.jsx)("div", {
-        style: {
-          fontSize: '13px',
-          fontWeight: 600,
-          color: '#1e293b'
-        },
-        children: value
-      })]
     })]
   });
 }
@@ -2255,7 +2250,7 @@ function DashboardTab({
         if (!cancelled) {
           setPages(Array.isArray(pagesRes?.pages) ? pagesRes.pages : []);
           setGeo(geoRes);
-          setAudit(auditRes);
+          setAudit(auditRes?.audit ?? null);
         }
       } catch (err) {
         if (!cancelled) {
@@ -2283,10 +2278,18 @@ function DashboardTab({
   // Technical health values
   const httpsOk = audit?.https?.secure === true;
   const sitemapOk = !!audit?.sitemap?.found;
-  const brokenCount = audit?.broken_links?.count ?? (Array.isArray(audit?.broken_links?.links) ? audit.broken_links.links.length : null);
+  const brokenCount = audit?.broken_links?.count ?? (Array.isArray(audit?.broken_links?.urls) ? audit.broken_links.urls.length : null);
   const brokenOk = brokenCount === 0;
-  const missingCanon = audit?.missing_canonicals?.count ?? (Array.isArray(audit?.missing_canonicals?.pages) ? audit.missing_canonicals.pages.length : null);
+  const missingCanon = audit?.missing_canonicals?.missing_count ?? (Array.isArray(audit?.missing_canonicals?.urls) ? audit.missing_canonicals.urls.length : null);
   const canonicalsOk = missingCanon === 0;
+  const securityHeaders = audit?.security_headers || {};
+  const pagespeed = audit?.pagespeed || {};
+  const headersPassing = SECURITY_HEADERS.filter(h => !!securityHeaders[h.key]).length;
+  const desktopScore = Math.round(pagespeed.desktop?.performance_score || pagespeed.desktop?.score || 0);
+  const mobileScore = Math.round(pagespeed.mobile?.performance_score || pagespeed.mobile?.score || 0);
+  const htmlPages = pages.filter(p => p.type === 'internal' && (!p.content_type || p.content_type.includes('html')));
+  const missingMetaDesc = htmlPages.filter(p => !p.meta_descp).length;
+  const missingH1 = htmlPages.filter(p => !p.h1).length;
   if (loading) {
     return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_5__.jsxs)("div", {
       style: {
@@ -2459,12 +2462,12 @@ function DashboardTab({
             pass: sitemapOk
           }, {
             label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Broken Links', 'ai-seo-tool'),
-            value: audit ? brokenOk ? (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('None Found', 'ai-seo-tool') : `${brokenCount} found` : '—',
-            pass: brokenOk
+            value: audit ? brokenCount == null ? '—' : brokenOk ? (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('None Found', 'ai-seo-tool') : `${brokenCount} found` : '—',
+            pass: brokenCount == null ? null : brokenOk
           }, {
             label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Canonicals', 'ai-seo-tool'),
-            value: audit ? canonicalsOk ? (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('OK', 'ai-seo-tool') : `${missingCanon} missing` : '—',
-            pass: canonicalsOk
+            value: audit ? missingCanon == null ? '—' : canonicalsOk ? (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('OK', 'ai-seo-tool') : `${missingCanon} missing` : '—',
+            pass: missingCanon == null ? null : canonicalsOk
           }].map(({
             label,
             value,
@@ -2479,7 +2482,14 @@ function DashboardTab({
               borderRadius: '8px',
               border: '1px solid #e2e8f0'
             },
-            children: [audit ? pass ? /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_5__.jsx)(TechPassIcon, {}) : /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_5__.jsx)(TechFailIcon, {}) : /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_5__.jsx)("div", {
+            children: [audit ? pass === null ? /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_5__.jsx)("div", {
+              style: {
+                width: 22,
+                height: 22,
+                borderRadius: '50%',
+                background: '#e2e8f0'
+              }
+            }) : pass ? /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_5__.jsx)(TechPassIcon, {}) : /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_5__.jsx)(TechFailIcon, {}) : /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_5__.jsx)("div", {
               style: {
                 width: 22,
                 height: 22,
@@ -2492,7 +2502,7 @@ function DashboardTab({
                   fontSize: '13px',
                   fontWeight: 700,
                   lineHeight: 1.1,
-                  color: audit ? pass ? '#16a34a' : '#dc2626' : '#94a3b8'
+                  color: audit ? pass === null ? '#94a3b8' : pass ? '#16a34a' : '#dc2626' : '#94a3b8'
                 },
                 children: value
               }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_5__.jsx)("div", {
@@ -2504,6 +2514,344 @@ function DashboardTab({
               })]
             })]
           }, label))
+        })]
+      })]
+    }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_5__.jsxs)("div", {
+      style: {
+        display: 'grid',
+        gridTemplateColumns: 'repeat(3, 1fr)',
+        gap: '16px',
+        marginBottom: '28px'
+      },
+      children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_5__.jsxs)("div", {
+        style: {
+          ...cardStyle,
+          padding: '14px 16px'
+        },
+        children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_5__.jsx)("div", {
+          style: {
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            marginBottom: '10px'
+          },
+          children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_5__.jsx)("span", {
+            style: cardTitleStyle,
+            children: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('PageSpeed Insights', 'ai-seo-tool')
+          })
+        }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_5__.jsx)("div", {
+          style: {
+            display: 'flex',
+            gap: '8px',
+            marginBottom: '10px'
+          },
+          children: [{
+            label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Desktop', 'ai-seo-tool'),
+            score: desktopScore
+          }, {
+            label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Mobile', 'ai-seo-tool'),
+            score: mobileScore
+          }].map(({
+            label,
+            score
+          }) => {
+            const col = score >= 90 ? '#16a34a' : score >= 50 ? '#ca8a04' : '#dc2626';
+            return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_5__.jsxs)("div", {
+              style: {
+                flex: 1,
+                background: '#f8fafc',
+                borderRadius: '6px',
+                padding: '6px 8px',
+                textAlign: 'center',
+                border: '1px solid #e2e8f0'
+              },
+              children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_5__.jsx)("div", {
+                style: {
+                  fontSize: '10px',
+                  fontWeight: 600,
+                  color: '#6b7280',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.04em',
+                  marginBottom: '3px'
+                },
+                children: label
+              }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_5__.jsx)("div", {
+                style: {
+                  fontSize: '20px',
+                  fontWeight: 800,
+                  color: col,
+                  lineHeight: 1
+                },
+                children: audit ? score : '—'
+              }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_5__.jsx)("div", {
+                style: {
+                  fontSize: '10px',
+                  color: '#94a3b8',
+                  marginTop: '1px'
+                },
+                children: "/100"
+              })]
+            }, label);
+          })
+        }), audit && (pagespeed.desktop || pagespeed.mobile) && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_5__.jsx)("div", {
+          children: CWV_METRICS.map(({
+            key,
+            label
+          }, i) => /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_5__.jsxs)("div", {
+            style: {
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              padding: '3px 0',
+              borderBottom: i < CWV_METRICS.length - 1 ? '1px solid #f1f5f9' : 'none'
+            },
+            children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_5__.jsx)("span", {
+              style: {
+                fontSize: '11px',
+                fontWeight: 600,
+                color: '#374151'
+              },
+              children: label
+            }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_5__.jsxs)("div", {
+              style: {
+                display: 'flex',
+                gap: '10px'
+              },
+              children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_5__.jsx)("span", {
+                style: {
+                  fontSize: '11px',
+                  color: '#6b7280',
+                  minWidth: '34px',
+                  textAlign: 'right'
+                },
+                children: pagespeed.desktop?.[key] ?? '—'
+              }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_5__.jsx)("span", {
+                style: {
+                  fontSize: '11px',
+                  color: '#6b7280',
+                  minWidth: '34px',
+                  textAlign: 'right'
+                },
+                children: pagespeed.mobile?.[key] ?? '—'
+              })]
+            })]
+          }, key))
+        })]
+      }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_5__.jsxs)("div", {
+        style: {
+          ...cardStyle,
+          padding: '14px 16px',
+          display: 'flex',
+          flexDirection: 'column'
+        },
+        children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_5__.jsxs)("div", {
+          style: {
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            marginBottom: '10px'
+          },
+          children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_5__.jsx)("span", {
+            style: cardTitleStyle,
+            children: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Security Headers', 'ai-seo-tool')
+          }), audit && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_5__.jsx)("span", {
+            style: {
+              fontSize: '11px',
+              fontWeight: 700,
+              padding: '2px 8px',
+              borderRadius: '8px',
+              background: headersPassing === SECURITY_HEADERS.length ? '#dcfce7' : '#fef9c3',
+              color: headersPassing === SECURITY_HEADERS.length ? '#16a34a' : '#ca8a04',
+              border: `1px solid ${headersPassing === SECURITY_HEADERS.length ? '#bbf7d0' : '#fde68a'}`
+            },
+            children: `${headersPassing}/${SECURITY_HEADERS.length}`
+          })]
+        }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_5__.jsx)("div", {
+          style: {
+            flex: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between'
+          },
+          children: SECURITY_HEADERS.map(({
+            key,
+            label,
+            desc
+          }) => {
+            const pass = audit ? !!securityHeaders[key] : null;
+            return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_5__.jsxs)("div", {
+              style: {
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '4px 0'
+              },
+              children: [pass === null ? /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_5__.jsx)("div", {
+                style: {
+                  width: 12,
+                  height: 12,
+                  borderRadius: '50%',
+                  background: '#e2e8f0',
+                  flexShrink: 0
+                }
+              }) : /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_5__.jsxs)("svg", {
+                width: "12",
+                height: "12",
+                viewBox: "0 0 12 12",
+                style: {
+                  flexShrink: 0
+                },
+                children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_5__.jsx)("circle", {
+                  cx: "6",
+                  cy: "6",
+                  r: "6",
+                  fill: pass ? '#16a34a' : '#ef4444'
+                }), pass ? /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_5__.jsx)("path", {
+                  d: "M3 6l2 2 4-4",
+                  stroke: "#fff",
+                  strokeWidth: "1.4",
+                  strokeLinecap: "round",
+                  strokeLinejoin: "round",
+                  fill: "none"
+                }) : /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_5__.jsx)("path", {
+                  d: "M4 4l4 4M8 4l-4 4",
+                  stroke: "#fff",
+                  strokeWidth: "1.4",
+                  strokeLinecap: "round"
+                })]
+              }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_5__.jsxs)("div", {
+                style: {
+                  minWidth: 0,
+                  flex: 1
+                },
+                children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_5__.jsx)("span", {
+                  style: {
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    color: '#1e293b'
+                  },
+                  children: label
+                }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_5__.jsx)("span", {
+                  style: {
+                    fontSize: '10px',
+                    color: '#94a3b8',
+                    marginLeft: '5px'
+                  },
+                  children: desc
+                })]
+              }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_5__.jsx)("span", {
+                style: {
+                  fontSize: '10px',
+                  fontWeight: 600,
+                  flexShrink: 0,
+                  color: pass ? '#16a34a' : '#dc2626'
+                },
+                children: pass === null ? '' : pass ? (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('OK', 'ai-seo-tool') : (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Missing', 'ai-seo-tool')
+              })]
+            }, key);
+          })
+        })]
+      }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_5__.jsxs)("div", {
+        style: {
+          ...cardStyle,
+          padding: '14px 16px',
+          display: 'flex',
+          flexDirection: 'column'
+        },
+        children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_5__.jsx)("div", {
+          style: {
+            marginBottom: '10px'
+          },
+          children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_5__.jsx)("span", {
+            style: cardTitleStyle,
+            children: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Issues Breakdown', 'ai-seo-tool')
+          })
+        }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_5__.jsxs)("div", {
+          style: {
+            flex: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between'
+          },
+          children: [[{
+            label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Broken Links', 'ai-seo-tool'),
+            count: brokenCount ?? 0,
+            color: '#f59e0b'
+          }, {
+            label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Missing Canonicals', 'ai-seo-tool'),
+            count: missingCanon ?? 0,
+            color: '#8b5cf6'
+          }, {
+            label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Missing Meta Desc', 'ai-seo-tool'),
+            count: missingMetaDesc,
+            color: '#3b82f6'
+          }, {
+            label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Missing H1', 'ai-seo-tool'),
+            count: missingH1,
+            color: '#0ea5e9'
+          }, {
+            label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Not Secure (HTTP)', 'ai-seo-tool'),
+            count: httpsOk ? 0 : 1,
+            color: '#ef4444'
+          }].map(({
+            label,
+            count,
+            color
+          }) => /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_5__.jsxs)("div", {
+            style: {
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              padding: '4px 0'
+            },
+            children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_5__.jsx)("div", {
+              style: {
+                width: '8px',
+                height: '8px',
+                borderRadius: '50%',
+                background: color,
+                flexShrink: 0
+              }
+            }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_5__.jsx)("span", {
+              style: {
+                flex: 1,
+                fontSize: '12px',
+                color: '#374151'
+              },
+              children: label
+            }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_5__.jsx)("span", {
+              style: {
+                fontSize: '12px',
+                fontWeight: 700,
+                minWidth: '24px',
+                textAlign: 'right',
+                color: count === 0 ? '#16a34a' : color
+              },
+              children: count === 0 ? '✓' : count
+            })]
+          }, label)), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_5__.jsxs)("div", {
+            style: {
+              paddingTop: '7px',
+              borderTop: '1px solid #f1f5f9',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center'
+            },
+            children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_5__.jsx)("span", {
+              style: {
+                fontSize: '11px',
+                color: '#6b7280'
+              },
+              children: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Total issues', 'ai-seo-tool')
+            }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_5__.jsx)("span", {
+              style: {
+                fontSize: '14px',
+                fontWeight: 800,
+                color: (brokenCount ?? 0) + (missingCanon ?? 0) + missingMetaDesc + missingH1 + (httpsOk ? 0 : 1) === 0 ? '#16a34a' : '#ef4444'
+              },
+              children: (brokenCount ?? 0) + (missingCanon ?? 0) + missingMetaDesc + missingH1 + (httpsOk ? 0 : 1)
+            })]
+          })]
         })]
       })]
     }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_5__.jsxs)("div", {
@@ -2540,22 +2888,37 @@ function DashboardTab({
                   background: '#f8fafc'
                 },
                 children: [{
-                  label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('URL', 'ai-seo-tool'),
-                  w: '38%'
+                  label: '#',
+                  w: '3%'
+                }, {
+                  label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Address', 'ai-seo-tool'),
+                  w: '22%'
+                }, {
+                  label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Type', 'ai-seo-tool'),
+                  w: '7%'
                 }, {
                   label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Status', 'ai-seo-tool'),
-                  w: '9%'
+                  w: '7%'
                 }, {
                   label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Indexability', 'ai-seo-tool'),
-                  w: '12%'
+                  w: '9%'
                 }, {
                   label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Title', 'ai-seo-tool'),
-                  w: '21%'
+                  w: '13%'
+                }, {
+                  label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Meta Desc', 'ai-seo-tool'),
+                  w: '11%'
                 }, {
                   label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('H1', 'ai-seo-tool'),
-                  w: '15%'
+                  w: '10%'
                 }, {
-                  label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Depth', 'ai-seo-tool'),
+                  label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Canonical', 'ai-seo-tool'),
+                  w: '10%'
+                }, {
+                  label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Resp. Time', 'ai-seo-tool'),
+                  w: '5%'
+                }, {
+                  label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Readability', 'ai-seo-tool'),
                   w: '5%'
                 }].map(({
                   label,
@@ -2577,7 +2940,7 @@ function DashboardTab({
             }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_5__.jsx)("tbody", {
               children: pages.length === 0 ? /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_5__.jsx)("tr", {
                 children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_5__.jsx)("td", {
-                  colSpan: "6",
+                  colSpan: "11",
                   style: {
                     padding: '32px',
                     textAlign: 'center',
@@ -2593,16 +2956,29 @@ function DashboardTab({
                 children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_5__.jsx)("td", {
                   style: {
                     padding: '10px 14px',
-                    wordBreak: 'break-all'
+                    fontSize: '12px',
+                    color: '#94a3b8',
+                    textAlign: 'center'
+                  },
+                  children: idx + 1
+                }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_5__.jsx)("td", {
+                  style: {
+                    padding: '10px 14px',
+                    maxWidth: '0'
                   },
                   children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_5__.jsx)("a", {
                     href: page.address,
                     target: "_blank",
                     rel: "noreferrer",
+                    title: page.address,
                     style: {
                       color: '#0d9488',
                       textDecoration: 'none',
-                      fontSize: '12px'
+                      fontSize: '12px',
+                      display: 'block',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap'
                     },
                     onMouseOver: e => {
                       e.currentTarget.style.textDecoration = 'underline';
@@ -2611,6 +2987,18 @@ function DashboardTab({
                       e.currentTarget.style.textDecoration = 'none';
                     },
                     children: page.address
+                  })
+                }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_5__.jsx)("td", {
+                  style: {
+                    padding: '10px 14px',
+                    fontSize: '12px',
+                    color: '#374151'
+                  },
+                  children: page.type || /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_5__.jsx)("span", {
+                    style: {
+                      color: '#94a3b8'
+                    },
+                    children: "\u2014"
                   })
                 }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_5__.jsx)("td", {
                   style: {
@@ -2623,53 +3011,132 @@ function DashboardTab({
                   style: {
                     padding: '10px 14px'
                   },
-                  children: page.indexability === 'Indexable' ? /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_5__.jsx)("span", {
+                  children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_5__.jsx)("span", {
                     style: {
-                      color: '#16a34a',
+                      color: page.indexability === 'Indexable' ? '#16a34a' : '#dc2626',
                       fontSize: '12px',
                       fontWeight: 500
                     },
-                    children: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Yes', 'ai-seo-tool')
-                  }) : /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_5__.jsx)("span", {
-                    style: {
-                      color: '#dc2626',
-                      fontSize: '12px',
-                      fontWeight: 500
-                    },
-                    children: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('No', 'ai-seo-tool')
+                    children: page.indexability || /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_5__.jsx)("span", {
+                      style: {
+                        color: '#94a3b8'
+                      },
+                      children: "\u2014"
+                    })
                   })
                 }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_5__.jsx)("td", {
                   style: {
                     padding: '10px 14px',
-                    fontSize: '12px',
-                    color: '#374151'
+                    maxWidth: '0'
                   },
-                  children: page.title || /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_5__.jsx)("span", {
+                  children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_5__.jsx)("span", {
+                    title: page.title ?? '',
                     style: {
-                      color: '#94a3b8'
+                      display: 'block',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                      fontSize: '12px',
+                      color: '#374151'
                     },
-                    children: "\u2014"
+                    children: page.title || /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_5__.jsx)("span", {
+                      style: {
+                        color: '#94a3b8'
+                      },
+                      children: "\u2014"
+                    })
                   })
                 }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_5__.jsx)("td", {
                   style: {
                     padding: '10px 14px',
-                    fontSize: '12px',
-                    color: '#374151'
+                    maxWidth: '0'
                   },
-                  children: page.h1 || /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_5__.jsx)("span", {
+                  children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_5__.jsx)("span", {
+                    title: page.meta_descp ?? '',
                     style: {
-                      color: '#94a3b8'
+                      display: 'block',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                      fontSize: '12px',
+                      color: '#6b7280'
                     },
-                    children: "\u2014"
+                    children: page.meta_descp || /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_5__.jsx)("span", {
+                      style: {
+                        color: '#94a3b8'
+                      },
+                      children: "\u2014"
+                    })
+                  })
+                }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_5__.jsx)("td", {
+                  style: {
+                    padding: '10px 14px',
+                    maxWidth: '0'
+                  },
+                  children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_5__.jsx)("span", {
+                    title: page.h1 ?? '',
+                    style: {
+                      display: 'block',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                      fontSize: '12px',
+                      color: '#374151'
+                    },
+                    children: page.h1 || /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_5__.jsx)("span", {
+                      style: {
+                        color: '#94a3b8'
+                      },
+                      children: "\u2014"
+                    })
+                  })
+                }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_5__.jsx)("td", {
+                  style: {
+                    padding: '10px 14px',
+                    maxWidth: '0'
+                  },
+                  children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_5__.jsx)("span", {
+                    title: page.canonical ?? '',
+                    style: {
+                      display: 'block',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                      fontSize: '12px',
+                      color: '#6b7280'
+                    },
+                    children: page.canonical || /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_5__.jsx)("span", {
+                      style: {
+                        color: '#94a3b8'
+                      },
+                      children: "\u2014"
+                    })
                   })
                 }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_5__.jsx)("td", {
                   style: {
                     padding: '10px 14px',
                     fontSize: '12px',
                     color: '#374151',
-                    textAlign: 'center'
+                    textAlign: 'right'
                   },
-                  children: page.crawl_depth ?? '—'
+                  children: page.response_time != null ? (page.response_time / 1000).toFixed(3) : /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_5__.jsx)("span", {
+                    style: {
+                      color: '#94a3b8'
+                    },
+                    children: "\u2014"
+                  })
+                }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_5__.jsx)("td", {
+                  style: {
+                    padding: '10px 14px',
+                    fontSize: '12px',
+                    color: '#374151'
+                  },
+                  children: page.readability || /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_5__.jsx)("span", {
+                    style: {
+                      color: '#94a3b8'
+                    },
+                    children: "\u2014"
+                  })
                 })]
               }, page.address || idx))
             })]
@@ -2719,8 +3186,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7___default = /*#__PURE__*/__webpack_require__.n(react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__);
 /**
  * AI SEO Tool — GeoAnalysisTab
- * Shows full GEO Analysis with score, engine cards, 7 sub-tabs, and suggestions.
- * Free plan users see PlanGate instead.
+ * Condensed consolidated view: one row per section, expandable issues with inline fixes.
  *
  * @package AI_SEO_Tool
  * @license GPL-2.0-or-later
@@ -2733,7 +3199,418 @@ __webpack_require__.r(__webpack_exports__);
 
 
 
-/** Engine-specific focus descriptions used when data doesn't provide them. */
+// ── Design tokens ─────────────────────────────────────────────────────────────
+
+const C = {
+  green: '#16a34a',
+  greenBg: '#f0fdf4',
+  greenBd: '#bbf7d0',
+  teal: '#0d9488',
+  tealBg: '#f0fdfa',
+  tealBd: '#99f6e4',
+  yellow: '#ca8a04',
+  yellowBg: '#fefce8',
+  yellowBd: '#fde68a',
+  orange: '#ea580c',
+  orangeBg: '#fff7ed',
+  orangeBd: '#fed7aa',
+  red: '#dc2626',
+  redBg: '#fef2f2',
+  redBd: '#fecaca',
+  blue: '#2563eb',
+  blueBg: '#eff6ff',
+  blueBd: '#bfdbfe',
+  purple: '#7c3aed',
+  purpleBg: '#f5f3ff',
+  purpleBd: '#ddd6fe',
+  gray: '#6b7280',
+  grayBg: '#f8fafc',
+  grayBd: '#e2e8f0',
+  dark: '#1e293b',
+  mid: '#374151',
+  light: '#94a3b8'
+};
+function scoreColor(s) {
+  return s >= 80 ? C.green : s >= 65 ? C.yellow : s >= 50 ? C.orange : C.red;
+}
+
+// ── Tiny status badge ─────────────────────────────────────────────────────────
+
+function StatusChip({
+  value
+}) {
+  const map = {
+    Excellent: {
+      col: C.green,
+      bg: C.greenBg,
+      icon: '🌟'
+    },
+    Good: {
+      col: C.teal,
+      bg: C.tealBg,
+      icon: '✅'
+    },
+    Fair: {
+      col: C.yellow,
+      bg: C.yellowBg,
+      icon: '⚠️'
+    },
+    Poor: {
+      col: C.red,
+      bg: C.redBg,
+      icon: '⛔'
+    },
+    Established: {
+      col: C.green,
+      bg: C.greenBg,
+      icon: '🏆'
+    },
+    Emerging: {
+      col: C.yellow,
+      bg: C.yellowBg,
+      icon: '📈'
+    },
+    Unknown: {
+      col: C.gray,
+      bg: C.grayBg,
+      icon: '❓'
+    }
+  };
+  if (!value) return null;
+  const {
+    col,
+    bg,
+    icon
+  } = map[value] || {
+    col: C.gray,
+    bg: C.grayBg,
+    icon: ''
+  };
+  return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsxs)("span", {
+    style: {
+      fontSize: '11px',
+      fontWeight: 700,
+      color: col,
+      background: bg,
+      borderRadius: '4px',
+      padding: '2px 6px'
+    },
+    children: [icon, " ", value]
+  });
+}
+
+// ── Inline metric text: "label bold-value" ────────────────────────────────────
+
+function M({
+  label,
+  value,
+  color
+}) {
+  return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsxs)("span", {
+    style: {
+      fontSize: '11px',
+      color: C.gray,
+      whiteSpace: 'nowrap'
+    },
+    children: [label, " ", /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)("strong", {
+      style: {
+        color: color || C.dark,
+        fontWeight: 700
+      },
+      children: value
+    })]
+  });
+}
+function Dot() {
+  return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)("span", {
+    style: {
+      color: C.grayBd,
+      fontSize: '11px'
+    },
+    children: " \xB7 "
+  });
+}
+
+// ── Condensed SectionBlock ────────────────────────────────────────────────────
+
+function SectionBlock({
+  icon,
+  title,
+  metrics,
+  issues
+}) {
+  const hasIssues = issues && issues.length > 0;
+  const [open, setOpen] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_0__.useState)(false);
+  return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsxs)("div", {
+    style: {
+      borderRadius: '8px',
+      border: `1px solid ${hasIssues ? C.grayBd : C.greenBd}`,
+      overflow: 'hidden',
+      background: '#fff'
+    },
+    children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsxs)("button", {
+      onClick: hasIssues ? () => setOpen(v => !v) : undefined,
+      style: {
+        width: '100%',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '10px',
+        padding: '9px 14px',
+        cursor: hasIssues ? 'pointer' : 'default',
+        background: open && hasIssues ? '#fafafa' : '#fff',
+        border: 'none',
+        textAlign: 'left',
+        transition: 'background 0.15s'
+      },
+      onMouseEnter: e => {
+        if (hasIssues) e.currentTarget.style.background = '#f8fafc';
+      },
+      onMouseLeave: e => {
+        e.currentTarget.style.background = open && hasIssues ? '#fafafa' : '#fff';
+      },
+      children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)("span", {
+        style: {
+          fontSize: '14px',
+          flexShrink: 0
+        },
+        children: icon
+      }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)("span", {
+        style: {
+          fontSize: '12px',
+          fontWeight: 700,
+          color: C.dark,
+          minWidth: '130px',
+          flexShrink: 0
+        },
+        children: title
+      }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)("div", {
+        style: {
+          flex: 1,
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: '6px',
+          alignItems: 'center',
+          minWidth: 0
+        },
+        children: metrics
+      }), hasIssues ? /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsxs)("span", {
+        style: {
+          fontSize: '11px',
+          fontWeight: 700,
+          flexShrink: 0,
+          color: C.red,
+          background: C.redBg,
+          border: `1px solid ${C.redBd}`,
+          borderRadius: '20px',
+          padding: '2px 8px'
+        },
+        children: [issues.length, " ", issues.length === 1 ? (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('issue', 'ai-seo-tool') : (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('issues', 'ai-seo-tool')]
+      }) : /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)("span", {
+        style: {
+          fontSize: '11px',
+          fontWeight: 700,
+          flexShrink: 0,
+          color: C.green,
+          background: C.greenBg,
+          border: `1px solid ${C.greenBd}`,
+          borderRadius: '20px',
+          padding: '2px 8px'
+        },
+        children: "\u2705 OK"
+      }), hasIssues && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)("span", {
+        style: {
+          fontSize: '10px',
+          color: C.light,
+          flexShrink: 0,
+          transform: open ? 'rotate(180deg)' : 'none',
+          transition: 'transform 0.15s'
+        },
+        children: "\u25BC"
+      })]
+    }), open && hasIssues && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)("div", {
+      style: {
+        borderTop: `1px solid ${C.grayBd}`,
+        background: C.grayBg,
+        padding: '6px 14px 8px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '5px'
+      },
+      children: issues.map((issue, i) => /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsxs)("div", {
+        style: {
+          display: 'grid',
+          gridTemplateColumns: 'auto 1fr',
+          gap: '6px',
+          alignItems: 'baseline',
+          fontSize: '12px',
+          lineHeight: '1.5'
+        },
+        children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)("span", {
+          style: {
+            flexShrink: 0,
+            fontSize: '12px'
+          },
+          children: issue.severity === 'critical' ? '⛔' : '⚠️'
+        }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsxs)("span", {
+          style: {
+            color: C.mid
+          },
+          children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)("strong", {
+            style: {
+              color: C.dark
+            },
+            children: issue.what
+          }), issue.fix && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsxs)("span", {
+            style: {
+              color: C.gray
+            },
+            children: [" \u2014 ", issue.fix]
+          })]
+        })]
+      }, i))
+    })]
+  });
+}
+
+// ── Recommendations ───────────────────────────────────────────────────────────
+
+function RecommendationGroup({
+  label,
+  items,
+  color,
+  bg,
+  icon
+}) {
+  const [open, setOpen] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_0__.useState)(false);
+  const [expanded, setExpanded] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_0__.useState)(null);
+  return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsxs)("div", {
+    style: {
+      borderBottom: '1px solid #f0f0f0'
+    },
+    children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsxs)("button", {
+      onClick: () => setOpen(v => !v),
+      style: {
+        width: '100%',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+        padding: '10px 16px',
+        background: open ? bg : 'transparent',
+        border: 'none',
+        cursor: 'pointer',
+        textAlign: 'left',
+        transition: 'background 0.15s',
+        borderRadius: '6px 6px 0 0',
+        fontWeight: 600
+      },
+      onMouseEnter: e => {
+        if (!open) e.currentTarget.style.background = '#f8fafc';
+      },
+      onMouseLeave: e => {
+        e.currentTarget.style.background = open ? bg : 'transparent';
+      },
+      children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)("span", {
+        style: {
+          fontSize: '11px'
+        },
+        children: icon
+      }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)("span", {
+        style: {
+          flex: 1,
+          fontSize: '12px',
+          fontWeight: 600,
+          color
+        },
+        children: label
+      }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)("span", {
+        style: {
+          fontSize: '11px',
+          fontWeight: 700,
+          color,
+          background: bg,
+          border: `1px solid ${color}22`,
+          borderRadius: '10px',
+          padding: '1px 7px',
+          lineHeight: '18px'
+        },
+        children: items.length
+      }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)("span", {
+        style: {
+          fontSize: '10px',
+          color: '#aaa',
+          transform: open ? 'rotate(180deg)' : 'none',
+          transition: 'transform 0.15s'
+        },
+        children: "\u25BC"
+      })]
+    }), open && items.map((s, i) => {
+      const title = s.title || s.what || s.recommendation || `${label} ${i + 1}`;
+      const why = s.why || s.description || s.detail || '';
+      return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsxs)("div", {
+        style: {
+          borderTop: `1px solid ${color}18`
+        },
+        children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsxs)("button", {
+          onClick: () => setExpanded(expanded === i ? null : i),
+          style: {
+            width: '100%',
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: '8px',
+            padding: '8px 16px 8px 28px',
+            background: 'transparent',
+            border: 'none',
+            cursor: 'pointer',
+            textAlign: 'left',
+            transition: 'background 0.15s'
+          },
+          onMouseEnter: e => {
+            e.currentTarget.style.background = '#f8fafc';
+          },
+          onMouseLeave: e => {
+            e.currentTarget.style.background = 'transparent';
+          },
+          children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)("span", {
+            style: {
+              width: '6px',
+              height: '6px',
+              borderRadius: '50%',
+              background: color,
+              flexShrink: 0,
+              marginTop: '5px'
+            }
+          }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)("span", {
+            style: {
+              flex: 1,
+              fontSize: '12px',
+              color: '#333',
+              lineHeight: '1.4'
+            },
+            children: title
+          }), why && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)("span", {
+            style: {
+              fontSize: '10px',
+              color: '#aaa',
+              flexShrink: 0
+            },
+            children: expanded === i ? '▲' : '▼'
+          })]
+        }), expanded === i && why && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)("p", {
+          style: {
+            margin: 0,
+            padding: '0 16px 10px 42px',
+            fontSize: '12px',
+            color: '#666',
+            lineHeight: '1.5'
+          },
+          children: why
+        })]
+      }, i);
+    })]
+  });
+}
+
+// ── Engine constants ──────────────────────────────────────────────────────────
 
 const ENGINE_FOCUS = {
   chatgpt: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Conversational + authoritative content', 'ai-seo-tool'),
@@ -2749,12 +3626,16 @@ const ENGINE_DISPLAY_NAMES = {
   claude: 'Claude',
   grok: 'Grok'
 };
+const ENGINE_COLORS = {
+  chatgpt: C.green,
+  perplexity: C.blue,
+  gemini: C.yellow,
+  claude: C.purple,
+  grok: C.orange
+};
 
-/**
- * @param {Object} props
- * @param {string} props.siteId - Analysis site/job ID.
- * @param {Object} props.plan   - Plan object from usePlan.
- */
+// ── Main component ────────────────────────────────────────────────────────────
+
 function GeoAnalysisTab({
   siteId,
   plan
@@ -2762,12 +3643,7 @@ function GeoAnalysisTab({
   const [geo, setGeo] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_0__.useState)(null);
   const [loading, setLoading] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_0__.useState)(true);
   const [error, setError] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_0__.useState)(null);
-  const mainAppUrl = window.aiSeoTool?.mainAppUrl || '';
-
-  // Free plan gate
-  if (plan?.plan === 'free') {
-    return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(_PlanGate__WEBPACK_IMPORTED_MODULE_6__["default"], {});
-  }
+  if (plan?.plan === 'free') return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(_PlanGate__WEBPACK_IMPORTED_MODULE_6__["default"], {});
   (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_0__.useEffect)(() => {
     if (!siteId) {
       setLoading(false);
@@ -2793,37 +3669,29 @@ function GeoAnalysisTab({
       cancelled = true;
     };
   }, [siteId]);
-  if (loading) {
-    return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsxs)("div", {
-      style: {
-        display: 'flex',
-        alignItems: 'center',
-        gap: '8px',
-        padding: '24px'
-      },
-      children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Spinner, {}), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)("span", {
-        children: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Loading GEO analysis…', 'ai-seo-tool')
-      })]
-    });
-  }
-  if (error) {
-    return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Notice, {
-      status: "error",
-      isDismissible: false,
-      children: error
-    });
-  }
-  if (!geo) {
-    return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Notice, {
-      status: "info",
-      isDismissible: false,
-      children: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('GEO analysis data not yet available.', 'ai-seo-tool')
-    });
-  }
+  if (loading) return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsxs)("div", {
+    style: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '8px',
+      padding: '24px'
+    },
+    children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Spinner, {}), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)("span", {
+      children: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Loading GEO analysis…', 'ai-seo-tool')
+    })]
+  });
+  if (error) return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Notice, {
+    status: "error",
+    isDismissible: false,
+    children: error
+  });
+  if (!geo) return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Notice, {
+    status: "info",
+    isDismissible: false,
+    children: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('GEO analysis data not yet available.', 'ai-seo-tool')
+  });
   const score = geo.score?.overall_score || 0;
   const grade = geo.score?.grade || '';
-
-  // Engine scores
   const engineScores = geo.score?.engine_scores || {};
   const engines = Object.entries(ENGINE_DISPLAY_NAMES).map(([key, name]) => ({
     key,
@@ -2831,179 +3699,271 @@ function GeoAnalysisTab({
     score: Math.round(engineScores[key]?.score || 0),
     focus: engineScores[key]?.focus || ENGINE_FOCUS[key] || ''
   }));
-
-  // Suggestions — backend returns { critical: [...], important: [...], optional: [...] }
   const critical = geo.suggestions?.critical || [];
   const important = geo.suggestions?.important || [];
   const optional = geo.suggestions?.optional || [];
-  const suggestions = [...critical, ...important, ...optional];
   const geoData = geo.geo_data || geo;
-  const subTabs = [{
-    name: 'schema',
-    title: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Schema', 'ai-seo-tool')
-  }, {
-    name: 'content',
-    title: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Content', 'ai-seo-tool')
-  }, {
-    name: 'eeat',
-    title: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('E-E-A-T', 'ai-seo-tool')
-  }, {
-    name: 'nlp',
-    title: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('NLP', 'ai-seo-tool')
-  }, {
-    name: 'visibility',
-    title: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Visibility', 'ai-seo-tool')
-  }, {
-    name: 'entity',
-    title: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Entity', 'ai-seo-tool')
-  }, {
-    name: 'pages',
-    title: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Pages', 'ai-seo-tool')
-  }];
+  const pages = geoData?.page_scores || geoData?.pages || [];
   return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsxs)("div", {
-    children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Card, {
+    children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsxs)("div", {
       style: {
-        marginBottom: '16px'
+        display: 'flex',
+        gap: '16px',
+        marginBottom: '16px',
+        alignItems: 'stretch'
       },
-      children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.CardBody, {
+      children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Card, {
         style: {
-          padding: '24px'
+          flex: '1 1 0',
+          minWidth: '0'
         },
-        children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsxs)("div", {
+        children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.CardBody, {
           style: {
-            display: 'flex',
-            alignItems: 'center',
-            gap: '32px',
-            flexWrap: 'wrap',
-            marginBottom: '24px'
+            padding: '24px'
           },
-          children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsxs)("div", {
+          children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsxs)("div", {
             style: {
               display: 'flex',
-              flexDirection: 'column',
+              gap: '24px',
               alignItems: 'center'
             },
-            children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(_GeoScoreRing__WEBPACK_IMPORTED_MODULE_4__["default"], {
-              score: score,
-              grade: grade,
-              size: 120
+            children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsxs)("div", {
+              style: {
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                flexShrink: 0
+              },
+              children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(_GeoScoreRing__WEBPACK_IMPORTED_MODULE_4__["default"], {
+                score: score,
+                grade: grade,
+                size: 120
+              }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)("div", {
+                style: {
+                  marginTop: '8px',
+                  fontSize: '12px',
+                  color: C.gray
+                },
+                children: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('AI Citation Score', 'ai-seo-tool')
+              })]
             }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)("div", {
               style: {
-                marginTop: '8px',
-                fontSize: '12px',
-                color: '#757575'
+                flex: 1,
+                display: 'grid',
+                gridTemplateColumns: 'repeat(5, minmax(0, 1fr))',
+                gap: '12px',
+                minWidth: '0'
               },
-              children: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('AI Citation Score', 'ai-seo-tool')
+              children: engines.map(e => /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(_EngineScoreCard__WEBPACK_IMPORTED_MODULE_5__["default"], {
+                name: e.name,
+                score: e.score,
+                focus: e.focus
+              }, e.key))
             })]
-          }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)("div", {
-            style: {
-              flex: 1,
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
-              gap: '12px',
-              minWidth: '0'
-            },
-            children: engines.map(engine => /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(_EngineScoreCard__WEBPACK_IMPORTED_MODULE_5__["default"], {
-              name: engine.name,
-              score: engine.score,
-              focus: engine.focus
-            }, engine.key))
-          })]
-        })
-      })
-    }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Card, {
-      style: {
-        marginBottom: '16px'
-      },
-      children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.CardBody, {
-        style: {
-          padding: '0'
-        },
-        children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.TabPanel, {
-          tabs: subTabs,
-          children: tab => /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)("div", {
-            style: {
-              padding: '16px'
-            },
-            children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(SubTabContent, {
-              tab: tab.name,
-              geo: geoData
-            })
           })
         })
-      })
-    }), suggestions.length > 0 && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Card, {
-      children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsxs)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.CardBody, {
+      }), critical.length + important.length + optional.length > 0 && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)("div", {
         style: {
-          padding: '16px'
+          flex: '0 0 280px',
+          position: 'relative'
         },
-        children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)("h3", {
+        children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Card, {
           style: {
-            margin: '0 0 12px',
-            fontSize: '13px',
-            fontWeight: 600
+            position: 'absolute',
+            top: 0,
+            right: 0,
+            bottom: 0,
+            left: 0,
+            overflow: 'hidden'
           },
-          children: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Recommendations', 'ai-seo-tool')
-        }), [{
-          label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Critical', 'ai-seo-tool'),
-          items: critical,
-          color: '#dc2626'
-        }, {
-          label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Important', 'ai-seo-tool'),
-          items: important,
-          color: '#ca8a04'
-        }, {
-          label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Optional', 'ai-seo-tool'),
-          items: optional,
-          color: '#757575'
-        }].map(({
-          label,
-          items,
-          color
-        }) => items.length > 0 && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsxs)("details", {
-          style: {
-            marginBottom: '12px'
-          },
-          children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsxs)("summary", {
+          children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsxs)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.CardBody, {
             style: {
-              cursor: 'pointer',
-              fontSize: '13px',
-              fontWeight: 600,
-              color,
-              marginBottom: '8px'
+              padding: '0',
+              height: '100%',
+              overflowY: 'auto',
+              boxSizing: 'border-box'
             },
-            children: [label, " (", items.length, ")"]
-          }), items.map((s, i) => /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsxs)("details", {
-            style: {
-              marginLeft: '16px',
-              marginBottom: '8px'
-            },
-            children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)("summary", {
+            children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)("div", {
               style: {
-                cursor: 'pointer',
-                fontSize: '13px'
+                padding: '14px 16px 8px',
+                borderBottom: '1px solid #f0f0f0'
               },
-              children: s.title || s.what || s.recommendation || `${label} issue ${i + 1}`
-            }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)("p", {
-              style: {
-                marginTop: '8px',
-                marginLeft: '16px',
-                fontSize: '13px',
-                color: '#757575'
-              },
-              children: s.why || s.description || s.detail || ''
-            })]
-          }, i))]
-        }, label))]
-      })
+              children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)("span", {
+                style: {
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.06em',
+                  color: '#555'
+                },
+                children: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Recommendations', 'ai-seo-tool')
+              })
+            }), [{
+              label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Critical', 'ai-seo-tool'),
+              items: critical,
+              color: C.red,
+              bg: C.redBg,
+              icon: '🔴'
+            }, {
+              label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Important', 'ai-seo-tool'),
+              items: important,
+              color: C.yellow,
+              bg: C.yellowBg,
+              icon: '🟡'
+            }, {
+              label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Optional', 'ai-seo-tool'),
+              items: optional,
+              color: C.gray,
+              bg: C.grayBg,
+              icon: '⚪'
+            }].map(g => g.items.length > 0 && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(RecommendationGroup, {
+              ...g
+            }, g.label))]
+          })
+        })
+      })]
+    }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(ConsolidatedView, {
+      geo: geoData,
+      pages: pages
     })]
   });
 }
 
-/** Renders content for each of the 7 sub-tabs. */
-function SubTabContent({
-  tab,
-  geo
+// ── Issue derivers ────────────────────────────────────────────────────────────
+
+function deriveSchemaIssues(schema) {
+  const out = [];
+  (schema.missing_recommended || []).forEach(type => out.push({
+    severity: 'warning',
+    what: `Missing ${type} schema`,
+    fix: `Add a JSON-LD block with @type: "${type}" to relevant pages.`
+  }));
+  (schema.completeness_issues || []).forEach(i => out.push({
+    severity: 'warning',
+    what: typeof i === 'string' ? i : JSON.stringify(i),
+    fix: 'Complete the required fields for this schema type.'
+  }));
+  (schema.semantic_mismatches || []).forEach(i => out.push({
+    severity: 'warning',
+    what: typeof i === 'string' ? i : JSON.stringify(i),
+    fix: 'Align schema values with the actual visible page content.'
+  }));
+  return out;
+}
+function deriveContentIssues(content) {
+  const out = [];
+  const wc = Math.round(content.avg_word_count || 0);
+  if (wc > 0 && wc < 300) out.push({
+    severity: 'critical',
+    what: `Very low avg word count (${wc} words)`,
+    fix: 'Target 600+ words per key page for AI citation eligibility.'
+  });
+  if ((content.thin_pages || 0) > 0) out.push({
+    severity: 'critical',
+    what: `${content.thin_pages} pages under 300 words`,
+    fix: 'Expand thin pages with authoritative, topical content.'
+  });
+  if (!content.faq_pages) out.push({
+    severity: 'warning',
+    what: 'No FAQ sections detected',
+    fix: 'Add Q&A sections — AI engines extract these as featured snippets.'
+  });
+  return out;
+}
+const TRUST_FIX = {
+  'about': 'Create a detailed /about page with team info and credentials.',
+  'contact': 'Add a /contact page with phone, email, and physical address.',
+  'privacy policy': 'Publish a /privacy-policy page to signal legal trustworthiness.',
+  'terms': 'Add a terms-of-service page to signal a legitimate business.',
+  'faq': 'Create a dedicated FAQ page — AI engines cite these heavily.',
+  'author bio': 'Add author bio pages or bylines with credentials to all content.',
+  'case studies': 'Publish case studies or success stories to show real-world authority.'
+};
+function deriveEEATIssues(eeat) {
+  const out = [];
+  (eeat.missing_signals || []).forEach(s => {
+    const key = (s || '').toLowerCase();
+    const fix = Object.entries(TRUST_FIX).find(([k]) => key.includes(k))?.[1] || 'Add this trust signal to improve E-E-A-T credibility.';
+    out.push({
+      severity: 'warning',
+      what: `Missing: ${s}`,
+      fix
+    });
+  });
+  if (!(eeat.expertise_signals || []).length) out.push({
+    severity: 'warning',
+    what: 'No expertise or authority signals detected',
+    fix: 'Add author credentials, professional titles, or certifications to key pages.'
+  });
+  return out;
+}
+function deriveNLPIssues(nlp) {
+  const out = [];
+  const r = nlp.snippet_readiness || '';
+  if (r === 'Poor') out.push({
+    severity: 'critical',
+    what: 'AI snippet readiness is Poor',
+    fix: 'Lead every answer with the direct response in 40–120 words (BLUF format).'
+  });else if (r === 'Fair') out.push({
+    severity: 'warning',
+    what: 'AI snippet readiness is Fair',
+    fix: 'Improve answer structure: open each answer with the direct response.'
+  });
+  if (!nlp.answer_blocks) out.push({
+    severity: 'warning',
+    what: 'No structured answer blocks detected',
+    fix: 'Format key answers with a direct opening sentence then supporting detail.'
+  });
+  if ((nlp.answer_quality_score || 0) < 50) out.push({
+    severity: 'warning',
+    what: `Low answer quality score (${Math.round(nlp.answer_quality_score || 0)}/100)`,
+    fix: 'Avoid hedging words like "might", "could", "possibly" — be direct.'
+  });
+  return out;
+}
+function deriveVisibilityIssues(visibility) {
+  const out = [];
+  const overall = Math.round(visibility.overall_mention_rate || 0);
+  if (overall < 30) out.push({
+    severity: 'critical',
+    what: `Very low AI mention rate (${overall}%)`,
+    fix: 'Prioritize E-E-A-T signals, structured data, and entity establishment.'
+  });
+  const rates = visibility.engine_mention_rates || {};
+  Object.entries(ENGINE_DISPLAY_NAMES).forEach(([key, name]) => {
+    if (Math.round((rates[key] || 0) * 100) === 0) out.push({
+      severity: 'warning',
+      what: `Not mentioned by ${name}`,
+      fix: `Improve ${name}-specific signals: ${ENGINE_FOCUS[key]}`
+    });
+  });
+  return out;
+}
+function deriveEntityIssues(entity) {
+  const out = [];
+  if (!entity.wikipedia_found) out.push({
+    severity: 'warning',
+    what: 'No Wikipedia article found',
+    fix: 'Build brand authority through press mentions before pursuing Wikipedia.'
+  });
+  if ((entity.same_as_profiles || []).length < 2) out.push({
+    severity: 'warning',
+    what: 'Few sameAs profile links',
+    fix: 'Add LinkedIn, Crunchbase, and Wikidata URLs to your Organization schema.'
+  });
+  if (((entity.score_breakdown || {}).org_schema || 0) < 10) out.push({
+    severity: 'warning',
+    what: 'Organization schema is incomplete',
+    fix: 'Add name, URL, logo, address, phone, and founding date to your schema.'
+  });
+  return out;
+}
+
+// ── ConsolidatedView ──────────────────────────────────────────────────────────
+
+function ConsolidatedView({
+  geo,
+  pages
 }) {
   const schema = geo?.schema_analysis || geo?.schema || {};
   const content = geo?.content_analysis || geo?.content || {};
@@ -3011,455 +3971,261 @@ function SubTabContent({
   const nlp = geo?.nlp_analysis || geo?.nlp || {};
   const visibility = geo?.visibility_analysis || geo?.visibility || {};
   const entity = geo?.entity_analysis || geo?.entity || {};
-  const pages = geo?.page_scores || geo?.pages || [];
-  switch (tab) {
-    case 'schema':
-      return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsxs)("div", {
-        style: {
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '12px'
-        },
-        children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(ScoreBar, {
-          label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Schema Coverage', 'ai-seo-tool'),
-          value: schema.coverage_pct || 0,
-          suffix: "%"
-        }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(MetricRow, {
-          label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Formats Present', 'ai-seo-tool'),
-          value: (schema.formats_present || []).join(', ') || '—'
-        }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(TagList, {
-          label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Types Detected', 'ai-seo-tool'),
-          tags: (schema.types_detected || []).slice(0, 8),
-          color: "#0d9488"
-        }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(TagList, {
-          label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Missing Types', 'ai-seo-tool'),
-          tags: schema.missing_recommended || [],
-          color: "#dc2626",
-          empty: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('None — great!', 'ai-seo-tool')
-        })]
-      });
-    case 'content':
-      return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsxs)("div", {
-        style: {
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '12px'
-        },
-        children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(MetricRow, {
-          label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Avg Word Count', 'ai-seo-tool'),
-          value: Math.round(content.avg_word_count || 0),
-          highlight: true
-        }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(MetricRow, {
-          label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Reading Level', 'ai-seo-tool'),
-          value: content.reading_level || '—'
-        }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(MetricRow, {
-          label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Tone Score', 'ai-seo-tool'),
-          value: content.tone_score || '—'
-        }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsxs)("div", {
-          style: {
-            display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
-            gap: '10px'
-          },
-          children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(StatCard, {
-            label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('FAQ Pages', 'ai-seo-tool'),
+  const wc = Math.round(content.avg_word_count || 0);
+  const wcColor = wc >= 600 ? C.green : wc >= 300 ? C.yellow : C.red;
+  const intentColors = {
+    Informational: C.blue,
+    Commercial: C.purple,
+    Transactional: C.teal,
+    Navigational: C.gray
+  };
+  const overallRate = Math.round(visibility.overall_mention_rate || 0);
+  const engRates = visibility.engine_mention_rates || {};
+  return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsxs)("div", {
+    style: {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '6px',
+      marginBottom: '16px'
+    },
+    children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsxs)("div", {
+      style: {
+        display: 'grid',
+        gridTemplateColumns: '1fr 1fr',
+        gap: '6px'
+      },
+      children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(SectionBlock, {
+        icon: "\uD83D\uDDC2\uFE0F",
+        title: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Schema', 'ai-seo-tool'),
+        issues: deriveSchemaIssues(schema),
+        metrics: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsxs)(react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.Fragment, {
+          children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(M, {
+            label: "Coverage",
+            value: `${Math.round(schema.coverage_pct || 0)}%`,
+            color: scoreColor(schema.coverage_pct || 0)
+          }), (schema.formats_present || []).length > 0 && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsxs)(react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.Fragment, {
+            children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(Dot, {}), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(M, {
+              label: "Formats",
+              value: (schema.formats_present || []).join(', ')
+            })]
+          }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(Dot, {}), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(M, {
+            label: "Types",
+            value: (schema.types_detected || []).length,
+            color: C.blue
+          })]
+        })
+      }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(SectionBlock, {
+        icon: "\uD83D\uDCDD",
+        title: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Content', 'ai-seo-tool'),
+        issues: deriveContentIssues(content),
+        metrics: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsxs)(react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.Fragment, {
+          children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(M, {
+            label: "Avg words",
+            value: wc,
+            color: wcColor
+          }), content.reading_level && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsxs)(react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.Fragment, {
+            children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(Dot, {}), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(M, {
+              label: "Level",
+              value: content.reading_level
+            })]
+          }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(Dot, {}), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(M, {
+            label: "FAQ pages",
             value: content.faq_pages || 0,
-            icon: "\u2753"
-          }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(StatCard, {
-            label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Thin Pages', 'ai-seo-tool'),
-            value: content.thin_pages || 0,
-            icon: "\uD83D\uDCC4",
-            warn: (content.thin_pages || 0) > 0
+            color: C.teal
+          }), (content.thin_pages || 0) > 0 && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsxs)(react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.Fragment, {
+            children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(Dot, {}), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(M, {
+              label: "Thin",
+              value: content.thin_pages,
+              color: C.red
+            })]
           })]
-        })]
-      });
-    case 'eeat':
-      return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsxs)("div", {
-        style: {
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '12px'
-        },
-        children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(ScoreBar, {
-          label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('E-E-A-T Score', 'ai-seo-tool'),
-          value: eeat.score || 0,
-          suffix: "/100"
-        }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(MetricRow, {
-          label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Blog Cadence', 'ai-seo-tool'),
-          value: eeat.blog_cadence || '—'
-        }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(TagList, {
-          label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Trust Pages', 'ai-seo-tool'),
-          tags: eeat.trust_pages_present || [],
-          color: "#16a34a",
-          empty: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('None detected', 'ai-seo-tool')
-        }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(TagList, {
-          label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Expertise Signals', 'ai-seo-tool'),
-          tags: eeat.expertise_signals || [],
-          color: "#0d9488",
-          empty: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('None detected', 'ai-seo-tool')
-        })]
-      });
-    case 'nlp':
-      return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsxs)("div", {
-        style: {
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '12px'
-        },
-        children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(ReadinessTag, {
-          label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Snippet Readiness', 'ai-seo-tool'),
-          value: nlp.snippet_readiness
-        }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(MetricRow, {
-          label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Primary Intent', 'ai-seo-tool'),
-          value: nlp.primary_intent || '—'
-        }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(MetricRow, {
-          label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Question Density', 'ai-seo-tool'),
-          value: nlp.question_density || '—'
-        }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(MetricRow, {
-          label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Synonym Richness', 'ai-seo-tool'),
-          value: nlp.synonym_richness || '—'
-        }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(ScoreBar, {
-          label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Answer Quality', 'ai-seo-tool'),
-          value: Math.round(nlp.answer_quality_score || 0),
-          suffix: "/100"
-        })]
-      });
-    case 'visibility':
-      {
-        const engines = Object.entries(visibility.engine_mention_rates || {});
-        return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsxs)("div", {
-          style: {
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '12px'
-          },
-          children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(ReadinessTag, {
-            label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Visibility', 'ai-seo-tool'),
+        })
+      }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(SectionBlock, {
+        icon: "\uD83C\uDFC5",
+        title: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('E-E-A-T', 'ai-seo-tool'),
+        issues: deriveEEATIssues(eeat),
+        metrics: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsxs)(react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.Fragment, {
+          children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(M, {
+            label: "Score",
+            value: `${Math.round(eeat.score || 0)}/100`,
+            color: scoreColor(eeat.score || 0)
+          }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(Dot, {}), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(M, {
+            label: "Trust pages",
+            value: `${(eeat.trust_pages_present || []).length}/7`,
+            color: C.teal
+          }), eeat.blog_cadence && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsxs)(react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.Fragment, {
+            children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(Dot, {}), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(M, {
+              label: "Cadence",
+              value: eeat.blog_cadence
+            })]
+          })]
+        })
+      }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(SectionBlock, {
+        icon: "\uD83E\uDD16",
+        title: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('NLP', 'ai-seo-tool'),
+        issues: deriveNLPIssues(nlp),
+        metrics: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsxs)(react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.Fragment, {
+          children: [nlp.snippet_readiness && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(StatusChip, {
+            value: nlp.snippet_readiness
+          }), nlp.primary_intent && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsxs)(react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.Fragment, {
+            children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(Dot, {}), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(M, {
+              label: "Intent",
+              value: nlp.primary_intent,
+              color: intentColors[nlp.primary_intent] || C.gray
+            })]
+          }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(Dot, {}), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(M, {
+            label: "Answer quality",
+            value: `${Math.round(nlp.answer_quality_score || 0)}/100`,
+            color: scoreColor(nlp.answer_quality_score || 0)
+          })]
+        })
+      }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(SectionBlock, {
+        icon: "\uD83D\uDC41\uFE0F",
+        title: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Visibility', 'ai-seo-tool'),
+        issues: deriveVisibilityIssues(visibility),
+        metrics: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsxs)(react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.Fragment, {
+          children: [visibility.visibility_label && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(StatusChip, {
             value: visibility.visibility_label
-          }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(ScoreBar, {
-            label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Overall Mention Rate', 'ai-seo-tool'),
-            value: Math.round(visibility.overall_mention_rate || 0),
-            suffix: "%"
-          }), engines.length > 0 && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)("div", {
-            style: {
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '6px'
-            },
-            children: engines.map(([engine, rate]) => /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(ScoreBar, {
-              label: ENGINE_DISPLAY_NAMES[engine] || engine,
-              value: Math.round((rate || 0) * 100),
-              suffix: "%",
-              small: true
-            }, engine))
-          })]
-        });
-      }
-    case 'entity':
-      return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsxs)("div", {
-        style: {
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '12px'
-        },
-        children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(ScoreBar, {
-          label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Entity Score', 'ai-seo-tool'),
-          value: entity.score || 0,
-          suffix: "/100"
-        }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(MetricRow, {
-          label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Establishment', 'ai-seo-tool'),
-          value: entity.establishment_label || '—',
-          highlight: true
-        }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(MetricRow, {
-          label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Wikipedia', 'ai-seo-tool'),
-          value: entity.wikipedia_found ? (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('✅ Found', 'ai-seo-tool') : (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('❌ Not found', 'ai-seo-tool')
-        }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(MetricRow, {
-          label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('sameAs Profiles', 'ai-seo-tool'),
-          value: (entity.same_as_profiles || []).length
-        })]
-      });
-    case 'pages':
-      {
-        const sorted = [...(Array.isArray(pages) ? pages : [])].sort((a, b) => (a.score || 0) - (b.score || 0));
-        if (sorted.length === 0) {
-          return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)("p", {
-            style: {
-              color: '#94a3b8',
-              fontSize: '13px',
-              textAlign: 'center',
-              padding: '24px 0'
-            },
-            children: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('No per-page scores available.', 'ai-seo-tool')
-          });
-        }
-        return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)("div", {
-          style: {
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '6px'
-          },
-          children: sorted.slice(0, 50).map((p, i) => {
-            const s = Math.round(p.score || 0);
-            const color = s >= 80 ? '#16a34a' : s >= 65 ? '#ca8a04' : s >= 50 ? '#ea580c' : '#dc2626';
-            return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsxs)("div", {
+          }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(Dot, {}), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(M, {
+            label: "Mention rate",
+            value: `${overallRate}%`,
+            color: scoreColor(overallRate)
+          }), Object.entries(ENGINE_DISPLAY_NAMES).map(([key, name]) => {
+            const rate = Math.round((engRates[key] || 0) * 100);
+            const col = ENGINE_COLORS[key] || C.gray;
+            return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)("span", {
+              title: `${name}: ${rate}%`,
               style: {
-                display: 'flex',
-                alignItems: 'center',
-                gap: '12px',
-                padding: '10px 12px',
-                background: '#f8fafc',
-                borderRadius: '8px',
-                border: '1px solid #e2e8f0'
-              },
-              children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)("span", {
-                style: {
-                  fontSize: '13px',
-                  fontWeight: 700,
-                  color,
-                  minWidth: '28px',
-                  textAlign: 'right'
-                },
-                children: s
-              }), p.grade && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)("span", {
-                style: {
-                  width: '20px',
-                  height: '20px',
-                  borderRadius: '50%',
-                  background: color,
-                  color: '#fff',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: '10px',
-                  fontWeight: 700,
-                  flexShrink: 0
-                },
-                children: p.grade
-              }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)("span", {
-                style: {
-                  fontSize: '12px',
-                  color: '#374151',
-                  wordBreak: 'break-all',
-                  flex: 1
-                },
-                children: p.url || '—'
-              })]
-            }, p.url || i);
-          })
-        });
-      }
-    default:
-      return null;
-  }
+                width: '8px',
+                height: '8px',
+                borderRadius: '50%',
+                background: rate > 0 ? col : '#e2e8f0',
+                display: 'inline-block',
+                flexShrink: 0
+              }
+            }, key);
+          })]
+        })
+      }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(SectionBlock, {
+        icon: "\uD83C\uDFE2",
+        title: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Entity', 'ai-seo-tool'),
+        issues: deriveEntityIssues(entity),
+        metrics: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsxs)(react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.Fragment, {
+          children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(M, {
+            label: "Score",
+            value: `${Math.round(entity.score || 0)}/100`,
+            color: scoreColor(entity.score || 0)
+          }), entity.establishment_label && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsxs)(react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.Fragment, {
+            children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(Dot, {}), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(StatusChip, {
+              value: entity.establishment_label
+            })]
+          }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(Dot, {}), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(M, {
+            label: "Wikipedia",
+            value: entity.wikipedia_found ? '✅' : '❌'
+          }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(Dot, {}), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(M, {
+            label: "sameAs",
+            value: (entity.same_as_profiles || []).length,
+            color: C.blue
+          })]
+        })
+      })]
+    }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(WorstPages, {
+      pages: pages
+    })]
+  });
 }
 
-// ── Design helpers ────────────────────────────────────────────────────────────
+// ── WorstPages ────────────────────────────────────────────────────────────────
 
-function ScoreBar({
-  label,
-  value,
-  suffix = '',
-  small = false
+function WorstPages({
+  pages
 }) {
-  const pct = Math.min(Math.max(value, 0), 100);
-  const color = pct >= 80 ? '#16a34a' : pct >= 65 ? '#ca8a04' : pct >= 50 ? '#ea580c' : '#dc2626';
+  const sorted = [...(Array.isArray(pages) ? pages : [])].sort((a, b) => (a.score || 0) - (b.score || 0)).slice(0, 5);
+  if (!sorted.length) return null;
   return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsxs)("div", {
+    style: {
+      borderRadius: '8px',
+      border: `1px solid ${C.grayBd}`,
+      overflow: 'hidden',
+      background: '#fff',
+      marginTop: '2px'
+    },
     children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsxs)("div", {
       style: {
         display: 'flex',
-        justifyContent: 'space-between',
-        marginBottom: '5px'
+        alignItems: 'center',
+        gap: '8px',
+        padding: '9px 14px',
+        borderBottom: `1px solid ${C.grayBd}`,
+        background: C.grayBg
       },
       children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)("span", {
         style: {
-          fontSize: small ? '12px' : '13px',
-          color: '#374151',
-          fontWeight: 500
+          fontSize: '14px'
         },
-        children: label
-      }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsxs)("span", {
+        children: "\uD83D\uDCC4"
+      }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)("span", {
         style: {
-          fontSize: small ? '12px' : '13px',
+          flex: 1,
+          fontSize: '12px',
           fontWeight: 700,
-          color
+          color: C.dark
         },
-        children: [value, suffix]
+        children: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Pages Needing Improvement', 'ai-seo-tool')
+      }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)("span", {
+        style: {
+          fontSize: '11px',
+          color: C.light
+        },
+        children: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('lowest AI citation scores', 'ai-seo-tool')
       })]
     }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)("div", {
       style: {
-        height: small ? '4px' : '6px',
-        borderRadius: '9999px',
-        background: '#e2e8f0',
-        overflow: 'hidden'
+        padding: '4px 14px'
       },
-      children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)("div", {
-        style: {
-          height: '100%',
-          width: `${pct}%`,
-          background: `linear-gradient(90deg, ${color}99, ${color})`,
-          borderRadius: '9999px',
-          transition: 'width 0.6s ease'
-        }
+      children: sorted.map((p, i) => {
+        const s = Math.round(p.score || 0);
+        const col = scoreColor(s);
+        const top = (p.issues || p.issue_badges || [])[0];
+        return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsxs)("div", {
+          style: {
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+            padding: '7px 0',
+            borderBottom: i < sorted.length - 1 ? `1px solid ${C.grayBd}` : 'none'
+          },
+          children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)("span", {
+            style: {
+              fontSize: '12px',
+              fontWeight: 800,
+              color: col,
+              minWidth: '24px'
+            },
+            children: s
+          }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)("span", {
+            style: {
+              flex: 1,
+              fontSize: '12px',
+              color: C.mid,
+              wordBreak: 'break-all'
+            },
+            children: p.url || '—'
+          }), top && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)("span", {
+            style: {
+              fontSize: '10px',
+              fontWeight: 600,
+              color: col,
+              flexShrink: 0,
+              background: col + '14',
+              border: `1px solid ${col}30`,
+              borderRadius: '4px',
+              padding: '1px 6px'
+            },
+            children: typeof top === 'string' ? top : top.label || 'Issue'
+          })]
+        }, p.url || i);
       })
-    })]
-  });
-}
-function MetricRow({
-  label,
-  value,
-  highlight = false
-}) {
-  return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsxs)("div", {
-    style: {
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      padding: '9px 12px',
-      background: '#f8fafc',
-      borderRadius: '8px',
-      border: '1px solid #e2e8f0'
-    },
-    children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)("span", {
-      style: {
-        fontSize: '13px',
-        color: '#6b7280'
-      },
-      children: label
-    }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)("span", {
-      style: {
-        fontSize: '13px',
-        fontWeight: highlight ? 700 : 600,
-        color: '#1e293b'
-      },
-      children: value
-    })]
-  });
-}
-function StatCard({
-  label,
-  value,
-  icon,
-  warn = false
-}) {
-  return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsxs)("div", {
-    style: {
-      padding: '12px',
-      borderRadius: '10px',
-      textAlign: 'center',
-      background: warn ? '#fef2f2' : '#f0fdf4',
-      border: `1px solid ${warn ? '#fecaca' : '#bbf7d0'}`
-    },
-    children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)("div", {
-      style: {
-        fontSize: '20px',
-        marginBottom: '4px'
-      },
-      children: icon
-    }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)("div", {
-      style: {
-        fontSize: '22px',
-        fontWeight: 800,
-        color: warn ? '#dc2626' : '#16a34a'
-      },
-      children: value
-    }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)("div", {
-      style: {
-        fontSize: '11px',
-        color: '#6b7280',
-        marginTop: '2px'
-      },
-      children: label
-    })]
-  });
-}
-function TagList({
-  label,
-  tags,
-  color,
-  empty
-}) {
-  return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsxs)("div", {
-    children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)("div", {
-      style: {
-        fontSize: '12px',
-        color: '#6b7280',
-        fontWeight: 600,
-        marginBottom: '6px'
-      },
-      children: label
-    }), tags.length === 0 ? /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)("span", {
-      style: {
-        fontSize: '12px',
-        color: '#94a3b8',
-        fontStyle: 'italic'
-      },
-      children: empty || '—'
-    }) : /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)("div", {
-      style: {
-        display: 'flex',
-        flexWrap: 'wrap',
-        gap: '6px'
-      },
-      children: tags.map(tag => /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)("span", {
-        style: {
-          fontSize: '11px',
-          fontWeight: 600,
-          color,
-          background: color + '15',
-          border: `1px solid ${color}33`,
-          borderRadius: '6px',
-          padding: '3px 8px'
-        },
-        children: tag
-      }, tag))
-    })]
-  });
-}
-function ReadinessTag({
-  label,
-  value
-}) {
-  if (!value) return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(MetricRow, {
-    label: label,
-    value: "\u2014"
-  });
-  const colorMap = {
-    Excellent: '#16a34a',
-    Good: '#0d9488',
-    Fair: '#ca8a04',
-    Poor: '#dc2626'
-  };
-  const bgMap = {
-    Excellent: '#f0fdf4',
-    Good: '#f0fdfa',
-    Fair: '#fefce8',
-    Poor: '#fef2f2'
-  };
-  const color = colorMap[value] || '#6b7280';
-  const bg = bgMap[value] || '#f8fafc';
-  return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsxs)("div", {
-    style: {
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      padding: '10px 12px',
-      background: bg,
-      borderRadius: '8px',
-      border: `1px solid ${color}33`
-    },
-    children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)("span", {
-      style: {
-        fontSize: '13px',
-        color: '#6b7280'
-      },
-      children: label
-    }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)("span", {
-      style: {
-        fontSize: '13px',
-        fontWeight: 700,
-        color
-      },
-      children: value
     })]
   });
 }
@@ -4285,6 +5051,46 @@ __webpack_require__.r(__webpack_exports__);
 
 
 const WP_SITE_URL = window.aiSeoTool?.siteUrl || '';
+
+// ── Shared button styles (match Re-analyze btn in DashboardScreen) ────────────
+
+const btnBase = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: '6px',
+  borderRadius: '6px',
+  fontSize: '13px',
+  fontWeight: 600,
+  cursor: 'pointer',
+  whiteSpace: 'nowrap',
+  transition: 'box-shadow 0.15s'
+};
+const BTN_PRIMARY = {
+  ...btnBase,
+  padding: '7px 18px',
+  background: 'linear-gradient(135deg, #0d9488 0%, #0f766e 100%)',
+  color: '#ffffff',
+  border: 'none',
+  boxShadow: '0 1px 4px rgba(13,148,136,0.3)'
+};
+const BTN_SECONDARY = {
+  ...btnBase,
+  padding: '7px 16px',
+  background: '#ffffff',
+  color: '#374151',
+  border: '1px solid #e2e8f0',
+  boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+  transition: 'border-color 0.15s, box-shadow 0.15s'
+};
+const BTN_DESTRUCTIVE = {
+  ...btnBase,
+  padding: '7px 16px',
+  background: '#ffffff',
+  color: '#dc2626',
+  border: '1px solid #fecaca',
+  boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+  transition: 'background 0.15s, box-shadow 0.15s'
+};
 const DAYS_OF_WEEK = [{
   label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Monday', 'ai-seo-tool'),
   value: '1'
@@ -4475,19 +5281,39 @@ function ScheduleForm({
         gap: '8px',
         marginTop: '8px'
       },
-      children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_4__.jsx)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Button, {
-        variant: "primary",
+      children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_4__.jsx)("button", {
         onClick: onSave,
         disabled: saving,
         style: {
-          backgroundColor: '#0d9488',
-          borderColor: '#0d9488'
+          ...BTN_PRIMARY,
+          opacity: saving ? 0.7 : 1,
+          cursor: saving ? 'not-allowed' : 'pointer'
+        },
+        onMouseEnter: e => {
+          if (!saving) e.currentTarget.style.boxShadow = '0 3px 8px rgba(13,148,136,0.5)';
+        },
+        onMouseLeave: e => {
+          e.currentTarget.style.boxShadow = '0 1px 4px rgba(13,148,136,0.3)';
         },
         children: saving ? /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_4__.jsx)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Spinner, {}) : (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Save Schedule', 'ai-seo-tool')
-      }), isEditing && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_4__.jsx)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Button, {
-        variant: "secondary",
+      }), isEditing && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_4__.jsx)("button", {
         onClick: onCancel,
         disabled: saving,
+        style: {
+          ...BTN_SECONDARY,
+          opacity: saving ? 0.7 : 1,
+          cursor: saving ? 'not-allowed' : 'pointer'
+        },
+        onMouseEnter: e => {
+          if (!saving) {
+            e.currentTarget.style.borderColor = '#0d9488';
+            e.currentTarget.style.boxShadow = '0 2px 6px rgba(0,0,0,0.1)';
+          }
+        },
+        onMouseLeave: e => {
+          e.currentTarget.style.borderColor = '#e2e8f0';
+          e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.06)';
+        },
         children: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Cancel', 'ai-seo-tool')
       })]
     })]
@@ -4817,26 +5643,53 @@ function SchedulesTab() {
               gap: '8px',
               flexWrap: 'wrap'
             },
-            children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_4__.jsx)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Button, {
-              variant: "primary",
+            children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_4__.jsx)("button", {
               onClick: handleTrigger,
               disabled: triggering,
               style: {
-                backgroundColor: '#0d9488',
-                borderColor: '#0d9488'
+                ...BTN_PRIMARY,
+                opacity: triggering ? 0.7 : 1,
+                cursor: triggering ? 'not-allowed' : 'pointer'
+              },
+              onMouseEnter: e => {
+                if (!triggering) e.currentTarget.style.boxShadow = '0 3px 8px rgba(13,148,136,0.5)';
+              },
+              onMouseLeave: e => {
+                e.currentTarget.style.boxShadow = '0 1px 4px rgba(13,148,136,0.3)';
               },
               children: triggering ? /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_4__.jsxs)(react_jsx_runtime__WEBPACK_IMPORTED_MODULE_4__.Fragment, {
                 children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_4__.jsx)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Spinner, {}), (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)(' Running…', 'ai-seo-tool')]
               }) : (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Run Now', 'ai-seo-tool')
-            }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_4__.jsx)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Button, {
-              variant: "secondary",
+            }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_4__.jsx)("button", {
               onClick: startEdit,
+              style: BTN_SECONDARY,
+              onMouseEnter: e => {
+                e.currentTarget.style.borderColor = '#0d9488';
+                e.currentTarget.style.boxShadow = '0 2px 6px rgba(0,0,0,0.1)';
+              },
+              onMouseLeave: e => {
+                e.currentTarget.style.borderColor = '#e2e8f0';
+                e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.06)';
+              },
               children: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Edit', 'ai-seo-tool')
-            }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_4__.jsx)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Button, {
-              variant: "secondary",
-              isDestructive: true,
+            }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_4__.jsx)("button", {
               onClick: handleDelete,
               disabled: deleting,
+              style: {
+                ...BTN_DESTRUCTIVE,
+                opacity: deleting ? 0.7 : 1,
+                cursor: deleting ? 'not-allowed' : 'pointer'
+              },
+              onMouseEnter: e => {
+                if (!deleting) {
+                  e.currentTarget.style.background = '#fef2f2';
+                  e.currentTarget.style.boxShadow = '0 2px 6px rgba(220,38,38,0.15)';
+                }
+              },
+              onMouseLeave: e => {
+                e.currentTarget.style.background = '#ffffff';
+                e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.06)';
+              },
               children: deleting ? /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_4__.jsx)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Spinner, {}) : (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Delete', 'ai-seo-tool')
             })]
           }), editing && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_4__.jsx)(ScheduleForm, {
@@ -4878,533 +5731,6 @@ function Stat({
       },
       children: value
     })]
-  });
-}
-
-/***/ },
-
-/***/ "./src/components/tabs/TechnicalAuditTab.jsx"
-/*!***************************************************!*\
-  !*** ./src/components/tabs/TechnicalAuditTab.jsx ***!
-  \***************************************************/
-(__unused_webpack_module, __webpack_exports__, __webpack_require__) {
-
-__webpack_require__.r(__webpack_exports__);
-/* harmony export */ __webpack_require__.d(__webpack_exports__, {
-/* harmony export */   "default": () => (/* binding */ TechnicalAuditTab)
-/* harmony export */ });
-/* harmony import */ var _wordpress_element__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! @wordpress/element */ "@wordpress/element");
-/* harmony import */ var _wordpress_element__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(_wordpress_element__WEBPACK_IMPORTED_MODULE_0__);
-/* harmony import */ var _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! @wordpress/api-fetch */ "@wordpress/api-fetch");
-/* harmony import */ var _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_1___default = /*#__PURE__*/__webpack_require__.n(_wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_1__);
-/* harmony import */ var _wordpress_components__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! @wordpress/components */ "@wordpress/components");
-/* harmony import */ var _wordpress_components__WEBPACK_IMPORTED_MODULE_2___default = /*#__PURE__*/__webpack_require__.n(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__);
-/* harmony import */ var _wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! @wordpress/i18n */ "@wordpress/i18n");
-/* harmony import */ var _wordpress_i18n__WEBPACK_IMPORTED_MODULE_3___default = /*#__PURE__*/__webpack_require__.n(_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__);
-/* harmony import */ var _GeoScoreRing__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ../GeoScoreRing */ "./src/components/GeoScoreRing.jsx");
-/* harmony import */ var _PlanGate__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ../PlanGate */ "./src/components/PlanGate.jsx");
-/* harmony import */ var react_jsx_runtime__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! react/jsx-runtime */ "react/jsx-runtime");
-/* harmony import */ var react_jsx_runtime__WEBPACK_IMPORTED_MODULE_6___default = /*#__PURE__*/__webpack_require__.n(react_jsx_runtime__WEBPACK_IMPORTED_MODULE_6__);
-/**
- * AI SEO Tool — TechnicalAuditTab
- *
- * @package AI_SEO_Tool
- * @license GPL-2.0-or-later
- */
-
-
-
-
-
-
-
-const SECURITY_HEADERS = [{
-  key: 'hsts',
-  label: 'HSTS',
-  desc: 'Forces HTTPS connections'
-}, {
-  key: 'content_security_policy',
-  label: 'Content Security Policy',
-  desc: 'Prevents XSS attacks'
-}, {
-  key: 'x_frame_options',
-  label: 'X-Frame-Options',
-  desc: 'Blocks clickjacking'
-}, {
-  key: 'x_content_type_options',
-  label: 'X-Content-Type-Options',
-  desc: 'Prevents MIME sniffing'
-}, {
-  key: 'referrer_policy',
-  label: 'Referrer-Policy',
-  desc: 'Controls referrer info'
-}];
-const CWV_METRICS = [{
-  key: 'fcp',
-  label: 'FCP',
-  desc: 'First Contentful Paint'
-}, {
-  key: 'lcp',
-  label: 'LCP',
-  desc: 'Largest Contentful Paint'
-}, {
-  key: 'tbt',
-  label: 'TBT',
-  desc: 'Total Blocking Time'
-}, {
-  key: 'cls',
-  label: 'CLS',
-  desc: 'Cumulative Layout Shift'
-}, {
-  key: 'speed_index',
-  label: 'Speed Index',
-  desc: 'Visual load speed'
-}];
-function TechnicalAuditTab({
-  siteId,
-  plan
-}) {
-  const [audit, setAudit] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_0__.useState)(null);
-  const [loading, setLoading] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_0__.useState)(true);
-  const [error, setError] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_0__.useState)(null);
-  if (plan?.plan === 'free') return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_6__.jsx)(_PlanGate__WEBPACK_IMPORTED_MODULE_5__["default"], {});
-  (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_0__.useEffect)(() => {
-    if (!siteId) {
-      setLoading(false);
-      return;
-    }
-    let cancelled = false;
-    _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_1___default()({
-      path: `/ai-seo-tool/v1/sites/${siteId}/audit`
-    }).then(res => {
-      if (!cancelled) setAudit(res);
-    }).catch(err => {
-      if (!cancelled) setError(err.message || (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Failed to load audit data.', 'ai-seo-tool'));
-    }).finally(() => {
-      if (!cancelled) setLoading(false);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [siteId]);
-  if (loading) return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_6__.jsx)(LoadingState, {
-    label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Loading technical audit…', 'ai-seo-tool')
-  });
-  if (error) return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_6__.jsx)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Notice, {
-    status: "error",
-    isDismissible: false,
-    children: error
-  });
-  if (!audit) return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_6__.jsx)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Notice, {
-    status: "info",
-    isDismissible: false,
-    children: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Technical audit data not yet available.', 'ai-seo-tool')
-  });
-  const https = audit.https || {};
-  const sitemap = audit.sitemap || {};
-  const brokenLinks = audit.broken_links || [];
-  const canonicals = audit.canonicals || {};
-  const securityHeaders = audit.security_headers || {};
-  const pagespeed = audit.pagespeed || {};
-  const brokenCount = typeof brokenLinks === 'object' && !Array.isArray(brokenLinks) ? brokenLinks.count ?? brokenLinks.links?.length ?? 0 : brokenLinks.length;
-  const missingCanon = canonicals.missing_count ?? canonicals.pages?.length ?? 0;
-  const desktopScore = Math.round(pagespeed.desktop?.performance_score || pagespeed.desktop?.score || 0);
-  const mobileScore = Math.round(pagespeed.mobile?.performance_score || pagespeed.mobile?.score || 0);
-  const summaryCards = [{
-    label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('HTTPS', 'ai-seo-tool'),
-    pass: https.secure === true,
-    value: https.secure === true ? (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Secure', 'ai-seo-tool') : (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Not Secure', 'ai-seo-tool'),
-    icon: '🔒',
-    passDesc: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('All traffic encrypted', 'ai-seo-tool'),
-    failDesc: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Switch to HTTPS', 'ai-seo-tool')
-  }, {
-    label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Sitemap', 'ai-seo-tool'),
-    pass: sitemap.found === true,
-    value: sitemap.found === true ? (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Found', 'ai-seo-tool') : (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Not Found', 'ai-seo-tool'),
-    icon: '🗺️',
-    passDesc: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Sitemap detected', 'ai-seo-tool'),
-    failDesc: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Add a sitemap.xml', 'ai-seo-tool')
-  }, {
-    label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Broken Links', 'ai-seo-tool'),
-    pass: brokenCount === 0,
-    value: brokenCount === 0 ? (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('None Found', 'ai-seo-tool') : `${brokenCount} found`,
-    icon: '🔗',
-    passDesc: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('All links healthy', 'ai-seo-tool'),
-    failDesc: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Fix broken links', 'ai-seo-tool')
-  }, {
-    label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Canonicals', 'ai-seo-tool'),
-    pass: missingCanon === 0,
-    value: missingCanon === 0 ? (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('All present', 'ai-seo-tool') : `${missingCanon} missing`,
-    icon: '🏷️',
-    passDesc: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Canonical tags OK', 'ai-seo-tool'),
-    failDesc: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Add canonical tags', 'ai-seo-tool')
-  }];
-  const headersPassing = SECURITY_HEADERS.filter(h => !!securityHeaders[h.key]).length;
-  return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_6__.jsxs)("div", {
-    style: {
-      display: 'flex',
-      flexDirection: 'column',
-      gap: '20px'
-    },
-    children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_6__.jsx)("div", {
-      style: {
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
-        gap: '14px'
-      },
-      children: summaryCards.map(({
-        label,
-        pass,
-        value,
-        icon,
-        passDesc,
-        failDesc
-      }) => /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_6__.jsx)(SummaryCard, {
-        label: label,
-        pass: pass,
-        value: value,
-        icon: icon,
-        desc: pass ? passDesc : failDesc
-      }, label))
-    }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_6__.jsxs)("div", {
-      style: {
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
-        gap: '20px'
-      },
-      children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_6__.jsx)(Section, {
-        title: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Security Headers', 'ai-seo-tool'),
-        badge: `${headersPassing}/${SECURITY_HEADERS.length}`,
-        badgeColor: headersPassing === SECURITY_HEADERS.length ? '#16a34a' : '#ca8a04',
-        children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_6__.jsx)("div", {
-          style: {
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '4px'
-          },
-          children: SECURITY_HEADERS.map(({
-            key,
-            label,
-            desc
-          }) => {
-            const pass = !!securityHeaders[key];
-            return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_6__.jsxs)("div", {
-              style: {
-                display: 'flex',
-                alignItems: 'center',
-                gap: '10px',
-                padding: '10px 12px',
-                background: pass ? '#f0fdf4' : '#fef2f2',
-                borderRadius: '8px',
-                border: `1px solid ${pass ? '#bbf7d0' : '#fecaca'}`
-              },
-              children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_6__.jsx)("span", {
-                style: {
-                  fontSize: '16px',
-                  flexShrink: 0
-                },
-                children: pass ? '✅' : '❌'
-              }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_6__.jsxs)("div", {
-                style: {
-                  minWidth: 0
-                },
-                children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_6__.jsx)("div", {
-                  style: {
-                    fontSize: '12px',
-                    fontWeight: 600,
-                    color: '#1e293b'
-                  },
-                  children: label
-                }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_6__.jsx)("div", {
-                  style: {
-                    fontSize: '11px',
-                    color: '#6b7280'
-                  },
-                  children: desc
-                })]
-              })]
-            }, key);
-          })
-        })
-      }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_6__.jsxs)(Section, {
-        title: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('PageSpeed Insights', 'ai-seo-tool'),
-        children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_6__.jsxs)("div", {
-          style: {
-            display: 'flex',
-            justifyContent: 'center',
-            gap: '32px',
-            marginBottom: '20px'
-          },
-          children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_6__.jsx)(ScoreDevice, {
-            label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Desktop', 'ai-seo-tool'),
-            score: desktopScore
-          }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_6__.jsx)(ScoreDevice, {
-            label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_3__.__)('Mobile', 'ai-seo-tool'),
-            score: mobileScore
-          })]
-        }), (pagespeed.desktop || pagespeed.mobile) && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_6__.jsx)(CoreWebVitals, {
-          desktop: pagespeed.desktop,
-          mobile: pagespeed.mobile
-        })]
-      })]
-    })]
-  });
-}
-
-// ── Sub-components ────────────────────────────────────────────────────────────
-
-function LoadingState({
-  label
-}) {
-  return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_6__.jsxs)("div", {
-    style: {
-      display: 'flex',
-      alignItems: 'center',
-      gap: '10px',
-      padding: '32px 24px'
-    },
-    children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_6__.jsx)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Spinner, {}), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_6__.jsx)("span", {
-      style: {
-        color: '#6b7280',
-        fontSize: '13px'
-      },
-      children: label
-    })]
-  });
-}
-function SummaryCard({
-  label,
-  pass,
-  value,
-  icon,
-  desc
-}) {
-  return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_6__.jsxs)("div", {
-    style: {
-      background: pass ? '#f0fdf4' : '#fef2f2',
-      border: `1px solid ${pass ? '#bbf7d0' : '#fecaca'}`,
-      borderRadius: '12px',
-      padding: '16px'
-    },
-    children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_6__.jsxs)("div", {
-      style: {
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        marginBottom: '10px'
-      },
-      children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_6__.jsx)("span", {
-        style: {
-          fontSize: '22px'
-        },
-        children: icon
-      }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_6__.jsx)("span", {
-        style: {
-          fontSize: '10px',
-          fontWeight: 700,
-          color: pass ? '#16a34a' : '#dc2626',
-          background: '#fff',
-          borderRadius: '6px',
-          padding: '2px 7px',
-          border: `1px solid ${pass ? '#bbf7d0' : '#fecaca'}`
-        },
-        children: pass ? '✓ PASS' : '✗ FAIL'
-      })]
-    }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_6__.jsx)("div", {
-      style: {
-        fontSize: '11px',
-        fontWeight: 700,
-        color: '#6b7280',
-        textTransform: 'uppercase',
-        letterSpacing: '0.05em',
-        marginBottom: '4px'
-      },
-      children: label
-    }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_6__.jsx)("div", {
-      style: {
-        fontSize: '15px',
-        fontWeight: 700,
-        color: '#1e293b',
-        marginBottom: '4px'
-      },
-      children: value
-    }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_6__.jsx)("div", {
-      style: {
-        fontSize: '11px',
-        color: '#6b7280'
-      },
-      children: desc
-    })]
-  });
-}
-function Section({
-  title,
-  badge,
-  badgeColor = '#0d9488',
-  children
-}) {
-  return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_6__.jsxs)("div", {
-    style: {
-      background: '#fff',
-      border: '1px solid #e2e8f0',
-      borderRadius: '12px',
-      overflow: 'hidden',
-      boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
-    },
-    children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_6__.jsxs)("div", {
-      style: {
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: '14px 16px',
-        background: '#f8fafc',
-        borderBottom: '1px solid #e2e8f0'
-      },
-      children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_6__.jsx)("span", {
-        style: {
-          fontSize: '13px',
-          fontWeight: 700,
-          color: '#1e293b'
-        },
-        children: title
-      }), badge && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_6__.jsx)("span", {
-        style: {
-          fontSize: '11px',
-          fontWeight: 700,
-          color: badgeColor,
-          background: '#fff',
-          borderRadius: '8px',
-          padding: '2px 8px',
-          border: `1px solid ${badgeColor}33`
-        },
-        children: badge
-      })]
-    }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_6__.jsx)("div", {
-      style: {
-        padding: '14px 16px'
-      },
-      children: children
-    })]
-  });
-}
-function ScoreDevice({
-  label,
-  score
-}) {
-  return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_6__.jsxs)("div", {
-    style: {
-      textAlign: 'center'
-    },
-    children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_6__.jsx)("div", {
-      style: {
-        fontSize: '11px',
-        fontWeight: 600,
-        color: '#6b7280',
-        marginBottom: '8px',
-        textTransform: 'uppercase',
-        letterSpacing: '0.05em'
-      },
-      children: label
-    }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_6__.jsx)(_GeoScoreRing__WEBPACK_IMPORTED_MODULE_4__["default"], {
-      score: score,
-      size: 80
-    })]
-  });
-}
-function CoreWebVitals({
-  desktop,
-  mobile
-}) {
-  return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_6__.jsxs)("div", {
-    style: {
-      display: 'flex',
-      flexDirection: 'column',
-      gap: '6px'
-    },
-    children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_6__.jsxs)("div", {
-      style: {
-        display: 'grid',
-        gridTemplateColumns: '1fr auto auto',
-        gap: '8px',
-        padding: '6px 10px'
-      },
-      children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_6__.jsx)("span", {
-        style: {
-          fontSize: '11px',
-          fontWeight: 700,
-          color: '#6b7280',
-          textTransform: 'uppercase',
-          letterSpacing: '0.04em'
-        },
-        children: "Metric"
-      }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_6__.jsx)("span", {
-        style: {
-          fontSize: '11px',
-          fontWeight: 700,
-          color: '#6b7280',
-          textAlign: 'right',
-          minWidth: '52px'
-        },
-        children: "Desktop"
-      }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_6__.jsx)("span", {
-        style: {
-          fontSize: '11px',
-          fontWeight: 700,
-          color: '#6b7280',
-          textAlign: 'right',
-          minWidth: '52px'
-        },
-        children: "Mobile"
-      })]
-    }), CWV_METRICS.map(({
-      key,
-      label,
-      desc
-    }) => /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_6__.jsxs)("div", {
-      style: {
-        display: 'grid',
-        gridTemplateColumns: '1fr auto auto',
-        gap: '8px',
-        padding: '8px 10px',
-        background: '#f8fafc',
-        borderRadius: '8px',
-        alignItems: 'center'
-      },
-      children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_6__.jsxs)("div", {
-        children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_6__.jsx)("div", {
-          style: {
-            fontSize: '12px',
-            fontWeight: 600,
-            color: '#1e293b'
-          },
-          children: label
-        }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_6__.jsx)("div", {
-          style: {
-            fontSize: '10px',
-            color: '#94a3b8'
-          },
-          children: desc
-        })]
-      }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_6__.jsx)("span", {
-        style: {
-          fontSize: '12px',
-          fontWeight: 600,
-          color: '#374151',
-          textAlign: 'right',
-          minWidth: '52px'
-        },
-        children: desktop?.[key] ?? '—'
-      }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_6__.jsx)("span", {
-        style: {
-          fontSize: '12px',
-          fontWeight: 600,
-          color: '#374151',
-          textAlign: 'right',
-          minWidth: '52px'
-        },
-        children: mobile?.[key] ?? '—'
-      })]
-    }, key))]
   });
 }
 

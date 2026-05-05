@@ -20,6 +20,7 @@ interface Props {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 const DOW_LABELS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+const DOW_SHORT  = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 function formatHour(h: number): string {
   const suffix = h < 12 ? "AM" : "PM";
@@ -29,7 +30,7 @@ function formatHour(h: number): string {
 
 function formatNextRun(iso: string): string {
   const diff = new Date(iso).getTime() - Date.now();
-  if (diff < 0) return "overdue";
+  if (diff < 0) return "Overdue";
   const mins = Math.floor(diff / 60000);
   if (mins < 60) return `in ${mins}m`;
   const hrs = Math.floor(mins / 60);
@@ -39,7 +40,11 @@ function formatNextRun(iso: string): string {
 
 function isNextRunSoon(iso: string): boolean {
   const diff = new Date(iso).getTime() - Date.now();
-  return diff >= 0 && diff < 86400000; // within 24h
+  return diff >= 0 && diff < 86400000;
+}
+
+function isOverdue(iso: string): boolean {
+  return new Date(iso).getTime() < Date.now();
 }
 
 function formatDate(iso: string | null): string {
@@ -49,15 +54,22 @@ function formatDate(iso: string | null): string {
       month: "short", day: "numeric", year: "numeric",
       hour: "numeric", minute: "2-digit",
     });
-  } catch {
-    return iso;
-  }
+  } catch { return iso; }
+}
+
+function formatDateShort(iso: string | null): string {
+  if (!iso) return "Never";
+  try {
+    return new Date(iso).toLocaleDateString("en-US", {
+      month: "short", day: "numeric",
+    });
+  } catch { return iso; }
 }
 
 function frequencySummary(s: Schedule): string {
-  if (s.frequency === "daily") return `Daily at ${formatHour(s.hour)}`;
-  if (s.frequency === "weekly") return `${DOW_LABELS[s.day_of_week ?? 0]}s at ${formatHour(s.hour)}`;
-  if (s.frequency === "monthly") return `Day ${s.day_of_month} of month at ${formatHour(s.hour)}`;
+  if (s.frequency === "daily")   return `Daily at ${formatHour(s.hour)}`;
+  if (s.frequency === "weekly")  return `${DOW_LABELS[s.day_of_week ?? 0]}s at ${formatHour(s.hour)}`;
+  if (s.frequency === "monthly") return `Day ${s.day_of_month} · ${formatHour(s.hour)}`;
   return s.frequency;
 }
 
@@ -103,15 +115,6 @@ function TrashIcon({ size = 14, color = "currentColor" }: { size?: number; color
   );
 }
 
-function CheckCircleIcon({ size = 14, color = "currentColor" }: { size?: number; color?: string }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-      <polyline points="22 4 12 14.01 9 11.01" />
-    </svg>
-  );
-}
-
 function PlayIcon({ size = 13, color = "currentColor" }: { size?: number; color?: string }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill={color} stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -119,6 +122,43 @@ function PlayIcon({ size = 13, color = "currentColor" }: { size?: number; color?
     </svg>
   );
 }
+
+function GlobeIcon({ size = 14, color = "currentColor" }: { size?: number; color?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10" />
+      <line x1="2" y1="12" x2="22" y2="12" />
+      <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+    </svg>
+  );
+}
+
+function RepeatIcon({ size = 14, color = "currentColor" }: { size?: number; color?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="17 1 21 5 17 9" />
+      <path d="M3 11V9a4 4 0 0 1 4-4h14" />
+      <polyline points="7 23 3 19 7 15" />
+      <path d="M21 13v2a4 4 0 0 1-4 4H3" />
+    </svg>
+  );
+}
+
+function CheckIcon({ size = 12, color = "currentColor" }: { size?: number; color?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="20 6 9 17 4 12" />
+    </svg>
+  );
+}
+
+// ── Frequency config ──────────────────────────────────────────────────────────
+
+const FREQ_CONFIG: Record<ScheduleFrequency, { label: string; color: string; bg: string; dot: string }> = {
+  daily:   { label: "Daily",   color: "#3b82f6", bg: "#eff6ff", dot: "#3b82f6" },
+  weekly:  { label: "Weekly",  color: "#16a34a", bg: "#f0fdf4", dot: "#16a34a" },
+  monthly: { label: "Monthly", color: "#9333ea", bg: "#fdf4ff", dot: "#9333ea" },
+};
 
 // ── Schedule Form Modal ───────────────────────────────────────────────────────
 
@@ -131,20 +171,20 @@ interface FormModalProps {
 
 function ScheduleFormModal({ initial, editId, onClose, onSaved }: FormModalProps) {
   const isEdit = !!editId;
-  const [url, setUrl] = useState(initial?.url ?? "");
+  const [url, setUrl]           = useState(initial?.url ?? "");
   const [frequency, setFrequency] = useState<ScheduleFrequency>(initial?.frequency ?? "weekly");
-  const [hour, setHour] = useState(initial?.hour ?? 9);
-  const [dow, setDow] = useState(initial?.day_of_week ?? 0);
-  const [dom, setDom] = useState(initial?.day_of_month ?? 1);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [hour, setHour]         = useState(initial?.hour ?? 9);
+  const [dow, setDow]           = useState(initial?.day_of_week ?? 0);
+  const [dom, setDom]           = useState(initial?.day_of_month ?? 1);
+  const [saving, setSaving]     = useState(false);
+  const [error, setError]       = useState<string | null>(null);
 
   const inputStyle = {
     background: "var(--surface-elevated)",
     border: "1px solid var(--border)",
     color: "var(--foreground)",
     outline: "none",
-    borderRadius: 6,
+    borderRadius: 8,
   };
 
   async function handleSubmit(e: React.FormEvent) {
@@ -156,14 +196,14 @@ function ScheduleFormModal({ initial, editId, onClose, onSaved }: FormModalProps
         url,
         frequency,
         hour,
-        day_of_week: frequency === "weekly" ? dow : undefined,
+        day_of_week:  frequency === "weekly"  ? dow : undefined,
         day_of_month: frequency === "monthly" ? dom : undefined,
       };
       if (isEdit) {
         const update: UpdateSchedulePayload = {
           frequency,
           hour,
-          day_of_week: frequency === "weekly" ? dow : null,
+          day_of_week:  frequency === "weekly"  ? dow : null,
           day_of_month: frequency === "monthly" ? dom : null,
         };
         await updateSchedule(editId, update);
@@ -179,133 +219,211 @@ function ScheduleFormModal({ initial, editId, onClose, onSaved }: FormModalProps
     }
   }
 
+  const freqCfg = FREQ_CONFIG[frequency];
+
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center"
-      style={{ background: "rgba(0,0,0,0.55)" }}
+      className="fixed inset-0 z-50 flex items-end justify-center sm:items-center"
+      style={{ background: "rgba(0,0,0,0.6)", backdropFilter: "blur(2px)" }}
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div
-        className="w-full max-w-md rounded-xl overflow-hidden"
-        style={{ background: "var(--surface)", border: "1px solid var(--border)", boxShadow: "0 20px 40px rgba(0,0,0,.18)" }}
+        className="w-full max-w-md overflow-hidden"
+        style={{
+          background: "var(--surface)",
+          border: "1px solid var(--border)",
+          borderRadius: 16,
+          boxShadow: "0 24px 64px rgba(0,0,0,0.22)",
+        }}
       >
         {/* Modal header */}
-        <div
-          className="flex items-center gap-3 px-5 py-4"
-          style={{ background: "linear-gradient(135deg, #0d9488 0%, #16a34a 100%)", borderBottom: "1px solid rgba(255,255,255,.15)" }}
-        >
-          <CalendarIcon size={18} color="white" />
-          <h2 className="text-sm font-semibold text-white">
-            {isEdit ? "Edit Schedule" : "New Scheduled Re-audit"}
-          </h2>
+        <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: "1px solid var(--border)" }}>
+          <div className="flex items-center gap-3">
+            <div
+              className="flex items-center justify-center rounded-xl"
+              style={{ width: 36, height: 36, background: "linear-gradient(135deg, #0d9488, #16a34a)" }}
+            >
+              <CalendarIcon size={16} color="white" />
+            </div>
+            <div>
+              <h2 className="text-sm font-bold" style={{ color: "var(--foreground)" }}>
+                {isEdit ? "Edit Schedule" : "New Scheduled Re-audit"}
+              </h2>
+              <p className="text-xs" style={{ color: "var(--muted)" }}>
+                {isEdit ? "Update frequency or time" : "Automate recurring SEO audits"}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="flex items-center justify-center rounded-lg"
+            style={{ width: 28, height: 28, background: "var(--surface-elevated)", border: "1px solid var(--border)", color: "var(--muted)" }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4 p-5">
+        <form onSubmit={handleSubmit} className="flex flex-col gap-5 p-5">
           {/* URL */}
           <div>
-            <label className="mb-1.5 block text-xs font-medium" style={{ color: "var(--muted)" }}>
+            <label className="mb-2 block text-xs font-semibold" style={{ color: "var(--foreground)" }}>
               Website URL
             </label>
             {isEdit ? (
               <div
-                className="truncate rounded px-3 py-2 text-xs font-mono"
-                style={{ ...inputStyle, color: "var(--foreground)", opacity: 0.7 }}
+                className="flex items-center gap-2 rounded-lg px-3 py-2.5"
+                style={{ ...inputStyle, opacity: 0.7 }}
               >
-                {url}
+                <GlobeIcon size={13} color="var(--muted)" />
+                <span className="truncate text-xs font-mono" style={{ color: "var(--foreground)" }}>{url}</span>
               </div>
             ) : (
-              <input
-                type="url"
-                value={url}
-                onChange={(e) => setUrl(e.target.value)}
-                placeholder="https://example.com"
-                required
-                className="w-full px-3 py-2 text-xs"
-                style={inputStyle}
-              />
+              <div className="relative">
+                <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                  <GlobeIcon size={13} color="var(--muted)" />
+                </div>
+                <input
+                  type="url"
+                  value={url}
+                  onChange={(e) => setUrl(e.target.value)}
+                  placeholder="https://example.com"
+                  required
+                  className="w-full pl-8 pr-3 py-2.5 text-xs"
+                  style={inputStyle}
+                />
+              </div>
             )}
           </div>
 
-          {/* Frequency */}
+          {/* Frequency — segmented pills */}
           <div>
-            <label className="mb-1.5 block text-xs font-medium" style={{ color: "var(--muted)" }}>
+            <label className="mb-2 block text-xs font-semibold" style={{ color: "var(--foreground)" }}>
               Frequency
             </label>
-            <select
-              value={frequency}
-              onChange={(e) => setFrequency(e.target.value as ScheduleFrequency)}
-              className="w-full px-3 py-2 text-xs"
-              style={inputStyle}
-            >
-              <option value="daily">Daily</option>
-              <option value="weekly">Weekly</option>
-              <option value="monthly">Monthly</option>
-            </select>
-          </div>
-
-          {/* Conditional day fields */}
-          {(frequency === "weekly" || frequency === "monthly") && (
             <div
-              className="rounded-lg p-3"
+              className="grid grid-cols-3 gap-1.5 rounded-xl p-1"
               style={{ background: "var(--surface-elevated)", border: "1px solid var(--border)" }}
             >
-              <div className="mb-1.5 text-xs font-medium" style={{ color: "var(--muted)" }}>
-                {frequency === "weekly" ? "Day of Week" : "Day of Month"}
+              {(["daily", "weekly", "monthly"] as ScheduleFrequency[]).map((f) => {
+                const cfg = FREQ_CONFIG[f];
+                const active = frequency === f;
+                return (
+                  <button
+                    key={f}
+                    type="button"
+                    onClick={() => setFrequency(f)}
+                    className="rounded-lg py-2 text-xs font-semibold transition-all"
+                    style={{
+                      background: active ? cfg.bg : "transparent",
+                      color: active ? cfg.color : "var(--muted)",
+                      border: active ? `1px solid ${cfg.color}30` : "1px solid transparent",
+                    }}
+                  >
+                    {cfg.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Day selector */}
+          {frequency === "weekly" && (
+            <div>
+              <label className="mb-2 block text-xs font-semibold" style={{ color: "var(--foreground)" }}>
+                Day of Week
+              </label>
+              <div className="grid grid-cols-7 gap-1">
+                {DOW_SHORT.map((label, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => setDow(i)}
+                    className="flex flex-col items-center justify-center rounded-lg py-2 text-xs transition-all"
+                    style={{
+                      background: dow === i ? FREQ_CONFIG.weekly.bg : "var(--surface-elevated)",
+                      color: dow === i ? FREQ_CONFIG.weekly.color : "var(--muted)",
+                      border: dow === i ? `1px solid ${FREQ_CONFIG.weekly.color}40` : "1px solid var(--border)",
+                      fontWeight: dow === i ? 700 : 500,
+                    }}
+                  >
+                    {label}
+                  </button>
+                ))}
               </div>
-              {frequency === "weekly" ? (
-                <select
-                  value={dow}
-                  onChange={(e) => setDow(Number(e.target.value))}
-                  className="w-full px-3 py-2 text-xs"
-                  style={{ ...inputStyle, background: "var(--surface)" }}
-                >
-                  {DOW_LABELS.map((label, i) => (
-                    <option key={i} value={i}>{label}</option>
-                  ))}
-                </select>
-              ) : (
-                <select
-                  value={dom}
-                  onChange={(e) => setDom(Number(e.target.value))}
-                  className="w-full px-3 py-2 text-xs"
-                  style={{ ...inputStyle, background: "var(--surface)" }}
-                >
-                  {Array.from({ length: 31 }, (_, i) => (
-                    <option key={i + 1} value={i + 1}>{i + 1}</option>
-                  ))}
-                </select>
-              )}
+            </div>
+          )}
+
+          {frequency === "monthly" && (
+            <div>
+              <label className="mb-2 block text-xs font-semibold" style={{ color: "var(--foreground)" }}>
+                Day of Month
+              </label>
+              <select
+                value={dom}
+                onChange={(e) => setDom(Number(e.target.value))}
+                className="w-full px-3 py-2.5 text-xs"
+                style={inputStyle}
+              >
+                {Array.from({ length: 31 }, (_, i) => (
+                  <option key={i + 1} value={i + 1}>
+                    {i + 1}{i === 0 ? "st" : i === 1 ? "nd" : i === 2 ? "rd" : "th"} of each month
+                  </option>
+                ))}
+              </select>
             </div>
           )}
 
           {/* Time */}
           <div>
-            <label className="mb-1.5 block text-xs font-medium" style={{ color: "var(--muted)" }}>
+            <label className="mb-2 block text-xs font-semibold" style={{ color: "var(--foreground)" }}>
               Time (UTC)
             </label>
-            <select
-              value={hour}
-              onChange={(e) => setHour(Number(e.target.value))}
-              className="w-full px-3 py-2 text-xs"
-              style={inputStyle}
-            >
-              {Array.from({ length: 24 }, (_, i) => (
-                <option key={i} value={i}>{formatHour(i)}</option>
-              ))}
-            </select>
+            <div className="relative">
+              <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                <ClockIcon size={13} color="var(--muted)" />
+              </div>
+              <select
+                value={hour}
+                onChange={(e) => setHour(Number(e.target.value))}
+                className="w-full pl-8 pr-3 py-2.5 text-xs"
+                style={inputStyle}
+              >
+                {Array.from({ length: 24 }, (_, i) => (
+                  <option key={i} value={i}>{formatHour(i)}</option>
+                ))}
+              </select>
+            </div>
           </div>
 
+          {/* Summary preview */}
+          {url && (
+            <div
+              className="flex items-center gap-2 rounded-lg px-3 py-2.5"
+              style={{ background: `${freqCfg.color}08`, border: `1px solid ${freqCfg.color}25` }}
+            >
+              <RepeatIcon size={13} color={freqCfg.color} />
+              <span className="text-xs font-medium" style={{ color: freqCfg.color }}>
+                Will run {frequency === "daily" ? "every day" : frequency === "weekly" ? `every ${DOW_LABELS[dow]}` : `on day ${dom} of each month`} at {formatHour(hour)}
+              </span>
+            </div>
+          )}
+
           {error && (
-            <div className="rounded-lg px-3 py-2 text-xs" style={{ background: "#fef2f2", color: "#dc2626", border: "1px solid #fecaca" }}>
+            <div className="flex items-center gap-2 rounded-lg px-3 py-2.5 text-xs" style={{ background: "#fef2f2", color: "#dc2626", border: "1px solid #fecaca" }}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2" strokeLinecap="round">
+                <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
+              </svg>
               {error}
             </div>
           )}
 
-          <div className="flex justify-end gap-2 pt-1">
+          <div className="flex gap-2 pt-1">
             <button
               type="button"
               onClick={onClose}
-              className="rounded-lg px-4 py-2 text-xs font-medium"
+              className="flex-1 rounded-xl py-2.5 text-xs font-semibold"
               style={{ border: "1px solid var(--border)", color: "var(--muted)", background: "transparent" }}
             >
               Cancel
@@ -313,7 +431,7 @@ function ScheduleFormModal({ initial, editId, onClose, onSaved }: FormModalProps
             <button
               type="submit"
               disabled={saving}
-              className="rounded-lg px-4 py-2 text-xs font-semibold text-white"
+              className="flex-1 rounded-xl py-2.5 text-xs font-semibold text-white"
               style={{
                 background: saving ? "var(--border-dark)" : "linear-gradient(135deg, #0d9488, #16a34a)",
                 opacity: saving ? 0.7 : 1,
@@ -328,9 +446,43 @@ function ScheduleFormModal({ initial, editId, onClose, onSaved }: FormModalProps
   );
 }
 
-// ── Schedule Card ─────────────────────────────────────────────────────────────
+// ── Toggle Switch ─────────────────────────────────────────────────────────────
 
-interface CardProps {
+function Toggle({ enabled, onToggle }: { enabled: boolean; onToggle: () => void }) {
+  return (
+    <button
+      onClick={onToggle}
+      title={enabled ? "Disable schedule" : "Enable schedule"}
+      className="flex-shrink-0 rounded-full transition-colors"
+      style={{
+        width: 38,
+        height: 22,
+        background: enabled ? "var(--accent)" : "var(--border-dark)",
+        position: "relative",
+        flexShrink: 0,
+        border: "none",
+        cursor: "pointer",
+      }}
+    >
+      <span
+        className="absolute rounded-full bg-white"
+        style={{
+          width: 18,
+          height: 18,
+          top: 2,
+          left: 2,
+          transform: enabled ? "translateX(16px)" : "translateX(0)",
+          transition: "transform 0.18s ease",
+          boxShadow: "0 1px 3px rgba(0,0,0,.2)",
+        }}
+      />
+    </button>
+  );
+}
+
+// ── Schedule Row (table view) ─────────────────────────────────────────────────
+
+interface RowProps {
   schedule: Schedule;
   onToggle: () => void;
   onEdit: () => void;
@@ -342,137 +494,93 @@ interface CardProps {
   onCancelDelete: () => void;
 }
 
-function ScheduleCard({
+function ScheduleRow({
   schedule: s,
-  onToggle,
-  onEdit,
-  onDelete,
-  onRunNow,
-  runStatus,
-  confirmingDelete,
-  onRequestDelete,
-  onCancelDelete,
-}: CardProps) {
-  const soon = isNextRunSoon(s.next_run_at);
+  onToggle, onEdit, onDelete, onRunNow,
+  runStatus, confirmingDelete, onRequestDelete, onCancelDelete,
+}: RowProps) {
+  const fc  = FREQ_CONFIG[s.frequency] ?? FREQ_CONFIG.weekly;
+  const soon    = isNextRunSoon(s.next_run_at);
+  const overdue = isOverdue(s.next_run_at);
 
-  const freqColors: Record<ScheduleFrequency, { bg: string; color: string }> = {
-    daily:   { bg: "#eff6ff", color: "#3b82f6" },
-    weekly:  { bg: "#f0fdf4", color: "#16a34a" },
-    monthly: { bg: "#fdf4ff", color: "#9333ea" },
-  };
-  const fc = freqColors[s.frequency] ?? { bg: "var(--surface-elevated)", color: "var(--muted)" };
+  const nextRunColor = overdue ? "#f43f5e" : soon ? "#f59e0b" : "var(--foreground)";
 
   return (
     <div
-      className="rounded-xl overflow-hidden flex flex-col"
+      className="group flex items-center gap-4 px-5 py-4 transition-colors"
       style={{
+        borderBottom: "1px solid var(--border)",
         background: "var(--surface)",
-        border: "1px solid var(--border)",
-        borderLeft: `3px solid ${s.enabled ? "var(--accent)" : "var(--border-dark)"}`,
-        boxShadow: "0 1px 4px rgba(0,0,0,.06)",
-        opacity: s.enabled ? 1 : 0.45,
+        opacity: s.enabled ? 1 : 0.55,
       }}
     >
-      {/* Card body */}
-      <div className="flex flex-col gap-3 p-4 flex-1">
-        {/* Top row: status dot + domain + toggle */}
-        <div className="flex items-start justify-between gap-2">
-          <div className="flex items-start gap-2 min-w-0">
-            {/* Status dot */}
-            <span
-              className="mt-0.5 flex-shrink-0 rounded-full"
-              style={{
-                width: 8,
-                height: 8,
-                background: s.enabled ? "#10b981" : "var(--border-dark)",
-                marginTop: 4,
-              }}
-            />
-            <div className="min-w-0">
-              <div className="truncate text-xs font-semibold" style={{ color: "var(--foreground)" }}>
-                {s.domain}
-              </div>
-              <div className="mt-0.5 truncate text-xs font-mono" style={{ color: "var(--muted)", maxWidth: 240 }}>
-                {s.url}
-              </div>
-            </div>
-          </div>
-
-          {/* Toggle */}
-          <button
-            onClick={onToggle}
-            title={s.enabled ? "Disable schedule" : "Enable schedule"}
-            className="flex-shrink-0 rounded-full transition-colors"
-            style={{
-              width: 36,
-              height: 20,
-              background: s.enabled ? "var(--accent)" : "var(--border-dark)",
-              position: "relative",
-              flexShrink: 0,
-            }}
-          >
-            <span
-              className="absolute top-0.5 rounded-full bg-white transition-transform"
-              style={{
-                width: 16,
-                height: 16,
-                left: 2,
-                transform: s.enabled ? "translateX(16px)" : "translateX(0)",
-              }}
-            />
-          </button>
-        </div>
-
-        {/* Frequency badge + summary */}
-        <div className="flex flex-wrap items-center gap-2">
-          <span
-            className="rounded-full px-2.5 py-0.5 text-xs font-semibold"
-            style={{ background: fc.bg, color: fc.color }}
-          >
-            {s.frequency.charAt(0).toUpperCase() + s.frequency.slice(1)}
-          </span>
-          <span className="text-xs" style={{ color: "var(--muted)" }}>
-            {frequencySummary(s)}
-          </span>
-        </div>
-
-        {/* Run times */}
-        <div className="grid grid-cols-2 gap-3 text-xs rounded-lg p-2.5" style={{ background: "var(--surface-elevated)" }}>
-          <div>
-            <div className="mb-0.5 flex items-center gap-1" style={{ color: "var(--muted)" }}>
-              <ClockIcon size={11} />
-              <span>Next run</span>
-            </div>
-            <span
-              className="font-semibold"
-              style={{ color: soon ? "var(--accent)" : "var(--foreground)" }}
-              title={s.next_run_at}
-            >
-              {formatNextRun(s.next_run_at)}
-            </span>
-          </div>
-          <div>
-            <div className="mb-0.5 flex items-center gap-1" style={{ color: "var(--muted)" }}>
-              <CheckCircleIcon size={11} />
-              <span>Last run</span>
-            </div>
-            <span className="font-medium" style={{ color: "var(--foreground)" }}>
-              {s.last_run_at ? formatDate(s.last_run_at) : "Never"}
-            </span>
-          </div>
-        </div>
+      {/* Status indicator */}
+      <div className="flex-shrink-0">
+        <div
+          className="rounded-full"
+          style={{
+            width: 9,
+            height: 9,
+            background: s.enabled ? "#10b981" : "var(--border-dark)",
+            boxShadow: s.enabled ? "0 0 0 3px #10b98120" : "none",
+          }}
+        />
       </div>
 
-      {/* Action footer */}
-      <div
-        className="flex items-center gap-2 px-4 py-2.5"
-        style={{ borderTop: "1px solid var(--border)", background: "var(--surface-elevated)" }}
-      >
+      {/* Domain + URL */}
+      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <span className="truncate text-xs font-bold" style={{ color: "var(--foreground)" }}>
+          {s.domain}
+        </span>
+        <span className="truncate text-xs font-mono" style={{ color: "var(--muted)", maxWidth: 280 }}>
+          {s.url}
+        </span>
+      </div>
+
+      {/* Frequency badge */}
+      <div className="hidden sm:block flex-shrink-0 w-28">
+        <span
+          className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold"
+          style={{ background: fc.bg, color: fc.color }}
+        >
+          <span className="rounded-full" style={{ width: 5, height: 5, background: fc.color, display: "inline-block" }} />
+          {fc.label}
+        </span>
+      </div>
+
+      {/* Schedule summary */}
+      <div className="hidden md:block flex-shrink-0 w-44">
+        <span className="text-xs" style={{ color: "var(--muted)" }}>
+          {frequencySummary(s)}
+        </span>
+      </div>
+
+      {/* Next run */}
+      <div className="flex-shrink-0 w-24 text-right hidden sm:block">
+        <span className="text-xs font-semibold" style={{ color: nextRunColor }} title={s.next_run_at}>
+          {formatNextRun(s.next_run_at)}
+        </span>
+        {overdue && (
+          <div className="text-[10px]" style={{ color: "#f43f5e" }}>check scheduler</div>
+        )}
+      </div>
+
+      {/* Last run */}
+      <div className="flex-shrink-0 w-24 text-right hidden lg:block">
+        <span className="text-xs" style={{ color: "var(--muted)" }}>
+          {formatDateShort(s.last_run_at)}
+        </span>
+      </div>
+
+      {/* Actions */}
+      <div className="flex flex-shrink-0 items-center gap-2">
+        <Toggle enabled={s.enabled} onToggle={onToggle} />
+
         {/* Run Now */}
         <button
           onClick={onRunNow}
           disabled={runStatus === "running"}
-          className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold text-white"
+          className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-white transition-all"
           style={{
             background:
               runStatus === "done"    ? "#10b981" :
@@ -481,36 +589,43 @@ function ScheduleCard({
               runStatus === "running" ? "var(--border-dark)" :
               "linear-gradient(135deg, #0d9488, #16a34a)",
             opacity: runStatus === "running" ? 0.7 : 1,
-            transition: "background 0.2s",
+            minWidth: 72,
+            justifyContent: "center",
+            display: "flex",
           }}
         >
-          {runStatus === "idle" && <PlayIcon size={11} color="white" />}
-          {runStatus === "running" ? "Running…"
-            : runStatus === "done"    ? "Queued ✓"
-            : runStatus === "skipped" ? "Skipped"
-            : runStatus === "error"   ? "Error"
-            : "Run Now"}
+          {runStatus === "idle" && <PlayIcon size={10} color="white" />}
+          <span>
+            {runStatus === "running" ? "Running…"
+              : runStatus === "done"    ? "Queued ✓"
+              : runStatus === "skipped" ? "Skipped"
+              : runStatus === "error"   ? "Error"
+              : "Run Now"}
+          </span>
         </button>
-
-        <div className="flex-1" />
 
         {/* Edit */}
         <button
           onClick={onEdit}
           title="Edit schedule"
-          className="flex items-center justify-center rounded-lg p-1.5"
-          style={{ border: "1px solid var(--border)", color: "var(--muted)", background: "transparent" }}
+          className="flex items-center justify-center rounded-lg transition-colors"
+          style={{
+            width: 30, height: 30,
+            border: "1px solid var(--border)",
+            color: "var(--muted)",
+            background: "transparent",
+          }}
         >
           <PencilIcon size={13} />
         </button>
 
         {/* Delete / Confirm */}
         {confirmingDelete ? (
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1">
             <span className="text-xs font-medium" style={{ color: "#f43f5e" }}>Delete?</span>
             <button
               onClick={onDelete}
-              className="rounded-lg px-2 py-1 text-xs font-semibold text-white"
+              className="rounded-lg px-2 py-1 text-xs font-bold text-white"
               style={{ background: "#f43f5e" }}
             >
               Yes
@@ -527,8 +642,13 @@ function ScheduleCard({
           <button
             onClick={onRequestDelete}
             title="Delete schedule"
-            className="flex items-center justify-center rounded-lg p-1.5"
-            style={{ border: "1px solid var(--border)", color: "#f43f5e", background: "transparent" }}
+            className="flex items-center justify-center rounded-lg transition-colors"
+            style={{
+              width: 30, height: 30,
+              border: "1px solid var(--border)",
+              color: "#f43f5e",
+              background: "transparent",
+            }}
           >
             <TrashIcon size={13} />
           </button>
@@ -538,27 +658,58 @@ function ScheduleCard({
   );
 }
 
-// ── Skeleton Card ─────────────────────────────────────────────────────────────
+// ── Skeleton Row ──────────────────────────────────────────────────────────────
 
-function SkeletonCard() {
+function SkeletonRow() {
   return (
-    <div
-      className="rounded-xl overflow-hidden"
-      style={{ background: "var(--surface)", border: "1px solid var(--border)", borderLeft: "3px solid var(--border)" }}
-    >
-      <div className="flex flex-col gap-3 p-4">
-        <div className="flex items-center gap-2">
-          <div className="h-2 w-2 animate-pulse rounded-full" style={{ background: "var(--border)" }} />
-          <div className="h-3 w-32 animate-pulse rounded" style={{ background: "var(--border)" }} />
-        </div>
-        <div className="h-2.5 w-48 animate-pulse rounded" style={{ background: "var(--border)" }} />
-        <div className="flex gap-2">
-          <div className="h-5 w-16 animate-pulse rounded-full" style={{ background: "var(--border)" }} />
-          <div className="h-5 w-32 animate-pulse rounded" style={{ background: "var(--border)" }} />
-        </div>
-        <div className="h-14 w-full animate-pulse rounded-lg" style={{ background: "var(--border)" }} />
+    <div className="flex items-center gap-4 px-5 py-4" style={{ borderBottom: "1px solid var(--border)" }}>
+      <div className="h-2.5 w-2.5 animate-pulse rounded-full flex-shrink-0" style={{ background: "var(--border)" }} />
+      <div className="flex flex-1 flex-col gap-1.5 min-w-0">
+        <div className="h-3 w-32 animate-pulse rounded" style={{ background: "var(--border)" }} />
+        <div className="h-2.5 w-52 animate-pulse rounded" style={{ background: "var(--border)" }} />
       </div>
-      <div className="h-10 animate-pulse" style={{ background: "var(--surface-elevated)", borderTop: "1px solid var(--border)" }} />
+      <div className="h-5 w-16 animate-pulse rounded-full flex-shrink-0 hidden sm:block" style={{ background: "var(--border)" }} />
+      <div className="h-3 w-36 animate-pulse rounded flex-shrink-0 hidden md:block" style={{ background: "var(--border)" }} />
+      <div className="h-3 w-16 animate-pulse rounded flex-shrink-0 hidden sm:block" style={{ background: "var(--border)" }} />
+      <div className="h-3 w-16 animate-pulse rounded flex-shrink-0 hidden lg:block" style={{ background: "var(--border)" }} />
+      <div className="flex gap-2 flex-shrink-0">
+        <div className="h-6 w-9 animate-pulse rounded-full" style={{ background: "var(--border)" }} />
+        <div className="h-7 w-18 animate-pulse rounded-lg" style={{ background: "var(--border)" }} />
+        <div className="h-7 w-7 animate-pulse rounded-lg" style={{ background: "var(--border)" }} />
+        <div className="h-7 w-7 animate-pulse rounded-lg" style={{ background: "var(--border)" }} />
+      </div>
+    </div>
+  );
+}
+
+// ── Filter Pills ──────────────────────────────────────────────────────────────
+
+function FilterPills({
+  options, selected, onSelect,
+}: {
+  options: { value: string; label: string }[];
+  selected: string;
+  onSelect: (v: string) => void;
+}) {
+  return (
+    <div className="flex items-center gap-1.5 flex-wrap">
+      {options.map(({ value, label }) => {
+        const active = selected === value;
+        return (
+          <button
+            key={value}
+            onClick={() => onSelect(value)}
+            className="rounded-full px-3 py-1 text-xs font-medium transition-all"
+            style={{
+              background: active ? "var(--accent)" : "var(--surface-elevated)",
+              color: active ? "white" : "var(--muted)",
+              border: active ? "1px solid var(--accent)" : "1px solid var(--border)",
+            }}
+          >
+            {label}
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -566,14 +717,16 @@ function SkeletonCard() {
 // ── Main Tab ──────────────────────────────────────────────────────────────────
 
 export function SchedulesTab({ initialDomain }: Props) {
-  const [schedules, setSchedules] = useState<Schedule[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [showCreate, setShowCreate] = useState(false);
-  const [editTarget, setEditTarget] = useState<Schedule | null>(null);
-  const [runStatus, setRunStatus] = useState<Record<string, "running" | "done" | "skipped" | "error">>({});
+  const [schedules, setSchedules]       = useState<Schedule[]>([]);
+  const [loading, setLoading]           = useState(true);
+  const [error, setError]               = useState<string | null>(null);
+  const [showCreate, setShowCreate]     = useState(false);
+  const [editTarget, setEditTarget]     = useState<Schedule | null>(null);
+  const [runStatus, setRunStatus]       = useState<Record<string, "running" | "done" | "skipped" | "error">>({});
   const [pendingDelete, setPendingDelete] = useState<Record<string, boolean>>({});
   const [domainFilter, setDomainFilter] = useState<string>("all");
+  const [freqFilter, setFreqFilter]     = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
 
   const load = useCallback(async () => {
     try {
@@ -596,9 +749,7 @@ export function SchedulesTab({ initialDomain }: Props) {
     try {
       const updated = await updateSchedule(s.id, { enabled: !s.enabled });
       setSchedules((prev) => prev.map((x) => (x.id === s.id ? updated : x)));
-    } catch {
-      // ignore
-    }
+    } catch { /* ignore */ }
   }
 
   async function handleDelete(id: string) {
@@ -606,9 +757,7 @@ export function SchedulesTab({ initialDomain }: Props) {
       await deleteSchedule(id);
       setSchedules((prev) => prev.filter((x) => x.id !== id));
       setPendingDelete((prev) => { const n = { ...prev }; delete n[id]; return n; });
-    } catch {
-      // ignore
-    }
+    } catch { /* ignore */ }
   }
 
   async function handleRunNow(id: string) {
@@ -625,167 +774,253 @@ export function SchedulesTab({ initialDomain }: Props) {
   }
 
   // Derived stats
-  const activeCount = schedules.filter((s) => s.enabled).length;
-  const soonest = schedules
+  const activeCount   = schedules.filter((s) => s.enabled).length;
+  const inactiveCount = schedules.length - activeCount;
+  const soonest       = schedules
     .filter((s) => s.enabled)
     .sort((a, b) => new Date(a.next_run_at).getTime() - new Date(b.next_run_at).getTime())[0];
+  const lastRan       = schedules
+    .filter((s) => s.last_run_at)
+    .sort((a, b) => new Date(b.last_run_at!).getTime() - new Date(a.last_run_at!).getTime())[0];
 
   // Unique domains for filter
   const uniqueDomains = Array.from(new Set(schedules.map((s) => s.domain))).sort();
 
   // Filtered list
-  const filtered = domainFilter === "all"
-    ? schedules
-    : schedules.filter((s) => s.domain === domainFilter);
+  const filtered = schedules
+    .filter((s) => domainFilter === "all" || s.domain === domainFilter)
+    .filter((s) => freqFilter   === "all" || s.frequency === freqFilter)
+    .filter((s) => statusFilter === "all" || (statusFilter === "active" ? s.enabled : !s.enabled));
+
+  const domainOptions = [
+    { value: "all", label: `All domains` },
+    ...uniqueDomains.map((d) => ({ value: d, label: d })),
+  ];
+
+  const freqOptions = [
+    { value: "all",     label: "All frequencies" },
+    { value: "daily",   label: "Daily" },
+    { value: "weekly",  label: "Weekly" },
+    { value: "monthly", label: "Monthly" },
+  ];
+
+  const statusOptions = [
+    { value: "all",      label: "All statuses" },
+    { value: "active",   label: "Active" },
+    { value: "inactive", label: "Inactive" },
+  ];
 
   return (
-    <div className="flex flex-col gap-5 p-4">
-      {/* Header */}
-      <div className="flex items-center justify-between gap-4">
+    <div className="flex flex-col gap-0" style={{ minHeight: 0 }}>
+      {/* ── Page header ───────────────────────────────────────────────────── */}
+      <div
+        className="flex items-center justify-between gap-4 px-5 py-4"
+        style={{ borderBottom: "1px solid var(--border)", background: "var(--surface)" }}
+      >
         <div className="flex items-center gap-3">
           <div
-            className="flex items-center justify-center rounded-xl"
-            style={{ width: 40, height: 40, background: "linear-gradient(135deg, #0d9488, #16a34a)" }}
+            className="flex items-center justify-center rounded-xl flex-shrink-0"
+            style={{ width: 38, height: 38, background: "linear-gradient(135deg, #0d9488, #16a34a)" }}
           >
-            <CalendarIcon size={20} color="white" />
+            <CalendarIcon size={18} color="white" />
           </div>
           <div>
             <h2 className="text-sm font-bold" style={{ color: "var(--foreground)" }}>
               Scheduled Re-audits
             </h2>
-            <p className="mt-0.5 text-xs" style={{ color: "var(--muted)" }}>
-              Automatically re-crawl and re-analyze sites on a recurring schedule.
+            <p className="text-xs" style={{ color: "var(--muted)" }}>
+              Automatically re-crawl and score sites on a recurring schedule
             </p>
           </div>
         </div>
         <button
           onClick={() => setShowCreate(true)}
-          className="flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-semibold text-white flex-shrink-0"
-          style={{ background: "linear-gradient(135deg, #0d9488, #16a34a)", boxShadow: "0 2px 8px rgba(13,148,136,.3)" }}
+          className="flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-semibold text-white flex-shrink-0"
+          style={{ background: "linear-gradient(135deg, #0d9488, #16a34a)", boxShadow: "0 2px 10px rgba(13,148,136,.3)" }}
         >
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round">
-            <line x1="12" y1="5" x2="12" y2="19" />
-            <line x1="5" y1="12" x2="19" y2="12" />
+            <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
           </svg>
           Add Schedule
         </button>
       </div>
 
-      {/* Stats row — only show when loaded with data */}
+      {/* ── Stats strip ───────────────────────────────────────────────────── */}
       {!loading && !error && schedules.length > 0 && (
-        <div className="grid grid-cols-3 gap-3">
+        <div
+          className="grid grid-cols-2 sm:grid-cols-4 gap-px"
+          style={{ background: "var(--border)", borderBottom: "1px solid var(--border)" }}
+        >
           {[
             {
-              label: "Total Schedules",
+              label: "Total",
               value: schedules.length,
-              icon: <CalendarIcon size={15} color="var(--accent)" />,
+              sub: "schedules",
+              icon: <CalendarIcon size={14} color="var(--accent)" />,
             },
             {
               label: "Active",
               value: activeCount,
-              icon: (
-                <span className="rounded-full" style={{ width: 10, height: 10, background: "#10b981", display: "inline-block" }} />
-              ),
+              sub: "enabled",
+              icon: <span className="rounded-full inline-block" style={{ width: 8, height: 8, background: "#10b981" }} />,
+              valueColor: activeCount > 0 ? "#10b981" : "var(--foreground)",
             },
             {
-              label: "Next Run",
+              label: "Next run",
               value: soonest ? formatNextRun(soonest.next_run_at) : "—",
-              icon: <ClockIcon size={15} color="var(--accent)" />,
+              sub: soonest ? soonest.domain : "no active schedules",
+              icon: <ClockIcon size={14} color="var(--accent)" />,
             },
-          ].map(({ label, value, icon }) => (
+            {
+              label: "Last ran",
+              value: lastRan?.last_run_at ? formatDateShort(lastRan.last_run_at) : "Never",
+              sub: lastRan ? lastRan.domain : "no runs yet",
+              icon: <CheckIcon size={12} color="var(--accent)" />,
+            },
+          ].map(({ label, value, sub, icon, valueColor }) => (
             <div
               key={label}
-              className="flex items-center gap-3 rounded-xl p-3"
-              style={{ background: "var(--surface)", border: "1px solid var(--border)", boxShadow: "0 1px 3px rgba(0,0,0,.05)" }}
+              className="flex items-center gap-3 px-5 py-3.5"
+              style={{ background: "var(--surface)" }}
             >
-              <div className="flex items-center justify-center rounded-lg flex-shrink-0"
-                style={{ width: 32, height: 32, background: "var(--surface-elevated)" }}>
+              <div
+                className="flex items-center justify-center rounded-lg flex-shrink-0"
+                style={{ width: 30, height: 30, background: "var(--surface-elevated)" }}
+              >
                 {icon}
               </div>
-              <div>
-                <div className="text-xs" style={{ color: "var(--muted)" }}>{label}</div>
-                <div className="text-sm font-bold" style={{ color: "var(--foreground)" }}>{value}</div>
+              <div className="min-w-0">
+                <div className="text-[10px] font-medium uppercase tracking-wide" style={{ color: "var(--muted)" }}>{label}</div>
+                <div className="text-sm font-bold truncate" style={{ color: valueColor ?? "var(--foreground)" }}>{value}</div>
+                <div className="text-[10px] truncate" style={{ color: "var(--muted)" }}>{sub}</div>
               </div>
             </div>
           ))}
         </div>
       )}
 
-      {/* Domain filter */}
-      {!loading && !error && uniqueDomains.length > 1 && (
-        <div className="flex items-center gap-2">
-          <span className="text-xs" style={{ color: "var(--muted)" }}>Filter:</span>
-          <select
-            value={domainFilter}
-            onChange={(e) => setDomainFilter(e.target.value)}
-            className="rounded-lg px-2.5 py-1.5 text-xs"
-            style={{
-              background: "var(--surface)",
-              border: "1px solid var(--border)",
-              color: "var(--foreground)",
-              outline: "none",
-            }}
-          >
-            <option value="all">All domains ({schedules.length})</option>
-            {uniqueDomains.map((d) => (
-              <option key={d} value={d}>{d}</option>
-            ))}
-          </select>
+      {/* ── Filters ───────────────────────────────────────────────────────── */}
+      {!loading && !error && schedules.length > 0 && (
+        <div
+          className="flex flex-wrap items-center gap-3 px-5 py-3"
+          style={{ borderBottom: "1px solid var(--border)", background: "var(--surface-elevated)" }}
+        >
+          <span className="text-xs font-medium" style={{ color: "var(--muted)" }}>Filter:</span>
+          {uniqueDomains.length > 1 && (
+            <FilterPills options={domainOptions} selected={domainFilter} onSelect={setDomainFilter} />
+          )}
+          <FilterPills options={freqOptions} selected={freqFilter} onSelect={setFreqFilter} />
+          <FilterPills options={statusOptions} selected={statusFilter} onSelect={setStatusFilter} />
+          {(domainFilter !== "all" || freqFilter !== "all" || statusFilter !== "all") && (
+            <button
+              onClick={() => { setDomainFilter("all"); setFreqFilter("all"); setStatusFilter("all"); }}
+              className="text-xs underline"
+              style={{ color: "var(--muted)" }}
+            >
+              Clear all
+            </button>
+          )}
         </div>
       )}
 
-      {/* Content */}
+      {/* ── Content ───────────────────────────────────────────────────────── */}
       {loading ? (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <SkeletonCard />
-          <SkeletonCard />
-          <SkeletonCard />
+        <div
+          className="overflow-hidden rounded-none"
+          style={{ background: "var(--surface)", border: "none" }}
+        >
+          {/* Table header */}
+          <div
+            className="flex items-center gap-4 px-5 py-2.5"
+            style={{ background: "var(--surface-elevated)", borderBottom: "1px solid var(--border)" }}
+          >
+            {["", "Site", "Frequency", "Schedule", "Next run", "Last run", "Actions"].map((h) => (
+              <div key={h} className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: "var(--muted)", flex: h === "Site" ? 1 : "none", width: h === "Frequency" ? 112 : h === "Schedule" ? 176 : h === "Next run" || h === "Last run" ? 96 : h === "" ? 9 : undefined }}>
+                {h}
+              </div>
+            ))}
+          </div>
+          <SkeletonRow />
+          <SkeletonRow />
+          <SkeletonRow />
         </div>
       ) : error ? (
-        <div
-          className="flex items-center gap-2 rounded-xl px-4 py-3 text-xs"
-          style={{ background: "#fef2f2", border: "1px solid #fecaca", color: "#dc2626" }}
-        >
+        <div className="flex items-center gap-2 m-5 rounded-xl px-4 py-3 text-xs" style={{ background: "#fef2f2", border: "1px solid #fecaca", color: "#dc2626" }}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2" strokeLinecap="round">
-            <circle cx="12" cy="12" r="10" />
-            <line x1="12" y1="8" x2="12" y2="12" />
-            <line x1="12" y1="16" x2="12.01" y2="16" />
+            <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
           </svg>
           {error}
         </div>
       ) : schedules.length === 0 ? (
-        <div
-          className="flex flex-col items-center justify-center rounded-2xl py-20 text-center"
-          style={{ border: "2px dashed var(--border)" }}
-        >
+        /* ── Empty state ── */
+        <div className="flex flex-col items-center justify-center py-24 text-center px-6">
           <div
-            className="mb-4 flex items-center justify-center rounded-2xl"
-            style={{ width: 64, height: 64, background: "var(--accent-light)" }}
+            className="mb-5 flex items-center justify-center rounded-2xl"
+            style={{ width: 72, height: 72, background: "linear-gradient(135deg, #0d948810, #16a34a10)", border: "1px solid #0d948820" }}
           >
-            <CalendarIcon size={32} color="var(--accent)" />
+            <CalendarIcon size={34} color="var(--accent)" />
           </div>
-          <div className="text-sm font-bold" style={{ color: "var(--foreground)" }}>
+          <div className="text-base font-bold" style={{ color: "var(--foreground)" }}>
             No scheduled audits yet
           </div>
-          <div className="mt-1.5 max-w-xs text-xs" style={{ color: "var(--muted)" }}>
-            Set up recurring re-audits to track your SEO score over time and catch regressions early.
+          <div className="mt-2 max-w-sm text-xs leading-relaxed" style={{ color: "var(--muted)" }}>
+            Set up recurring re-audits to track your AI Citation Score over time and catch regressions before they hurt your rankings.
           </div>
+          <div className="mt-6 flex flex-col items-center gap-3">
+            <button
+              onClick={() => setShowCreate(true)}
+              className="flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-white"
+              style={{ background: "linear-gradient(135deg, #0d9488, #16a34a)", boxShadow: "0 4px 14px rgba(13,148,136,.3)" }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round">
+                <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+              Add Your First Schedule
+            </button>
+            <div className="flex items-center gap-4 text-xs" style={{ color: "var(--muted)" }}>
+              {["Daily", "Weekly", "Monthly"].map((f) => {
+                const cfg = FREQ_CONFIG[f.toLowerCase() as ScheduleFrequency];
+                return (
+                  <span key={f} className="flex items-center gap-1">
+                    <span className="rounded-full inline-block" style={{ width: 6, height: 6, background: cfg.color }} />
+                    {f}
+                  </span>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-16 text-center px-6">
+          <div className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>No matching schedules</div>
+          <div className="mt-1 text-xs" style={{ color: "var(--muted)" }}>Try adjusting the filters above.</div>
           <button
-            onClick={() => setShowCreate(true)}
-            className="mt-5 flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-semibold text-white"
-            style={{ background: "linear-gradient(135deg, #0d9488, #16a34a)", boxShadow: "0 2px 8px rgba(13,148,136,.3)" }}
+            onClick={() => { setDomainFilter("all"); setFreqFilter("all"); setStatusFilter("all"); }}
+            className="mt-3 text-xs font-semibold"
+            style={{ color: "var(--accent)" }}
           >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round">
-              <line x1="12" y1="5" x2="12" y2="19" />
-              <line x1="5" y1="12" x2="19" y2="12" />
-            </svg>
-            Add Your First Schedule
+            Clear filters
           </button>
         </div>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        /* ── Table ── */
+        <div style={{ background: "var(--surface)" }}>
+          {/* Table header */}
+          <div
+            className="flex items-center gap-4 px-5 py-2.5"
+            style={{ background: "var(--surface-elevated)", borderBottom: "1px solid var(--border)" }}
+          >
+            <div style={{ width: 9, flexShrink: 0 }} />
+            <div className="flex-1 text-[10px] font-semibold uppercase tracking-wide" style={{ color: "var(--muted)" }}>Site</div>
+            <div className="hidden sm:block text-[10px] font-semibold uppercase tracking-wide" style={{ color: "var(--muted)", width: 112 }}>Frequency</div>
+            <div className="hidden md:block text-[10px] font-semibold uppercase tracking-wide" style={{ color: "var(--muted)", width: 176 }}>Schedule</div>
+            <div className="hidden sm:block text-right text-[10px] font-semibold uppercase tracking-wide" style={{ color: "var(--muted)", width: 96 }}>Next run</div>
+            <div className="hidden lg:block text-right text-[10px] font-semibold uppercase tracking-wide" style={{ color: "var(--muted)", width: 96 }}>Last run</div>
+            <div className="text-right text-[10px] font-semibold uppercase tracking-wide flex-shrink-0" style={{ color: "var(--muted)" }}>Actions</div>
+          </div>
+
           {filtered.map((s) => (
-            <ScheduleCard
+            <ScheduleRow
               key={s.id}
               schedule={s}
               runStatus={runStatus[s.id] ?? "idle"}
@@ -798,10 +1033,19 @@ export function SchedulesTab({ initialDomain }: Props) {
               onDelete={() => handleDelete(s.id)}
             />
           ))}
+
+          {/* Footer count */}
+          <div
+            className="px-5 py-3 text-xs"
+            style={{ color: "var(--muted)", borderTop: "1px solid var(--border)", background: "var(--surface-elevated)" }}
+          >
+            Showing {filtered.length} of {schedules.length} schedule{schedules.length !== 1 ? "s" : ""}
+            {inactiveCount > 0 && ` · ${inactiveCount} inactive`}
+          </div>
         </div>
       )}
 
-      {/* Create modal */}
+      {/* Modals */}
       {showCreate && (
         <ScheduleFormModal
           initial={null}
@@ -810,15 +1054,13 @@ export function SchedulesTab({ initialDomain }: Props) {
           onSaved={load}
         />
       )}
-
-      {/* Edit modal */}
       {editTarget && (
         <ScheduleFormModal
           initial={{
             url: editTarget.url,
             frequency: editTarget.frequency,
             hour: editTarget.hour,
-            day_of_week: editTarget.day_of_week ?? 0,
+            day_of_week:  editTarget.day_of_week  ?? 0,
             day_of_month: editTarget.day_of_month ?? 1,
           }}
           editId={editTarget.id}

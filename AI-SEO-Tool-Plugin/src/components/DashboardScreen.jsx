@@ -22,7 +22,6 @@ import useAnalysis from '../hooks/useAnalysis';
 import AnalysisProgress from './AnalysisProgress';
 import DashboardTab from './tabs/DashboardTab';
 import GeoAnalysisTab from './tabs/GeoAnalysisTab';
-import TechnicalAuditTab from './tabs/TechnicalAuditTab';
 import HistoryTab from './tabs/HistoryTab';
 import SchedulesTab from './tabs/SchedulesTab';
 
@@ -30,7 +29,6 @@ import SchedulesTab from './tabs/SchedulesTab';
 const PAGE_TO_TAB = {
     'ai-seo-tool':            'dashboard',
     'ai-seo-tool-geo':        'geo',
-    'ai-seo-tool-technical':  'technical',
     'ai-seo-tool-history':    'history',
     'ai-seo-tool-schedules':  'schedules',
     'ai-seo-tool-settings':   'settings',
@@ -253,7 +251,6 @@ export default function DashboardScreen( { currentPage, onDisconnected } ) {
     const tabs = [
         { name: 'dashboard', title: __( 'Dashboard',      'ai-seo-tool' ) },
         { name: 'geo',       title: __( 'GEO Analysis',   'ai-seo-tool' ) },
-        { name: 'technical', title: __( 'Technical Audit', 'ai-seo-tool' ) },
         { name: 'history',   title: __( 'History',        'ai-seo-tool' ) },
         { name: 'schedules', title: __( 'Schedules',      'ai-seo-tool' ) },
     ];
@@ -490,10 +487,7 @@ export default function DashboardScreen( { currentPage, onDisconnected } ) {
                                 { tab.name === 'geo' && (
                                     <GeoAnalysisTab siteId={ siteId } plan={ plan } />
                                 ) }
-                                { tab.name === 'technical' && (
-                                    <TechnicalAuditTab siteId={ siteId } plan={ plan } />
-                                ) }
-                                { tab.name === 'history' && (
+{ tab.name === 'history' && (
                                     <HistoryTab plan={ plan } />
                                 ) }
                                 { tab.name === 'schedules' && (
