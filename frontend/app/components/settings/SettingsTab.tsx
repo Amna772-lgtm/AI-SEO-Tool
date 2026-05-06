@@ -253,7 +253,7 @@ function SecuritySection() {
 const PLAN_FEATURES: Record<string, string[]> = {
   free: ["1 audit total", "Basic SEO checks", "Technical audit"],
   pro: ["10 audits / month", "Full GEO analysis", "Per-page scores", "Actionable recommendations"],
-  agency: ["Unlimited audits", "Full GEO analysis", "Per-page scores", "Scheduled re-audits", "Priority support"],
+  agency: ["Unlimited audits", "Full GEO analysis", "Per-page scores", "Scheduled re-audits", "White-label reporting"],
 };
 
 function PlanSection() {

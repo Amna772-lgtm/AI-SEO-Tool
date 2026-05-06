@@ -26,6 +26,7 @@ class CreateScheduleRequest(BaseModel):
     url: str
     frequency: Literal["daily", "weekly", "monthly"]
     hour: int = Field(..., ge=0, le=23)
+    minute: int = Field(0, ge=0, le=59)
     day_of_week: int | None = Field(None, ge=0, le=6)
     day_of_month: int | None = Field(None, ge=1, le=31)
 
@@ -41,6 +42,7 @@ class CreateScheduleRequest(BaseModel):
 class UpdateScheduleRequest(BaseModel):
     frequency: Literal["daily", "weekly", "monthly"] | None = None
     hour: int | None = Field(None, ge=0, le=23)
+    minute: int | None = Field(None, ge=0, le=59)
     day_of_week: int | None = Field(None, ge=0, le=6)
     day_of_month: int | None = Field(None, ge=1, le=31)
     enabled: bool | None = None
@@ -76,6 +78,7 @@ def create(
         body.day_of_week,
         body.day_of_month,
         user_id=current_user["id"],
+        minute=body.minute,
     )
 
 

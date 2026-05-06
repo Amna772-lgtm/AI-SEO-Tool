@@ -22,20 +22,80 @@ interface Props {
 const DOW_LABELS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 const DOW_SHORT  = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
-function formatHour(h: number): string {
-  const suffix = h < 12 ? "AM" : "PM";
-  const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
-  return `${h12}:00 ${suffix} UTC`;
+function getBrowserTimezone(): string {
+  try { return Intl.DateTimeFormat().resolvedOptions().timeZone; }
+  catch { return 'UTC'; }
+}
+
+function getSupportedTimezones(): string[] {
+  try { return (Intl as any).supportedValuesOf('timeZone'); }
+  catch {
+    return ['Pacific/Honolulu','America/Anchorage','America/Los_Angeles','America/Denver',
+      'America/Chicago','America/New_York','America/Halifax','America/Sao_Paulo',
+      'Europe/London','Europe/Paris','Europe/Helsinki','Europe/Moscow','Asia/Dubai',
+      'Asia/Karachi','Asia/Dhaka','Asia/Bangkok','Asia/Singapore','Asia/Tokyo',
+      'Australia/Sydney','Pacific/Auckland','UTC'];
+  }
+}
+
+function getTzOffsetLabel(tz: string): string {
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: tz, timeZoneName: 'shortOffset',
+    }).formatToParts(new Date(Date.UTC(2024, 0, 15, 12, 0, 0)));
+    const offset = parts.find(p => p.type === 'timeZoneName')?.value?.replace('GMT', 'UTC') ?? 'UTC';
+    return `${tz} (${offset})`;
+  } catch { return tz; }
+}
+
+// Returns how many minutes ahead of UTC the timezone is (positive for UTC+, negative for UTC-).
+// Uses formatToParts — no string parsing, works reliably across all browsers.
+function getUtcOffsetMinutes(timezone: string): number {
+  const now = new Date();
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: timezone, hour: 'numeric', minute: 'numeric', hour12: false,
+  }).formatToParts(now);
+  const localH = parseInt(parts.find(p => p.type === 'hour')!.value) % 24;
+  const localM = parseInt(parts.find(p => p.type === 'minute')!.value);
+  const utcH   = now.getUTCHours();
+  const utcM   = now.getUTCMinutes();
+  let diff = (localH * 60 + localM) - (utcH * 60 + utcM);
+  if (diff >  720) diff -= 1440;
+  if (diff < -720) diff += 1440;
+  return diff;
+}
+
+// "HH:MM" + IANA timezone → { hour, minute } in UTC (0-23, 0-59).
+function timeStringToUtc(timeStr: string, timezone: string): { hour: number; minute: number } {
+  const [h, m] = timeStr.split(':').map(Number);
+  const offset   = getUtcOffsetMinutes(timezone);
+  const utcMins  = ((h * 60 + m - offset) % 1440 + 1440) % 1440;
+  return { hour: Math.floor(utcMins / 60), minute: utcMins % 60 };
+}
+
+// UTC hour + minute → "HH:MM" string in the given timezone.
+function utcToTimeString(utcHour: number, utcMinute: number, timezone: string): string {
+  const ref = new Date();
+  ref.setUTCHours(utcHour, utcMinute, 0, 0);
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: timezone, hour: '2-digit', minute: '2-digit', hour12: false,
+  }).formatToParts(ref);
+  const h = String(parseInt(parts.find(p => p.type === 'hour')!.value) % 24).padStart(2, '0');
+  const m = parts.find(p => p.type === 'minute')!.value.padStart(2, '0');
+  return `${h}:${m}`;
 }
 
 function formatNextRun(iso: string): string {
   const diff = new Date(iso).getTime() - Date.now();
   if (diff < 0) return "Overdue";
-  const mins = Math.floor(diff / 60000);
-  if (mins < 60) return `in ${mins}m`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `in ${hrs}h ${mins % 60}m`;
-  return `in ${Math.floor(hrs / 24)}d`;
+  const totalMins = Math.floor(diff / 60000);
+  if (totalMins < 60) return `in ${totalMins}m`;
+  const hrs  = Math.floor(totalMins / 60);
+  const mins = totalMins % 60;
+  if (hrs < 24) return mins > 0 ? `in ${hrs}h ${mins}m` : `in ${hrs}h`;
+  const days = Math.floor(hrs / 24);
+  const remHrs = hrs % 24;
+  return remHrs > 0 ? `in ${days}d ${remHrs}h` : `in ${days}d`;
 }
 
 function isNextRunSoon(iso: string): boolean {
@@ -67,11 +127,19 @@ function formatDateShort(iso: string | null): string {
 }
 
 function frequencySummary(s: Schedule): string {
-  if (s.frequency === "daily")   return `Daily at ${formatHour(s.hour)}`;
-  if (s.frequency === "weekly")  return `${DOW_LABELS[s.day_of_week ?? 0]}s at ${formatHour(s.hour)}`;
-  if (s.frequency === "monthly") return `Day ${s.day_of_month} · ${formatHour(s.hour)}`;
+  const tz = getBrowserTimezone();
+  const timeStr = utcToTimeString(s.hour, s.minute ?? 0, tz);
+  const display = `${timeStr} (${tz})`;
+  if (s.frequency === "daily")   return `Daily at ${display}`;
+  if (s.frequency === "weekly")  return `${DOW_LABELS[s.day_of_week ?? 0]}s at ${display}`;
+  if (s.frequency === "monthly") return `Day ${s.day_of_month} · ${display}`;
   return s.frequency;
 }
+
+const TIMEZONE_OPTIONS = getSupportedTimezones().map(tz => ({
+  value: tz,
+  label: getTzOffsetLabel(tz),
+}));
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
 
@@ -173,7 +241,12 @@ function ScheduleFormModal({ initial, editId, onClose, onSaved }: FormModalProps
   const isEdit = !!editId;
   const [url, setUrl]           = useState(initial?.url ?? "");
   const [frequency, setFrequency] = useState<ScheduleFrequency>(initial?.frequency ?? "weekly");
-  const [hour, setHour]         = useState(initial?.hour ?? 9);
+  const [timezone, setTimezone] = useState<string>(() => getBrowserTimezone());
+  const [time, setTime]         = useState<string>(() =>
+    initial?.hour !== undefined
+      ? utcToTimeString(initial.hour, initial.minute ?? 0, getBrowserTimezone())
+      : '09:00'
+  );
   const [dow, setDow]           = useState(initial?.day_of_week ?? 0);
   const [dom, setDom]           = useState(initial?.day_of_month ?? 1);
   const [saving, setSaving]     = useState(false);
@@ -192,17 +265,20 @@ function ScheduleFormModal({ initial, editId, onClose, onSaved }: FormModalProps
     setSaving(true);
     setError(null);
     try {
+      const { hour: utcHour, minute: utcMinute } = timeStringToUtc(time, timezone);
       const payload: CreateSchedulePayload = {
         url,
         frequency,
-        hour,
+        hour: utcHour,
+        minute: utcMinute,
         day_of_week:  frequency === "weekly"  ? dow : undefined,
         day_of_month: frequency === "monthly" ? dom : undefined,
       };
       if (isEdit) {
         const update: UpdateSchedulePayload = {
           frequency,
-          hour,
+          hour: utcHour,
+          minute: utcMinute,
           day_of_week:  frequency === "weekly"  ? dow : null,
           day_of_month: frequency === "monthly" ? dom : null,
         };
@@ -378,23 +454,38 @@ function ScheduleFormModal({ initial, editId, onClose, onSaved }: FormModalProps
           {/* Time */}
           <div>
             <label className="mb-2 block text-xs font-semibold" style={{ color: "var(--foreground)" }}>
-              Time (UTC)
+              Time
             </label>
             <div className="relative">
               <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
                 <ClockIcon size={13} color="var(--muted)" />
               </div>
-              <select
-                value={hour}
-                onChange={(e) => setHour(Number(e.target.value))}
+              <input
+                type="time"
+                value={time}
+                onChange={(e) => setTime(e.target.value)}
+                required
                 className="w-full pl-8 pr-3 py-2.5 text-xs"
-                style={inputStyle}
-              >
-                {Array.from({ length: 24 }, (_, i) => (
-                  <option key={i} value={i}>{formatHour(i)}</option>
-                ))}
-              </select>
+                style={{ ...inputStyle, colorScheme: "inherit" }}
+              />
             </div>
+          </div>
+
+          {/* Timezone */}
+          <div>
+            <label className="mb-2 block text-xs font-semibold" style={{ color: "var(--foreground)" }}>
+              Timezone
+            </label>
+            <select
+              value={timezone}
+              onChange={(e) => setTimezone(e.target.value)}
+              className="w-full px-3 py-2.5 text-xs"
+              style={inputStyle}
+            >
+              {TIMEZONE_OPTIONS.map(({ value, label }) => (
+                <option key={value} value={value}>{label}</option>
+              ))}
+            </select>
           </div>
 
           {/* Summary preview */}
@@ -405,7 +496,7 @@ function ScheduleFormModal({ initial, editId, onClose, onSaved }: FormModalProps
             >
               <RepeatIcon size={13} color={freqCfg.color} />
               <span className="text-xs font-medium" style={{ color: freqCfg.color }}>
-                Will run {frequency === "daily" ? "every day" : frequency === "weekly" ? `every ${DOW_LABELS[dow]}` : `on day ${dom} of each month`} at {formatHour(hour)}
+                Will run {frequency === "daily" ? "every day" : frequency === "weekly" ? `every ${DOW_LABELS[dow]}` : `on day ${dom} of each month`} at {time} ({timezone})
               </span>
             </div>
           )}
@@ -1127,6 +1218,7 @@ export function SchedulesTab({ initialDomain }: Props) {
             url: editTarget.url,
             frequency: editTarget.frequency,
             hour: editTarget.hour,
+            minute: editTarget.minute ?? 0,
             day_of_week:  editTarget.day_of_week  ?? 0,
             day_of_month: editTarget.day_of_month ?? 1,
           }}

@@ -67,6 +67,7 @@ def init_db() -> None:
                     domain       TEXT NOT NULL,
                     frequency    TEXT NOT NULL CHECK(frequency IN ('daily','weekly','monthly')),
                     hour         INTEGER NOT NULL CHECK(hour BETWEEN 0 AND 23),
+                    minute       INTEGER NOT NULL DEFAULT 0 CHECK(minute BETWEEN 0 AND 59),
                     day_of_week  INTEGER CHECK(day_of_week BETWEEN 0 AND 6),
                     day_of_month INTEGER CHECK(day_of_month BETWEEN 1 AND 31),
                     enabled      INTEGER NOT NULL DEFAULT 1,
@@ -135,6 +136,7 @@ def init_db() -> None:
             # Use plain TEXT (no REFERENCES clause) to avoid SQLite ADD COLUMN FK restriction.
             _add_column_if_missing(conn, "analyses", "user_id", "TEXT")
             _add_column_if_missing(conn, "schedules", "user_id", "TEXT")
+            _add_column_if_missing(conn, "schedules", "minute", "INTEGER NOT NULL DEFAULT 0")
             # Indexes for user_id lookups (must run after column exists)
             conn.execute("CREATE INDEX IF NOT EXISTS idx_analyses_user_id  ON analyses(user_id)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_schedules_user_id ON schedules(user_id)")
@@ -359,6 +361,7 @@ def _compute_next_run(
     day_of_week: int | None,
     day_of_month: int | None,
     after: datetime | None = None,
+    minute: int = 0,
 ) -> str:
     """
     Return the next ISO-8601 UTC datetime at which a schedule should fire.
@@ -370,13 +373,13 @@ def _compute_next_run(
     base = now + timedelta(minutes=1)
 
     if frequency == "daily":
-        candidate = base.replace(hour=hour, minute=0, second=0, microsecond=0)
+        candidate = base.replace(hour=hour, minute=minute, second=0, microsecond=0)
         if candidate <= base:
             candidate += timedelta(days=1)
         return candidate.isoformat()
 
     if frequency == "weekly":
-        candidate = base.replace(hour=hour, minute=0, second=0, microsecond=0)
+        candidate = base.replace(hour=hour, minute=minute, second=0, microsecond=0)
         days_ahead = (day_of_week - candidate.weekday()) % 7  # type: ignore[operator]
         candidate += timedelta(days=days_ahead)
         if candidate <= base:
@@ -388,7 +391,7 @@ def _compute_next_run(
         for _ in range(13):
             max_day = calendar.monthrange(year, month)[1]
             actual_dom = min(day_of_month, max_day)  # type: ignore[type-var]
-            candidate = datetime(year, month, actual_dom, hour, 0, 0, tzinfo=timezone.utc)
+            candidate = datetime(year, month, actual_dom, hour, minute, 0, tzinfo=timezone.utc)
             if candidate > base:
                 return candidate.isoformat()
             month += 1
@@ -417,11 +420,12 @@ def create_schedule(
     day_of_week: int | None,
     day_of_month: int | None,
     user_id: str,
+    minute: int = 0,
 ) -> dict[str, Any]:
     """Insert a new schedule and return it as a dict."""
     schedule_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc).isoformat()
-    next_run = _compute_next_run(frequency, hour, day_of_week, day_of_month)
+    next_run = _compute_next_run(frequency, hour, day_of_week, day_of_month, minute=minute)
     domain = _extract_domain(url)
     with _lock:
         conn = _connect()
@@ -429,11 +433,11 @@ def create_schedule(
             conn.execute(
                 """
                 INSERT INTO schedules
-                    (id, url, domain, frequency, hour, day_of_week, day_of_month,
+                    (id, url, domain, frequency, hour, minute, day_of_week, day_of_month,
                      enabled, created_at, next_run_at, user_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)
                 """,
-                (schedule_id, url, domain, frequency, hour,
+                (schedule_id, url, domain, frequency, hour, minute,
                  day_of_week, day_of_month, now, next_run, user_id),
             )
             conn.commit()
@@ -480,6 +484,7 @@ def update_schedule(
     *,
     frequency: str | None = None,
     hour: int | None = None,
+    minute: int | None = None,
     day_of_week: int | None = None,
     day_of_month: int | None = None,
     enabled: bool | None = None,
@@ -495,6 +500,7 @@ def update_schedule(
 
     new_freq = frequency if frequency is not None else current["frequency"]
     new_hour = hour if hour is not None else current["hour"]
+    new_minute = minute if minute is not None else current.get("minute", 0)
     new_dow = day_of_week if day_of_week is not None else current["day_of_week"]
     new_dom = day_of_month if day_of_month is not None else current["day_of_month"]
     new_enabled = enabled if enabled is not None else current["enabled"]
@@ -502,6 +508,7 @@ def update_schedule(
     scheduling_changed = (
         new_freq != current["frequency"]
         or new_hour != current["hour"]
+        or new_minute != current.get("minute", 0)
         or new_dow != current["day_of_week"]
         or new_dom != current["day_of_month"]
     )
@@ -510,7 +517,7 @@ def update_schedule(
         or datetime.fromisoformat(current["next_run_at"]) <= datetime.now(timezone.utc)
     )
     new_next_run = (
-        _compute_next_run(new_freq, new_hour, new_dow, new_dom)
+        _compute_next_run(new_freq, new_hour, new_dow, new_dom, minute=new_minute)
         if scheduling_changed or (new_enabled and next_run_is_stale)
         else current["next_run_at"]
     )
@@ -521,11 +528,11 @@ def update_schedule(
             conn.execute(
                 """
                 UPDATE schedules
-                SET frequency=?, hour=?, day_of_week=?, day_of_month=?,
+                SET frequency=?, hour=?, minute=?, day_of_week=?, day_of_month=?,
                     enabled=?, next_run_at=?
                 WHERE id=? AND user_id=?
                 """,
-                (new_freq, new_hour, new_dow, new_dom,
+                (new_freq, new_hour, new_minute, new_dow, new_dom,
                  int(new_enabled), new_next_run, schedule_id, user_id),
             )
             conn.commit()

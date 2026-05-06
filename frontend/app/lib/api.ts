@@ -574,6 +574,7 @@ export interface Schedule {
   domain: string;
   frequency: ScheduleFrequency;
   hour: number;
+  minute: number;
   day_of_week: number | null;
   day_of_month: number | null;
   enabled: boolean;
@@ -590,6 +591,7 @@ export interface CreateSchedulePayload {
   url: string;
   frequency: ScheduleFrequency;
   hour: number;
+  minute: number;
   day_of_week?: number;
   day_of_month?: number;
 }
@@ -597,6 +599,7 @@ export interface CreateSchedulePayload {
 export interface UpdateSchedulePayload {
   frequency?: ScheduleFrequency;
   hour?: number;
+  minute?: number;
   day_of_week?: number | null;
   day_of_month?: number | null;
   enabled?: boolean;
