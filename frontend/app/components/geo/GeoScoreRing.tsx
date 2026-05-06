@@ -28,7 +28,7 @@ export function GeoScoreRing({ score, grade, size = 140 }: GeoScoreRingProps) {
           r={radius}
           fill="none"
           stroke="var(--border)"
-          strokeWidth={10}
+          strokeWidth={8}
         />
         {/* Score arc */}
         <circle
@@ -37,7 +37,7 @@ export function GeoScoreRing({ score, grade, size = 140 }: GeoScoreRingProps) {
           r={radius}
           fill="none"
           stroke={color}
-          strokeWidth={10}
+          strokeWidth={8}
           strokeLinecap="round"
           strokeDasharray={`${filled} ${gap}`}
           style={{ transition: "stroke-dasharray 0.8s ease" }}

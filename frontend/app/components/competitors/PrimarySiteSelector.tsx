@@ -7,9 +7,10 @@ interface Props {
   value: string;   // analysis_id of selected site
   onChange: (analysisId: string) => void;
   disabled?: boolean;
+  hideLabel?: boolean;
 }
 
-export default function PrimarySiteSelector({ history, value, onChange, disabled }: Props) {
+export default function PrimarySiteSelector({ history, value, onChange, disabled, hideLabel }: Props) {
   // Pitfall 6: dedupe by domain, keep most-recent analysis per domain
   const options = useMemo(() => {
     const seen = new Map<string, HistoryItem>();
@@ -28,11 +29,13 @@ export default function PrimarySiteSelector({ history, value, onChange, disabled
 
   return (
     <div className="flex flex-col gap-1">
-      <label className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">
-        Your site
-      </label>
+      {!hideLabel && (
+        <label className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">
+          Your site
+        </label>
+      )}
       <select
-        className="max-w-[320px] rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--foreground)] disabled:cursor-not-allowed disabled:opacity-50"
+        className="w-full rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--foreground)] disabled:cursor-not-allowed disabled:opacity-50"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         disabled={disabled || empty}
