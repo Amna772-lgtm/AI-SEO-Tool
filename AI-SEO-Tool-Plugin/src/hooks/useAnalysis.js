@@ -36,7 +36,8 @@ export default function useAnalysis( siteId, intervalMs = 3000 ) {
                 if ( ! activeRef.current ) return;
                 setStatus( result.status );
                 setData( result );
-                if ( result.status !== 'completed' && result.status !== 'failed' ) {
+                const auditDone = ! result.audit_status || result.audit_status === 'completed';
+                if ( ( result.status !== 'completed' || ! auditDone ) && result.status !== 'failed' ) {
                     timeoutRef.current = setTimeout( poll, intervalMs );
                 }
                 if ( result.status === 'failed' ) {

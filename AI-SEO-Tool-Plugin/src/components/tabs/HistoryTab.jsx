@@ -171,19 +171,42 @@ function HistoryCard( { item, prev, onDelete, deleting } ) {
             <button
                 onClick={ () => onDelete( item.id ) }
                 disabled={ deleting }
-                title={ __( 'Delete', 'ai-seo-tool' ) }
+                title={ __( 'Delete audit', 'ai-seo-tool' ) }
                 style={ {
-                    background: 'none', border: '1px solid #e2e8f0',
-                    borderRadius: '8px', padding: '6px 8px',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    width: '32px', height: '32px',
+                    background: '#fef2f2',
+                    border: '1px solid #fecaca',
+                    borderRadius: '8px',
                     cursor: deleting ? 'not-allowed' : 'pointer',
-                    color: '#94a3b8', fontSize: '14px',
-                    transition: 'all 0.15s',
+                    color: '#ef4444',
+                    transition: 'all 0.15s ease',
                     flexShrink: 0,
+                    opacity: deleting ? 0.5 : 1,
                 } }
-                onMouseEnter={ ( e ) => { e.currentTarget.style.borderColor = '#fecaca'; e.currentTarget.style.color = '#dc2626'; } }
-                onMouseLeave={ ( e ) => { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.color = '#94a3b8'; } }
+                onMouseEnter={ ( e ) => {
+                    if ( ! deleting ) {
+                        e.currentTarget.style.background = '#fee2e2';
+                        e.currentTarget.style.borderColor = '#f87171';
+                        e.currentTarget.style.color = '#dc2626';
+                    }
+                } }
+                onMouseLeave={ ( e ) => {
+                    e.currentTarget.style.background = '#fef2f2';
+                    e.currentTarget.style.borderColor = '#fecaca';
+                    e.currentTarget.style.color = '#ef4444';
+                } }
             >
-                { deleting ? '…' : '🗑' }
+                { deleting
+                    ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={ { animation: 'spin 1s linear infinite' } }><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+                    : <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="3 6 5 6 21 6"/>
+                        <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                        <path d="M10 11v6"/>
+                        <path d="M14 11v6"/>
+                        <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+                    </svg>
+                }
             </button>
         </div>
     );

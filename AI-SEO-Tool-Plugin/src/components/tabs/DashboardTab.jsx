@@ -187,11 +187,37 @@ export default function DashboardTab( { siteId, data, plan } ) {
             return;
         }
 
-        let cancelled = false;
+        let cancelled    = false;
+        let auditTimer   = null;
+        let geoTimer     = null;
+        let attempts     = 0;
+        let geoAttempts  = 0;
+
+        const MAX_RETRIES       = 4;
+        const RETRY_DELAY       = 2000;
+        const MAX_GEO_POLLS     = 24;   // 24 × 5 s = 2 min
+        const GEO_POLL_INTERVAL = 5000;
+
+        async function pollGeo() {
+            if ( cancelled || geoAttempts >= MAX_GEO_POLLS ) return;
+            geoAttempts++;
+            try {
+                const res = await apiFetch( { path: `/ai-seo-tool/v1/sites/${ siteId }/geo` } );
+                if ( ! cancelled ) {
+                    if ( res?.score?.overall_score ) {
+                        setGeo( res );
+                    } else {
+                        geoTimer = setTimeout( pollGeo, GEO_POLL_INTERVAL );
+                    }
+                }
+            } catch {
+                if ( ! cancelled ) geoTimer = setTimeout( pollGeo, GEO_POLL_INTERVAL );
+            }
+        }
 
         async function fetchData() {
-            setLoading( true );
-            setError( null );
+            if ( attempts === 0 ) { setLoading( true ); setError( null ); }
+            attempts++;
             try {
                 const [ pagesRes, geoRes, auditRes ] = await Promise.all( [
                     apiFetch( { path: `/ai-seo-tool/v1/sites/${ siteId }/pages` } ),
@@ -201,21 +227,26 @@ export default function DashboardTab( { siteId, data, plan } ) {
                 if ( ! cancelled ) {
                     setPages( Array.isArray( pagesRes?.pages ) ? pagesRes.pages : [] );
                     setGeo( geoRes );
-                    setAudit( auditRes?.audit ?? null );
+                    const auditData = auditRes?.audit ?? null;
+                    setAudit( auditData );
+                    setLoading( false );
+                    if ( ! auditData && data?.status === 'completed' && attempts < MAX_RETRIES ) {
+                        auditTimer = setTimeout( fetchData, RETRY_DELAY );
+                    }
+                    if ( ! geoRes?.score?.overall_score ) {
+                        geoTimer = setTimeout( pollGeo, GEO_POLL_INTERVAL );
+                    }
                 }
             } catch ( err ) {
                 if ( ! cancelled ) {
                     setError( err.message || __( 'Failed to load dashboard data.', 'ai-seo-tool' ) );
-                }
-            } finally {
-                if ( ! cancelled ) {
                     setLoading( false );
                 }
             }
         }
 
         fetchData();
-        return () => { cancelled = true; };
+        return () => { cancelled = true; clearTimeout( auditTimer ); clearTimeout( geoTimer ); };
     }, [ siteId, data?.status ] );
 
     const statusCounts = pages.reduce( ( acc, page ) => {
@@ -275,10 +306,10 @@ export default function DashboardTab( { siteId, data, plan } ) {
                 <div style={ cardStyle }>
                     <div style={ { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' } }>
                         <span style={ cardTitleStyle }>{ __( 'AI Citation Score', 'ai-seo-tool' ) }</span>
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2">
-                            <circle cx="12" cy="12" r="10"/>
-                            <line x1="12" y1="16" x2="12" y2="12"/>
-                            <line x1="12" y1="8" x2="12.01" y2="8"/>
+                        <svg width="18" height="18" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <circle cx="10" cy="10" r="10" fill="#e2e8f0"/>
+                            <circle cx="10" cy="7" r="1.2" fill="#64748b"/>
+                            <rect x="9" y="10" width="2" height="5" rx="1" fill="#64748b"/>
                         </svg>
                     </div>
                     <div style={ { display: 'flex', justifyContent: 'center' } }>

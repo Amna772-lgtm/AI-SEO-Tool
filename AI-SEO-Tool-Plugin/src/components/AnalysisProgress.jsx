@@ -9,11 +9,12 @@ import { Spinner } from '@wordpress/components';
 import { __ } from '@wordpress/i18n';
 
 const PHASES = {
-    pending:   { label: __( 'Crawling', 'ai-seo-tool' ),          pct: 33 },
-    crawling:  { label: __( 'Crawling', 'ai-seo-tool' ),          pct: 33 },
-    technical: { label: __( 'Technical Checks', 'ai-seo-tool' ),  pct: 66 },
-    geo:       { label: __( 'GEO Analysis', 'ai-seo-tool' ),      pct: 90 },
-    completed: { label: __( 'Complete', 'ai-seo-tool' ),          pct: 100 },
+    pending:    { label: __( 'Crawling', 'ai-seo-tool' ),          pct: 33 },
+    crawling:   { label: __( 'Crawling', 'ai-seo-tool' ),          pct: 33 },
+    technical:  { label: __( 'Technical Checks', 'ai-seo-tool' ),  pct: 66 },
+    geo:        { label: __( 'GEO Analysis', 'ai-seo-tool' ),      pct: 90 },
+    finalizing: { label: __( 'Finalizing Audit', 'ai-seo-tool' ),  pct: 96 },
+    completed:  { label: __( 'Complete', 'ai-seo-tool' ),          pct: 100 },
 };
 
 /**

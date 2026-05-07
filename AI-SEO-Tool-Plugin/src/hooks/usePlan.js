@@ -5,7 +5,7 @@
  * @package AI_SEO_Tool
  * @license GPL-2.0-or-later
  */
-import { useState, useEffect } from '@wordpress/element';
+import { useState, useEffect, useCallback } from '@wordpress/element';
 import apiFetch from '@wordpress/api-fetch';
 
 /**
@@ -15,8 +15,10 @@ export default function usePlan() {
     const [ plan, setPlan ] = useState( null );
     const [ loading, setLoading ] = useState( true );
     const [ error, setError ] = useState( null );
+    const [ tick, setTick ] = useState( 0 );
 
     useEffect( () => {
+        setLoading( true );
         apiFetch( { path: '/ai-seo-tool/v1/me' } )
             .then( ( data ) => {
                 setPlan( data );
@@ -26,7 +28,9 @@ export default function usePlan() {
                 setError( err.message || 'Failed to load plan info' );
                 setLoading( false );
             } );
-    }, [] );
+    }, [ tick ] );
 
-    return { plan, loading, error };
+    const refresh = useCallback( () => setTick( ( t ) => t + 1 ), [] );
+
+    return { plan, loading, error, refresh };
 }

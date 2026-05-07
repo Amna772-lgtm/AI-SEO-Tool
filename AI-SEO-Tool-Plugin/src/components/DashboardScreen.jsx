@@ -81,9 +81,18 @@ function AppHeader( { plan } ) {
         } }>
             {/* Logo */}
             <div style={ { display: 'flex', alignItems: 'center', gap: '8px' } }>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="#0d9488">
-                    <path d="M12 2 L13.5 9.5 L21 12 L13.5 14.5 L12 22 L10.5 14.5 L3 12 L10.5 9.5 Z"/>
-                </svg>
+                <span style={ {
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    width: '28px',
+                    height: '28px',
+                    borderRadius: '7px',
+                    background: 'linear-gradient(135deg, #0d9488, #16a34a)',
+                    fontSize: '15px',
+                    lineHeight: 1,
+                    flexShrink: 0,
+                } }>🤖</span>
                 <span style={ { fontSize: '16px', fontWeight: 700, color: '#0f172a', letterSpacing: '-0.3px' } }>
                     { __( 'AI SEO Tool', 'ai-seo-tool' ) }
                 </span>
@@ -133,7 +142,7 @@ function AppHeader( { plan } ) {
 // ─── Dashboard Screen ─────────────────────────────────────────────────────────
 
 export default function DashboardScreen( { currentPage, onDisconnected } ) {
-    const { plan, loading: planLoading, error: planError } = usePlan();
+    const { plan, loading: planLoading, error: planError, refresh: refreshPlan } = usePlan();
     const [ siteId, setSiteIdState ] = useState( () => sessionStorage.getItem( SESSION_KEY_SITE_ID ) || null );
     const [ analysisComplete, setAnalysisCompleteState ] = useState( () => sessionStorage.getItem( SESSION_KEY_COMPLETE ) === 'true' );
     const [ analyzeError, setAnalyzeError ] = useState( null );
@@ -170,21 +179,24 @@ export default function DashboardScreen( { currentPage, onDisconnected } ) {
 
     const { status, data: analysisData, error: pollError, reset: resetAnalysis } = useAnalysis( siteId );
 
+    const auditStatus    = analysisData?.audit_status;
+    const auditReady     = ! auditStatus || auditStatus === 'completed';
+
     useEffect( () => {
         if ( status === 'expired' ) {
             setSiteId( null );
             setAnalysisComplete( false );
             resetAnalysis();
+        } else if ( status === 'completed' && ( ! auditStatus || auditStatus === 'completed' ) && ! analysisComplete ) {
+            setAnalysisComplete( true );
+            refreshPlan();
         }
-    }, [ status ] );
+    }, [ status, auditStatus, analysisComplete ] );
 
-    const isFailed  = status === 'failed';
-    const isRunning = siteId && status && status !== 'completed' && status !== 'failed';
-    const isComplete = status === 'completed' || analysisComplete;
-
-    if ( status === 'completed' && ! analysisComplete ) {
-        setAnalysisComplete( true );
-    }
+    const isFailed       = status === 'failed';
+    const isRunning      = siteId && status && ( status !== 'completed' || ! auditReady ) && status !== 'failed';
+    const isComplete     = ( status === 'completed' && auditReady ) || analysisComplete;
+    const progressStatus = ( status === 'completed' && ! auditReady ) ? 'finalizing' : status;
 
     // Hide the default WP admin page heading — our AppHeader replaces it
     useEffect( () => {
@@ -396,7 +408,7 @@ export default function DashboardScreen( { currentPage, onDisconnected } ) {
                                     </Button>
                                 </>
                             ) : isRunning ? (
-                                <AnalysisProgress status={ status } />
+                                <AnalysisProgress status={ progressStatus } />
                             ) : isFailed ? (
                                 <>
                                     <Notice status="error" isDismissible={ false }>
