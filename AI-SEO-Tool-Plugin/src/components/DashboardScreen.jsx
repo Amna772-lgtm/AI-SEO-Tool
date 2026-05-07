@@ -105,7 +105,7 @@ function AppHeader( { plan } ) {
                     <div style={ { display: 'flex', alignItems: 'center', gap: '10px' } }>
                         <div style={ {
                             width: '34px', height: '34px', borderRadius: '50%',
-                            background: 'linear-gradient(135deg, #0d9488, #0ea5e9)',
+                            background: 'linear-gradient(135deg, #0d9488, #16a34a)',
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
                             color: '#fff', fontSize: '13px', fontWeight: 700, flexShrink: 0,
                         } }>
@@ -315,13 +315,22 @@ export default function DashboardScreen( { currentPage, onDisconnected } ) {
                             </Notice>
                         ) }
                         { quotaExhausted ? (
-                            <Button
-                                variant="primary"
+                            <button
                                 onClick={ () => window.open( 'http://localhost:3000/select-plan', '_blank' ) }
-                                style={ { backgroundColor: '#0d9488', borderColor: '#0d9488' } }
+                                style={ {
+                                    display: 'inline-flex', alignItems: 'center', gap: '6px',
+                                    padding: '7px 18px',
+                                    background: 'linear-gradient(135deg, #0d9488 0%, #0f766e 100%)',
+                                    color: '#ffffff', border: 'none', borderRadius: '6px',
+                                    fontSize: '13px', fontWeight: 600, cursor: 'pointer',
+                                    boxShadow: '0 1px 4px rgba(13,148,136,0.3)',
+                                    transition: 'box-shadow 0.15s', whiteSpace: 'nowrap',
+                                } }
+                                onMouseEnter={ ( e ) => { e.currentTarget.style.boxShadow = '0 3px 8px rgba(13,148,136,0.5)'; } }
+                                onMouseLeave={ ( e ) => { e.currentTarget.style.boxShadow = '0 1px 4px rgba(13,148,136,0.3)'; } }
                             >
                                 { __( 'Upgrade Plan', 'ai-seo-tool' ) }
-                            </Button>
+                            </button>
                         ) : (
                             <button
                                 onClick={ handleAnalyze }
@@ -399,13 +408,22 @@ export default function DashboardScreen( { currentPage, onDisconnected } ) {
                                             plan.audit_limit
                                         ) }
                                     </Notice>
-                                    <Button
-                                        variant="primary"
+                                    <button
                                         onClick={ () => window.open( 'http://localhost:3000/select-plan', '_blank' ) }
-                                        style={ { marginTop: '12px', backgroundColor: '#0d9488', borderColor: '#0d9488' } }
+                                        style={ {
+                                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                                            marginTop: '12px', padding: '10px 36px',
+                                            background: 'linear-gradient(135deg, #0d9488 0%, #0f766e 100%)',
+                                            color: '#ffffff', border: 'none', borderRadius: '6px',
+                                            fontSize: '14px', fontWeight: 600, cursor: 'pointer',
+                                            boxShadow: '0 2px 8px rgba(13,148,136,0.35)',
+                                            transition: 'box-shadow 0.15s', minWidth: '220px',
+                                        } }
+                                        onMouseEnter={ ( e ) => { e.currentTarget.style.boxShadow = '0 4px 12px rgba(13,148,136,0.5)'; } }
+                                        onMouseLeave={ ( e ) => { e.currentTarget.style.boxShadow = '0 2px 8px rgba(13,148,136,0.35)'; } }
                                     >
                                         { __( 'Upgrade Plan', 'ai-seo-tool' ) }
-                                    </Button>
+                                    </button>
                                 </>
                             ) : isRunning ? (
                                 <AnalysisProgress status={ progressStatus } />

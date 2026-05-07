@@ -432,6 +432,14 @@ function DashSecurityHeaders({ sh }: { sh: SecurityHeadersResult }) {
     "Referrer-Policy": "Referrer-Policy",
   };
 
+  const DESCRIPTIONS: Record<string, string> = {
+    "X-Content-Type-Options": "Prevents MIME-type sniffing",
+    "X-Frame-Options":        "Blocks clickjacking attacks",
+    "HSTS":                   "Forces HTTPS connections",
+    "CSP":                    "Prevents XSS & injection",
+    "Referrer-Policy":        "Controls referrer information",
+  };
+
   return (
     <div className="flex flex-col rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
       <div className="mb-4 flex items-center justify-between">
@@ -452,15 +460,22 @@ function DashSecurityHeaders({ sh }: { sh: SecurityHeadersResult }) {
             const info = sh.headers[key];
             if (!info) return null;
             const pass = info.present;
+            const shortLabel = SHORT_LABELS[info.label] ?? info.label;
+            const desc = DESCRIPTIONS[info.label];
             return (
               <div key={key}
-                className="flex items-center gap-2.5 rounded-md py-1.5 pl-3 pr-2.5 text-xs transition-colors hover:bg-[var(--surface-elevated)]">
+                className="flex items-center gap-2.5 rounded-md py-1.5 text-xs transition-colors hover:bg-[var(--surface-elevated)]">
                 <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[9px] font-bold"
                   style={{ background: pass ? "#10b98118" : "#ef444418", color: pass ? "#10b981" : "#ef4444" }}>
                   {pass ? "✓" : "✗"}
                 </span>
-                <span className="flex-1 truncate font-medium text-[var(--foreground)]" title={info.label}>
-                  {SHORT_LABELS[info.label] ?? info.label}
+                <span className="flex-1 min-w-0">
+                  <span className="block truncate font-medium text-[var(--foreground)]" title={info.label}>
+                    {shortLabel}
+                  </span>
+                  {desc && (
+                    <span className="block truncate text-[10px] text-[var(--muted)]">{desc}</span>
+                  )}
                 </span>
                 <span className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold"
                   style={{ background: pass ? "#10b98115" : "#ef444415", color: pass ? "#10b981" : "#ef4444" }}>
@@ -1002,8 +1017,8 @@ export default function Home() {
             </div>
           )}
 
-          {/* ── Quota-exhausted gate for all tabs except history ── */}
-          {!authLoading && quotaExhausted && mainTab !== "history" && (
+          {/* ── Quota-exhausted gate for all tabs except history and settings ── */}
+          {!authLoading && quotaExhausted && mainTab !== "history" && mainTab !== "settings" && (
             <div className="flex min-h-0 flex-1 flex-col items-center justify-center overflow-auto bg-[var(--background)] p-8">
               <LockedFeature
                 title={subscription?.plan === "pro" ? "Monthly Audit Limit Reached" : "Audit Limit Reached"}
@@ -1100,7 +1115,7 @@ export default function Home() {
                       </div>
                       <div className="text-3xl font-black tabular-nums" style={{ color: "#0f172a" }}>{(overview?.total_urls ?? 0).toLocaleString()}</div>
                       <div className="mt-1 flex items-center gap-1.5 flex-wrap">
-                        <p className="text-xs text-[var(--muted)]">{(pagesData?.total ?? 0).toLocaleString()} unique pages</p>
+                        <p className="text-xs text-[var(--muted)]">{(pagesData?.total ?? 0).toLocaleString()} pages</p>
                         {site.js_rendering && (
                           <span className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold" style={{ background: "#eff6ff", color: "#2563eb" }}>
                             <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
@@ -1603,7 +1618,7 @@ export default function Home() {
         )}
 
         {/* ── COMPETITORS TAB ── */}
-        {mainTab === "competitors" && (
+        {mainTab === "competitors" && !quotaExhausted && (
           <div className="flex min-h-0 flex-1 flex-col overflow-auto bg-[var(--background)]">
             <CompetitorsTab />
           </div>

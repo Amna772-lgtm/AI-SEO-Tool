@@ -80,8 +80,9 @@ function SectionCard({ title, children }: { title: string; children: React.React
     <div style={{
       borderRadius: 12, border: "1px solid var(--border)", background: "var(--surface)",
       padding: "14px 18px", boxShadow: "var(--card-shadow)",
+      display: "flex", flexDirection: "column",
     }}>
-      <h3 style={{ margin: "0 0 10px", fontSize: "0.9rem", fontWeight: 700, color: "var(--foreground)" }}>{title}</h3>
+      <h3 style={{ margin: "0 0 10px", fontSize: "0.9rem", fontWeight: 700, color: "var(--foreground)", flexShrink: 0 }}>{title}</h3>
       {children}
     </div>
   );
@@ -261,7 +262,7 @@ function PlanSection() {
   const plan = subscription?.plan ?? (user as (typeof user & { plan?: string }) | null)?.plan ?? "free";
 
   const planLabel: Record<string, string> = { free: "Free", pro: "Pro", agency: "Agency" };
-  const planColor: Record<string, string> = { free: "#64748b", pro: "#0d9488", agency: "#7c3aed" };
+  const planColor: Record<string, string> = { free: "#64748b", pro: "#0d9488", agency: "#16a34a" };
   const auditLimit = subscription?.plan === "pro" ? 10 : subscription?.plan === "agency" ? null : 1;
   const auditCount = subscription?.audit_count ?? 0;
   const features = PLAN_FEATURES[plan] ?? PLAN_FEATURES.free;
@@ -319,8 +320,8 @@ function PlanSection() {
       {plan === "agency" && (
         <div style={{
           padding: "8px 12px", borderRadius: 8,
-          background: "#7c3aed15", border: "1px solid #7c3aed30",
-          fontSize: "0.8rem", color: "#7c3aed", fontWeight: 600,
+          background: "#16a34a15", border: "1px solid #16a34a30",
+          fontSize: "0.8rem", color: "#16a34a", fontWeight: 600,
         }}>
           You&apos;re on the highest tier — enjoy unlimited audits.
         </div>
@@ -330,7 +331,7 @@ function PlanSection() {
       {plan === "free" && (
         <>
           <p style={{ fontSize: "0.8rem", color: "var(--muted)", margin: "0 0 10px" }}>
-            Upgrade to <strong style={{ color: "#0d9488" }}>Pro</strong> or <strong style={{ color: "#7c3aed" }}>Agency</strong> for more audits and advanced features.
+            Upgrade to <strong style={{ color: "#0d9488" }}>Pro</strong> or <strong style={{ color: "#16a34a" }}>Agency</strong> for more audits and advanced features.
           </p>
           <button
             type="button"
@@ -348,9 +349,9 @@ function PlanSection() {
       {plan === "pro" && (
         <button
           type="button"
-          style={{ ...btnGradient, background: "linear-gradient(135deg, #7c3aed, #6d28d9)", alignSelf: "flex-start" }}
-          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = "translateY(-1px)"; (e.currentTarget as HTMLElement).style.boxShadow = "0 6px 24px rgba(124,58,237,.45)"; }}
-          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = ""; (e.currentTarget as HTMLElement).style.boxShadow = "0 4px 16px rgba(124,58,237,.3)"; }}
+          style={{ ...btnGradient, background: "linear-gradient(135deg, #0d9488, #16a34a)", alignSelf: "flex-start" }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = "translateY(-1px)"; (e.currentTarget as HTMLElement).style.boxShadow = "0 6px 24px rgba(13,148,136,.45)"; }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = ""; (e.currentTarget as HTMLElement).style.boxShadow = "0 4px 16px rgba(13,148,136,.3)"; }}
           onClick={() => window.dispatchEvent(new CustomEvent("quota:exceeded", { detail: { plan } }))}
         >
           Upgrade to Agency

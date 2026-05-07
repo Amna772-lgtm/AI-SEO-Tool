@@ -66,66 +66,93 @@ export default function UpgradeModal() {
       aria-modal="true"
       aria-labelledby={headingId}
       className="fixed inset-0 z-50 flex items-center justify-center"
-      style={{ background: "rgba(0,0,0,0.6)" }}
+      style={{ background: "rgba(0,0,0,0.55)", backdropFilter: "blur(4px)" }}
       onClick={(e) => {
         if (e.target === e.currentTarget && !upgrading) setOpen(false);
       }}
     >
       <div
-        className="w-full max-w-sm rounded-lg p-6"
-        style={{
-          background: "var(--surface)",
-          border: "1px solid var(--border)",
-        }}
+        className="w-full max-w-sm overflow-hidden rounded-2xl shadow-2xl"
+        style={{ background: "var(--surface)", border: "1px solid var(--border)" }}
       >
-        <h2
-          id={headingId}
-          className="text-sm font-semibold"
-          style={{ color: "var(--foreground)" }}
-        >
-          {heading}
-        </h2>
-        <p className="text-xs mt-1 mb-4" style={{ color: "var(--muted)" }}>
-          {body}
-        </p>
+        {/* Gradient top bar */}
+        <div style={{ height: 4, background: "linear-gradient(90deg, #0d9488, #16a34a)" }} />
 
-        {/* Primary CTA — go to Stripe directly */}
-        <button
-          ref={ctaRef}
-          onClick={() => handleUpgrade(targetPlan)}
-          disabled={upgrading !== null}
-          className="w-full rounded min-h-[44px] text-xs font-semibold text-white focus:outline-none focus:ring-1 focus:ring-[var(--accent)] disabled:opacity-50 disabled:cursor-not-allowed"
-          style={{ background: "var(--accent)" }}
-        >
-          {upgrading ? "Redirecting to checkout..." : ctaLabel}
-        </button>
+        <div className="p-6">
+          {/* Icon + label row */}
+          <div className="mb-4 flex items-center gap-3">
+            <div
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl"
+              style={{ background: "linear-gradient(135deg, #0d9488, #16a34a)", boxShadow: "0 4px 12px rgba(13,148,136,0.35)", fontSize: "22px", lineHeight: 1 }}
+            >
+              🤖
+            </div>
+            <div>
+              <span
+                className="mb-0.5 inline-block rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider"
+                style={{ background: "rgba(13,148,136,0.1)", color: "#0d9488" }}
+              >
+                {isPro ? "Pro plan" : "Free plan"}
+              </span>
+              <h2
+                id={headingId}
+                className="text-sm font-bold leading-tight"
+                style={{ color: "var(--foreground)" }}
+              >
+                {heading}
+              </h2>
+            </div>
+          </div>
 
-        {/* If free user, also offer Agency */}
-        {!isPro && (
+          {/* Body */}
+          <p className="mb-5 text-xs leading-relaxed" style={{ color: "var(--muted)" }}>
+            {body}
+          </p>
+
+          {/* Primary CTA */}
+          <button
+            ref={ctaRef}
+            onClick={() => handleUpgrade(targetPlan)}
+            disabled={upgrading !== null}
+            className="w-full min-h-[44px] rounded-xl text-sm font-bold text-white transition-all disabled:cursor-not-allowed disabled:opacity-50"
+            style={{
+              background: "linear-gradient(135deg, #0d9488, #16a34a)",
+              boxShadow: "0 4px 16px rgba(13,148,136,0.35)",
+            }}
+            onMouseEnter={e => { if (!upgrading) (e.currentTarget as HTMLElement).style.boxShadow = "0 6px 24px rgba(13,148,136,0.5)"; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.boxShadow = "0 4px 16px rgba(13,148,136,0.35)"; }}
+          >
+            {upgrading === targetPlan ? "Redirecting to checkout…" : ctaLabel}
+          </button>
+
+          {/* Secondary CTA for free users */}
+          {!isPro && (
+            <button
+              type="button"
+              onClick={() => handleUpgrade("agency")}
+              disabled={upgrading !== null}
+              className="mt-2 w-full min-h-[44px] rounded-xl text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+              style={{
+                background: "var(--surface-elevated)",
+                border: "1px solid var(--border)",
+                color: "var(--foreground)",
+              }}
+            >
+              {upgrading === "agency" ? "Redirecting to checkout…" : "Agency — $99/mo (unlimited)"}
+            </button>
+          )}
+
+          {/* Dismiss */}
           <button
             type="button"
-            onClick={() => handleUpgrade("agency")}
+            onClick={() => setOpen(false)}
             disabled={upgrading !== null}
-            className="w-full rounded min-h-[44px] text-xs font-semibold mt-2 focus:outline-none focus:ring-1 focus:ring-[var(--accent)] disabled:opacity-50 disabled:cursor-not-allowed"
-            style={{
-              background: "var(--surface-elevated)",
-              border: "1px solid var(--border)",
-              color: "var(--foreground)",
-            }}
+            className="mx-auto mt-4 flex items-center gap-1 text-xs transition-colors hover:opacity-80 disabled:opacity-40"
+            style={{ color: "var(--muted)" }}
           >
-            {upgrading === "agency" ? "Redirecting to checkout..." : "Agency — $99/mo (unlimited)"}
+            Not now
           </button>
-        )}
-
-        <button
-          type="button"
-          onClick={() => setOpen(false)}
-          disabled={upgrading !== null}
-          className="block mx-auto mt-3 text-xs disabled:opacity-50"
-          style={{ color: "var(--muted)" }}
-        >
-          Not now
-        </button>
+        </div>
       </div>
     </div>
   );
