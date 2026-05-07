@@ -56,7 +56,7 @@ function CompetitorsTabInner() {
   const [manualUrl, setManualUrl] = useState<string>("");
   const [siteRecords, setSiteRecords] = useState<Map<string, HistoryRecord>>(new Map());
   const [discovering, setDiscovering] = useState(false);
-  const [discoveryMessage, setDiscoveryMessage] = useState<string | null>(null);
+  const [discoveryStatus, setDiscoveryStatus] = useState<'fallback' | 'error' | 'no-results' | null>(null);
   const [addError, setAddError] = useState<string | null>(null);
   const [loadingGroup, setLoadingGroup] = useState(false);
   const [addingCompetitors, setAddingCompetitors] = useState(false);
@@ -73,7 +73,7 @@ function CompetitorsTabInner() {
       setGroup(null);
       setSuggestions([]);
       setSelectedSuggestions(new Set());
-      setDiscoveryMessage(null);
+      setDiscoveryStatus(null);
       setAddError(null);
       setHasSearched(false);
       return;
@@ -140,9 +140,22 @@ function CompetitorsTabInner() {
     if (!selectedPrimaryId) return;
     setHasSearched(true);
     setDiscovering(true);
-    setDiscoveryMessage(null);
+    setDiscoveryStatus(null);
     setSuggestions([]);
     setSelectedSuggestions(new Set());
+    try {
+      const result = await discoverCompetitors(selectedPrimaryId);
+      setSuggestions(result.suggestions);
+      if (result.fallback) {
+        setDiscoveryStatus('fallback');
+      } else if (result.suggestions.length === 0) {
+        setDiscoveryStatus('no-results');
+      }
+    } catch {
+      setDiscoveryStatus('error');
+    } finally {
+      setDiscovering(false);
+    }
   }, [selectedPrimaryId]);
 
   const toggleSuggestion = useCallback((domain: string) => {
@@ -179,6 +192,8 @@ function CompetitorsTabInner() {
       setGroup(refreshed);
     } catch { /* non-fatal */ }
     setSelectedSuggestions(new Set());
+    setSuggestions([]);
+    setDiscoveryStatus(null);
     setAddingCompetitors(false);
   }, [group, selectedSuggestions]);
 
@@ -190,6 +205,8 @@ function CompetitorsTabInner() {
       setManualUrl("");
       const refreshed = await getCompetitorGroup(group.id);
       setGroup(refreshed);
+      setSuggestions([]);
+      setDiscoveryStatus(null);
     } catch (err: unknown) {
       const e = err as Error & { code?: string; cap?: number };
       if (e.code === "competitor_cap_reached") {
@@ -336,7 +353,7 @@ function CompetitorsTabInner() {
       </div>
 
       {/* ── Discovery results (suggestions / message) ── */}
-      {(suggestions.length > 0 || discoveryMessage) && (
+      {(suggestions.length > 0 || discoveryStatus) && (
         <div className="flex flex-col gap-4">
           {suggestions.length > 0 && (
             <>
@@ -355,8 +372,32 @@ function CompetitorsTabInner() {
               </div>
             </>
           )}
-          {discoveryMessage && (
-            <p className="text-sm text-[var(--muted)]">{discoveryMessage}</p>
+          {discoveryStatus === 'fallback' && (
+            <div className="flex items-start gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              <span className="mt-0.5 shrink-0">⚠️</span>
+              <div>
+                <p className="font-semibold">AI suggestions unavailable right now</p>
+                <p className="mt-0.5 text-amber-800">Use the manual field above to add a competitor directly.</p>
+              </div>
+            </div>
+          )}
+          {discoveryStatus === 'error' && (
+            <div className="flex items-start gap-3 rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-900">
+              <span className="mt-0.5 shrink-0">✕</span>
+              <div>
+                <p className="font-semibold">Discovery failed</p>
+                <p className="mt-0.5 text-red-800">Couldn&apos;t reach the service. Check your connection and try again.</p>
+              </div>
+            </div>
+          )}
+          {discoveryStatus === 'no-results' && (
+            <div className="flex items-start gap-3 rounded-lg border border-blue-300 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+              <span className="mt-0.5 shrink-0">ℹ️</span>
+              <div>
+                <p className="font-semibold">No matches found</p>
+                <p className="mt-0.5 text-blue-800">AI couldn&apos;t identify direct competitors for this site. Add one manually above.</p>
+              </div>
+            </div>
           )}
           {selectedSuggestions.size > 0 && (
             <button
@@ -378,7 +419,7 @@ function CompetitorsTabInner() {
       {/* ── Tracked competitors ── */}
       {group && (
         <div className="flex flex-col gap-4">
-          {group.sites.length === 0 && hasSearched && !discovering ? (
+          {group.sites.length === 0 && hasSearched && !discovering && !discoveryStatus ? (
             <div className="flex flex-col gap-1">
               <p className="text-sm font-semibold text-[var(--foreground)]">No competitors tracked yet</p>
               <p className="text-xs text-[var(--muted)]">
@@ -460,9 +501,13 @@ function CompetitorsTabInner() {
 
       {/* Pending audits message */}
       {!showComparison && group && group.sites.length > 0 && (
-        <p className="text-center text-sm text-[var(--muted)]">
-          Comparison will appear once competitor audits complete.
-        </p>
+        <div className="flex items-center gap-3 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm">
+          <div className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-[var(--border)] border-t-[var(--accent)]" />
+          <div>
+            <span className="font-semibold text-[var(--foreground)]">Auditing competitors…</span>
+            <span className="ml-1 text-[var(--muted)]">Scores and the comparison chart will appear once analysis finishes.</span>
+          </div>
+        </div>
       )}
     </div>
   );
